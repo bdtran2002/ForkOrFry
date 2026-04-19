@@ -1,54 +1,40 @@
 # ForkOrFry
 
-ForkOrFry is a Firefox extension that detects inactivity and launches a simulated “lock in or fry” takeover.
+An idle-triggered CS future-predicting simulator that gives you a preview of your future putting the fries in the bag when you spend too long scrolling reels on your phone.
 
-If you go idle, the extension opens a controlled, self-contained mock interface that visually walks through a fake job application using a scripted cursor and animation timeline.
+## What it is
 
-Nothing is real. Nothing is submitted. It is purely a parody of not locking in.
+ForkOrFry is a small TypeScript + Vite single-page experience that watches for inactivity and escalates through a fake career forecast:
 
----
+- `intro` → waiting to start
+- `active` → user is still interacting
+- `warning` → doomscroll risk rising
+- `predicting` → fast-food destiny calculation in progress
+- `result` → absurd prophecy delivered
 
-## Features
+The app also keeps the current phase in `localStorage`, so panic-refreshing does not immediately save you.
 
-- Idle detection using browser APIs  
-- Fullscreen simulation mode  
-- Fake cursor system (no real mouse control)  
-- Scripted UI timeline (navigation, loading, form filling)  
-- Typing animation with staged inputs  
-- Instant exit via ESC or on-screen button  
-- No external site interaction  
+## Run locally
 
----
+The frontend app lives in the nested `ForkOrFry/` folder.
 
-## How It Works
+```bash
+cd ForkOrFry
+npm install
+npm run dev
+```
 
-1. The extension monitors inactivity  
-2. After a set threshold, a simulation tab opens  
-3. A fake browser UI is rendered  
-4. A scripted sequence plays:
-   - “navigating” to a job page  
-   - “loading” content  
-   - “filling” out a form  
-5. The simulation ends or can be exited at any time  
+Then open the local Vite URL in your browser.
 
----
+## Build
 
-## Safety & Privacy
+```bash
+cd ForkOrFry
+npm run build
+```
 
-ForkOrFry is intentionally designed to be safe:
+## Notes
 
-- Does NOT control your real mouse or keyboard  
-- Does NOT access or modify external websites  
-- Does NOT collect or store user data  
-- Does NOT submit any forms  
-
-All behavior is contained within a local extension page.
-
----
-
-## Installation (Development)
-
-1. Clone the repo:
-   ```bash
-   git clone https://github.com/yourusername/ForkOrFry.git
-   cd ForkOrFry
+- Use **Start scrolling** to arm the simulator.
+- Stop interacting to trigger the warning, prediction, and result states.
+- Use **Fast-forward demo** if you want to test the result state immediately.
