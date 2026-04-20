@@ -32,15 +32,16 @@ ForkOrFry is a local-only Firefox Manifest V3 extension built with WXT:
 
 ## Project layout
 
-- repo root: docs and GitHub Actions
-- `ForkOrFry/`: the actual frontend Firefox extension app
+- repo root: repository docs and GitHub Actions
+- `extension/`: the actual Firefox extension package
+- `docs/amo/`: reviewer notes, permissions notes, QA checklist, and AMO submission scaffolding
 
 ## Develop locally
 
 Requires Node `^20.19.0 || >=22.12.0`.
 
 ```bash
-cd ForkOrFry
+cd extension
 npm install
 npm run dev
 ```
@@ -48,20 +49,20 @@ npm run dev
 ## Build and load in Firefox
 
 ```bash
-cd ForkOrFry
+cd extension
 npm run build
 ```
 
 Then load the extension in Firefox via `about:debugging` → `This Firefox` → `Load Temporary Add-on` and select:
 
 ```text
-ForkOrFry/dist/firefox-mv3/manifest.json
+extension/dist/firefox-mv3/manifest.json
 ```
 
 ## Verification
 
 ```bash
-cd ForkOrFry
+cd extension
 npm run lint
 npm test
 npm run build
@@ -71,27 +72,27 @@ npm run build
 
 ## CI
 
-GitHub Actions runs from the repo root but builds the nested extension app. Each CI run:
+GitHub Actions runs from the repo root but builds the dedicated `extension/` package. Each CI run:
 
-- installs dependencies from `ForkOrFry/package-lock.json`
+- installs dependencies from `extension/package-lock.json`
 - runs `npm run lint`
 - runs `npm test`
 - runs `npm run build`
-- uploads the built Firefox extension files from `ForkOrFry/dist/firefox-mv3/` as an artifact
+- uploads the built Firefox extension files from `extension/dist/firefox-mv3/` as an artifact
 
 There is also a manual/tag packaging workflow that runs `npm run package:firefox` and uploads an unsigned `.xpi` artifact.
 
 ## Packaging
 
 ```bash
-cd ForkOrFry
+cd extension
 npm run package:firefox
 ```
 
 This writes:
 
 ```text
-ForkOrFry/dist/forkorfry-firefox-mv3.xpi
+extension/dist/forkorfry-firefox-mv3.xpi
 ```
 
 That package is useful for CI artifacts and debug/testing flows. Public Firefox distribution still needs signing through AMO or another Firefox signing flow.
@@ -99,9 +100,19 @@ That package is useful for CI artifacts and debug/testing flows. Public Firefox 
 If you want to regenerate the committed Firefox icons:
 
 ```bash
-cd ForkOrFry
+cd extension
 npm run icons:generate
 ```
+
+## AMO-ready repo structure
+
+This repo now keeps Firefox Add-on submission prep in dedicated locations:
+
+- `extension/` contains the installable extension source, tests, icons, and packaging scripts
+- `docs/amo/reviewer-notes.md` explains what the extension does for future reviewer context
+- `docs/amo/permissions.md` records why the current permissions are needed
+- `docs/amo/qa-checklist.md` tracks the manual checks to run before submission
+- `docs/amo/listing-assets/` is reserved for future screenshots, promo art, and store assets
 
 ## Notes
 

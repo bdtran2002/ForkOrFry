@@ -18,7 +18,7 @@ jobs:
     runs-on: ubuntu-latest
     defaults:
       run:
-        working-directory: ForkOrFry
+        working-directory: extension
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -28,7 +28,7 @@ jobs:
         with:
           node-version: 20.19.0
           cache: npm
-          cache-dependency-path: ForkOrFry/package-lock.json
+          cache-dependency-path: extension/package-lock.json
 
       - name: Install dependencies
         run: npm ci
@@ -46,5 +46,5 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: forkorfry-firefox-xpi
-          path: ForkOrFry/dist/forkorfry-firefox-mv3.xpi
+          path: extension/dist/forkorfry-firefox-mv3.xpi
           if-no-files-found: error
