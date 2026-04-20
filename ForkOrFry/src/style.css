@@ -5,6 +5,7 @@ body { font-family: system-ui, sans-serif; color:var(--text); background: radial
 body.takeover-mode { cursor:none; }
 button { font:inherit; border:0; cursor:pointer; }
 .eyebrow { text-transform:uppercase; letter-spacing:.18em; color:var(--accent); font-size:.72rem; margin:0 0 .5rem; }
+.eyebrow.compact { margin-bottom:.25rem; }
 .lede { color:var(--muted); line-height:1.5; }
 .popup, .takeover { min-height:100vh; padding:18px; }
 .popup { width:320px; }
@@ -16,12 +17,28 @@ button { font:inherit; border:0; cursor:pointer; }
 .status { padding:12px; margin:14px 0; }
 .helper { color:var(--muted); font-size:.85rem; margin:.85rem 0 0; }
 .takeover { display:grid; gap:16px; align-content:start; max-width:760px; margin:0 auto; }
-.takeover header h1 { margin:0; font-size:clamp(2rem,5vw,4rem); }
+.takeover header h1 { margin:0; font-size:clamp(2rem,5vw,4rem); font-family:"Iowan Old Style", "Palatino Linotype", "Book Antiqua", serif; letter-spacing:-.03em; }
 .safety-banner { display:inline-flex; padding:8px 12px; border-radius:999px; border:1px solid rgba(130,242,211,.32); background:rgba(130,242,211,.1); color:var(--accent-3); font-size:.74rem; letter-spacing:.12em; text-transform:uppercase; margin:0 0 .85rem; }
-.stage { padding:16px; display:grid; gap:12px; }
+.stage { padding:16px; display:grid; gap:12px; position:relative; overflow:hidden; }
+.stage::before { content:''; position:absolute; inset:0; background:linear-gradient(135deg, rgba(255,154,47,.08), transparent 28%, rgba(130,242,211,.05)); pointer-events:none; }
+.status-row { display:flex; align-items:flex-start; justify-content:space-between; gap:12px; position:relative; z-index:1; }
+.status-text { font-size:1.05rem; font-weight:600; }
+.stage-pill { padding:8px 10px; border-radius:999px; background:rgba(255,255,255,.06); border:1px solid var(--line); color:var(--muted); font-size:.82rem; white-space:nowrap; }
+.progress-track { height:10px; border-radius:999px; background:rgba(255,255,255,.06); overflow:hidden; position:relative; z-index:1; }
+.progress-fill { height:100%; width:20%; border-radius:inherit; background:linear-gradient(90deg, var(--accent), var(--accent-2)); transition:width .35s ease; }
+.stepper { display:flex; flex-wrap:wrap; gap:8px; position:relative; z-index:1; }
+.stepper span { padding:7px 10px; border-radius:999px; border:1px solid var(--line); color:var(--muted); background:rgba(255,255,255,.03); font-size:.8rem; }
+.stepper span.is-active { color:var(--text); border-color:rgba(255,154,47,.5); background:rgba(255,154,47,.14); }
+.stepper span.is-complete { color:var(--accent-3); border-color:rgba(130,242,211,.34); background:rgba(130,242,211,.08); }
+.log-panel { padding:14px; border-radius:16px; border:1px solid var(--line); background:rgba(255,255,255,.04); position:relative; z-index:1; }
+.log-title { color:var(--accent-3); text-transform:uppercase; letter-spacing:.14em; font-size:.7rem; margin-bottom:.65rem; }
+.log-list { margin:0; padding-left:1.1rem; display:grid; gap:.45rem; color:var(--muted); }
+.form-grid { display:grid; gap:12px; position:relative; z-index:1; }
 .field { display:grid; gap:6px; }
 .field label { color:var(--muted); font-size:.9rem; }
-.field .input { min-height:44px; display:flex; align-items:center; padding:0 12px; }
+.field .input { min-height:44px; display:flex; align-items:center; padding:0 12px; font-variant-ligatures:none; }
 .note { color:var(--accent-3); font-size:.92rem; }
+.completion { position:relative; z-index:1; padding:16px; border-radius:18px; border:1px solid rgba(130,242,211,.24); background:linear-gradient(135deg, rgba(130,242,211,.14), rgba(255,255,255,.04)); }
+.completion-badge { display:inline-flex; margin-bottom:.6rem; padding:8px 10px; border-radius:999px; background:rgba(130,242,211,.14); color:var(--accent-3); text-transform:uppercase; letter-spacing:.14em; font-size:.72rem; }
 .cursor { width:14px; height:14px; border-radius:50%; background:var(--accent-2); box-shadow:0 0 0 8px rgba(255,79,116,.15); position:fixed; left:0; top:0; transition:transform .22s linear; pointer-events:none; }
 .cursor::after { content:'DEMO'; position:absolute; left:18px; top:-4px; padding:2px 6px; border-radius:999px; background:rgba(255,79,116,.18); color:var(--text); font-size:.64rem; letter-spacing:.1em; }
