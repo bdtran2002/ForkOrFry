@@ -1,5 +1,5 @@
-import { type BackgroundMessage } from './shared'
-import './style.css'
+import '../../style.css'
+import { type BackgroundMessage } from '../../core/messages'
 
 document.body.classList.add('takeover-mode')
 
@@ -62,8 +62,7 @@ const fields = [
   { label: 'Employee alias', value: 'Night Fry Ace' },
   { label: 'Shift vibe', value: 'mildly chaotic' },
   { label: 'Sauce alignment', value: 'ultra ranch' },
-  { label: 'Bagging confidence', value: '100%'
-  },
+  { label: 'Bagging confidence', value: '100%' },
 ]
 
 formGrid.innerHTML = fields
@@ -79,22 +78,25 @@ const logs = [
   'Finalizing the theatrical checkout sequence.',
 ]
 
-function sleep(ms: number) { return new Promise((resolve) => window.setTimeout(resolve, ms)) }
+const sleep = (ms: number) => new Promise((resolve) => window.setTimeout(resolve, ms))
+
 async function typeLine(el: HTMLElement, value: string) {
   el.textContent = ''
-  for (const ch of value) { el.textContent += ch; await sleep(35) }
+  for (const ch of value) {
+    el.textContent += ch
+    await sleep(35)
+  }
 }
 
 async function moveCursorToElement(el: Element) {
   const rect = el.getBoundingClientRect()
-  const x = rect.left + rect.width / 2
-  const y = rect.top + rect.height / 2
-  cursor.style.transform = `translate(${x}px, ${y}px)`
+  cursor.style.transform = `translate(${rect.left + rect.width / 2}px, ${rect.top + rect.height / 2}px)`
   await sleep(220)
 }
 
 function setStep(index: number) {
   const step = Math.min(index + 1, 5)
+
   stagePill.textContent = `Step ${step} of 5`
   statusText.textContent = [
     'Booting fake onboarding...',
@@ -121,6 +123,7 @@ async function run() {
   pushLog(logs[0])
   await sleep(500)
   await moveCursorToElement(formGrid)
+
   for (const [index, el] of fills.entries()) {
     setStep(Math.min(index + 1, 3))
     pushLog(logs[index + 1] ?? 'Advancing the fake flow.')
@@ -128,6 +131,7 @@ async function run() {
     await typeLine(el, fields[index]?.value ?? 'queued')
     await sleep(320)
   }
+
   setStep(4)
   pushLog(logs[4])
   completion.hidden = false
@@ -138,6 +142,7 @@ async function run() {
 }
 
 resetButton?.addEventListener('click', () => window.location.reload())
+
 dismissButton?.addEventListener('click', async () => {
   await browser.runtime.sendMessage({ type: 'disarm' } satisfies BackgroundMessage)
   const currentTab = await browser.tabs.getCurrent()

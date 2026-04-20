@@ -1,4 +1,6 @@
-import { DEFAULT_STATE, IDLE_INTERVAL_SECONDS, type BackgroundMessage, getState, resetState, setState, triggerTakeover } from './shared'
+import { type BackgroundMessage } from './messages'
+import { DEFAULT_STATE, IDLE_INTERVAL_SECONDS, getState, resetState, setState } from './state'
+import { triggerTakeover } from './takeover'
 
 let stateQueue = Promise.resolve()
 
@@ -62,7 +64,6 @@ browser.idle.onStateChanged.addListener((idleState) => {
 })
 
 browser.runtime.onMessage.addListener(async (message: BackgroundMessage) => {
-
   if (message.type === 'arm') {
     return serializeStateTask(arm)
   }

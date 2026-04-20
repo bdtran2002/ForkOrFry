@@ -1,30 +1,30 @@
 // @vitest-environment jsdom
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-import type { BackgroundMessage } from '../src/shared'
+import type { BackgroundMessage } from '../src/core/messages'
 
 type BrowserMock = {
   runtime: { sendMessage: ReturnType<typeof vi.fn> }
 }
 
-const shared = vi.hoisted(() => ({
+const state = vi.hoisted(() => ({
   getState: vi.fn(),
 }))
 
-vi.mock('../src/shared', () => shared)
+vi.mock('../src/core/state', () => state)
 
 describe('popup app', () => {
   beforeEach(() => {
     vi.resetModules()
     document.body.innerHTML = '<div id="app"></div>'
-    shared.getState.mockReset()
+    state.getState.mockReset()
     Object.assign(globalThis, { browser: { runtime: { sendMessage: vi.fn() } } as BrowserMock })
   })
 
   it('renders state and sends popup commands', async () => {
-    shared.getState.mockResolvedValue({ armed: false, takeoverTabId: null, lastIdleAt: null, idleIntervalSeconds: 300 })
+    state.getState.mockResolvedValue({ armed: false, takeoverTabId: null, lastIdleAt: null, idleIntervalSeconds: 300 })
 
-    await import('../src/popup-app')
+    await import('../src/features/popup/app')
     await Promise.resolve()
 
     expect(document.querySelector('#mode-value')?.textContent).toBe('Disarmed')
@@ -41,9 +41,9 @@ describe('popup app', () => {
   })
 
   it('updates controls for armed state and reset/disarm actions', async () => {
-    shared.getState.mockResolvedValue({ armed: true, takeoverTabId: 11, lastIdleAt: 1710000000000, idleIntervalSeconds: 60 })
+    state.getState.mockResolvedValue({ armed: true, takeoverTabId: 11, lastIdleAt: 1710000000000, idleIntervalSeconds: 60 })
 
-    await import('../src/popup-app')
+    await import('../src/features/popup/app')
     await Promise.resolve()
 
     expect(document.querySelector('#status')?.textContent).toContain('Armed')

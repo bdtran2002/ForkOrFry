@@ -109,6 +109,9 @@ npm run icons:generate
 This repo now keeps Firefox Add-on submission prep in dedicated locations:
 
 - `extension/` contains the installable extension source, tests, icons, and packaging scripts
+- `extension/src/core/` contains shared state, message, and browser orchestration logic
+- `extension/src/features/` contains popup and takeover UI modules
+- `extension/src/entrypoints/` stays thin so WXT entrypoints remain easy to audit
 - `docs/amo/reviewer-notes.md` explains what the extension does for future reviewer context
 - `docs/amo/permissions.md` records why the current permissions are needed
 - `docs/amo/qa-checklist.md` tracks the manual checks to run before submission

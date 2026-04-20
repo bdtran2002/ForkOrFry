@@ -1,5 +1,6 @@
-import './style.css'
-import { type BackgroundMessage, getState } from './shared'
+import '../../style.css'
+import { type BackgroundMessage } from '../../core/messages'
+import { getState } from '../../core/state'
 
 const app = document.querySelector<HTMLDivElement>('#app')
 if (!app) throw new Error('Missing popup root')
@@ -20,18 +21,9 @@ app.innerHTML = `
   </div>
   <div class="status" id="status"></div>
   <section class="status-grid" aria-label="Extension status details">
-    <div class="status-tile">
-      <span class="status-label">Mode</span>
-      <strong class="status-value" id="mode-value"></strong>
-    </div>
-    <div class="status-tile">
-      <span class="status-label">Takeover tab</span>
-      <strong class="status-value" id="tab-value"></strong>
-    </div>
-    <div class="status-tile">
-      <span class="status-label">Last trigger</span>
-      <strong class="status-value" id="last-trigger-value"></strong>
-    </div>
+    <div class="status-tile"><span class="status-label">Mode</span><strong class="status-value" id="mode-value"></strong></div>
+    <div class="status-tile"><span class="status-label">Takeover tab</span><strong class="status-value" id="tab-value"></strong></div>
+    <div class="status-tile"><span class="status-label">Last trigger</span><strong class="status-value" id="last-trigger-value"></strong></div>
   </section>
   <div class="actions">
     <button type="button" class="primary" id="arm">Arm</button>
@@ -56,6 +48,7 @@ const buttons = {
 
 function formatLastTrigger(lastIdleAt: number | null) {
   if (!lastIdleAt) return 'Not yet'
+
   return new Intl.DateTimeFormat(undefined, {
     month: 'short',
     day: 'numeric',
@@ -67,6 +60,7 @@ function formatLastTrigger(lastIdleAt: number | null) {
 async function refresh() {
   const state = await getState()
   const takeoverOpen = state.takeoverTabId !== null
+
   idleIntervalSelect.value = String(state.idleIntervalSeconds)
   status.textContent = state.armed
     ? takeoverOpen
@@ -82,14 +76,33 @@ async function refresh() {
 }
 
 idleIntervalSelect.addEventListener('change', async () => {
-  const message: BackgroundMessage = { type: 'set-idle-interval', idleIntervalSeconds: Number(idleIntervalSelect.value) }
+  const message: BackgroundMessage = {
+    type: 'set-idle-interval',
+    idleIntervalSeconds: Number(idleIntervalSelect.value),
+  }
+
   await browser.runtime.sendMessage(message)
   await refresh()
 })
 
-buttons.arm.addEventListener('click', async () => { await browser.runtime.sendMessage({ type: 'arm' } satisfies BackgroundMessage); await refresh() })
-buttons.demo.addEventListener('click', async () => { await browser.runtime.sendMessage({ type: 'demo-now' } satisfies BackgroundMessage); await refresh() })
-buttons.disarm.addEventListener('click', async () => { await browser.runtime.sendMessage({ type: 'disarm' } satisfies BackgroundMessage); await refresh() })
-buttons.reset.addEventListener('click', async () => { await browser.runtime.sendMessage({ type: 'reset' } satisfies BackgroundMessage); await refresh() })
+buttons.arm.addEventListener('click', async () => {
+  await browser.runtime.sendMessage({ type: 'arm' } satisfies BackgroundMessage)
+  await refresh()
+})
+
+buttons.demo.addEventListener('click', async () => {
+  await browser.runtime.sendMessage({ type: 'demo-now' } satisfies BackgroundMessage)
+  await refresh()
+})
+
+buttons.disarm.addEventListener('click', async () => {
+  await browser.runtime.sendMessage({ type: 'disarm' } satisfies BackgroundMessage)
+  await refresh()
+})
+
+buttons.reset.addEventListener('click', async () => {
+  await browser.runtime.sendMessage({ type: 'reset' } satisfies BackgroundMessage)
+  await refresh()
+})
 
 void refresh()
