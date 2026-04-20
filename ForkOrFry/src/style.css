@@ -12,9 +12,14 @@ button { font:inherit; border:0; cursor:pointer; }
 .card, .status, .actions button, .field .input { border:1px solid var(--line); background:var(--panel); border-radius:16px; }
 .actions { display:flex; gap:8px; flex-wrap:wrap; }
 .actions button { color:var(--text); background:rgba(255,255,255,.06); padding:10px 12px; }
+.actions button:disabled { opacity:.45; cursor:not-allowed; }
 .actions .primary { background:linear-gradient(135deg, var(--accent), var(--accent-2)); color:#120813; font-weight:700; }
 .actions .secondary { background:rgba(255,255,255,.06); }
 .status { padding:12px; margin:14px 0; }
+.status-grid { display:grid; grid-template-columns:repeat(3, minmax(0, 1fr)); gap:8px; margin:0 0 14px; }
+.status-tile { border:1px solid var(--line); background:rgba(255,255,255,.04); border-radius:14px; padding:10px; display:grid; gap:4px; }
+.status-label { color:var(--muted); font-size:.72rem; letter-spacing:.06em; text-transform:uppercase; }
+.status-value { font-size:.9rem; line-height:1.25; }
 .helper { color:var(--muted); font-size:.85rem; margin:.85rem 0 0; }
 .takeover { display:grid; gap:16px; align-content:start; max-width:760px; margin:0 auto; }
 .takeover header h1 { margin:0; font-size:clamp(2rem,5vw,4rem); font-family:"Iowan Old Style", "Palatino Linotype", "Book Antiqua", serif; letter-spacing:-.03em; }
