@@ -1,3 +1,4 @@
+import { type BackgroundMessage } from './shared'
 import './style.css'
 
 document.body.classList.add('takeover-mode')
@@ -138,7 +139,7 @@ async function run() {
 
 resetButton?.addEventListener('click', () => window.location.reload())
 dismissButton?.addEventListener('click', async () => {
-  await browser.runtime.sendMessage({ type: 'disarm' })
+  await browser.runtime.sendMessage({ type: 'disarm' } satisfies BackgroundMessage)
   const currentTab = await browser.tabs.getCurrent()
   if (currentTab?.id !== undefined) {
     await browser.tabs.remove(currentTab.id)

@@ -1,5 +1,5 @@
 import './style.css'
-import { getState } from './shared'
+import { type BackgroundMessage, getState } from './shared'
 
 const app = document.querySelector<HTMLDivElement>('#app')
 if (!app) throw new Error('Missing popup root')
@@ -82,13 +82,14 @@ async function refresh() {
 }
 
 idleIntervalSelect.addEventListener('change', async () => {
-  await browser.runtime.sendMessage({ type: 'set-idle-interval', idleIntervalSeconds: Number(idleIntervalSelect.value) })
+  const message: BackgroundMessage = { type: 'set-idle-interval', idleIntervalSeconds: Number(idleIntervalSelect.value) }
+  await browser.runtime.sendMessage(message)
   await refresh()
 })
 
-buttons.arm.addEventListener('click', async () => { await browser.runtime.sendMessage({ type: 'arm' }); await refresh() })
-buttons.demo.addEventListener('click', async () => { await browser.runtime.sendMessage({ type: 'demo-now' }); await refresh() })
-buttons.disarm.addEventListener('click', async () => { await browser.runtime.sendMessage({ type: 'disarm' }); await refresh() })
-buttons.reset.addEventListener('click', async () => { await browser.runtime.sendMessage({ type: 'reset' }); await refresh() })
+buttons.arm.addEventListener('click', async () => { await browser.runtime.sendMessage({ type: 'arm' } satisfies BackgroundMessage); await refresh() })
+buttons.demo.addEventListener('click', async () => { await browser.runtime.sendMessage({ type: 'demo-now' } satisfies BackgroundMessage); await refresh() })
+buttons.disarm.addEventListener('click', async () => { await browser.runtime.sendMessage({ type: 'disarm' } satisfies BackgroundMessage); await refresh() })
+buttons.reset.addEventListener('click', async () => { await browser.runtime.sendMessage({ type: 'reset' } satisfies BackgroundMessage); await refresh() })
 
 void refresh()

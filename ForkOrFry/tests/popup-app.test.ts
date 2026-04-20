@@ -1,6 +1,8 @@
 // @vitest-environment jsdom
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
+import type { BackgroundMessage } from '../src/shared'
+
 type BrowserMock = {
   runtime: { sendMessage: ReturnType<typeof vi.fn> }
 }
@@ -30,12 +32,12 @@ describe('popup app', () => {
 
     const arm = document.querySelector<HTMLButtonElement>('#arm')!
     arm.click()
-    expect(browser.runtime.sendMessage).toHaveBeenCalledWith({ type: 'arm' })
+    expect(browser.runtime.sendMessage).toHaveBeenCalledWith({ type: 'arm' } satisfies BackgroundMessage)
 
     const select = document.querySelector<HTMLSelectElement>('#idle-interval')!
     select.value = '120'
     select.dispatchEvent(new Event('change'))
-    expect(browser.runtime.sendMessage).toHaveBeenCalledWith({ type: 'set-idle-interval', idleIntervalSeconds: 120 })
+    expect(browser.runtime.sendMessage).toHaveBeenCalledWith({ type: 'set-idle-interval', idleIntervalSeconds: 120 } satisfies BackgroundMessage)
   })
 
   it('updates controls for armed state and reset/disarm actions', async () => {
@@ -49,6 +51,6 @@ describe('popup app', () => {
     expect(document.querySelector<HTMLButtonElement>('#disarm')?.disabled).toBe(false)
 
     document.querySelector<HTMLButtonElement>('#reset')!.click()
-    expect(browser.runtime.sendMessage).toHaveBeenCalledWith({ type: 'reset' })
+    expect(browser.runtime.sendMessage).toHaveBeenCalledWith({ type: 'reset' } satisfies BackgroundMessage)
   })
 })

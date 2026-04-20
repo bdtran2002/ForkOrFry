@@ -1,5 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
+import type { BackgroundMessage } from '../src/shared'
+
 type Listener = (...args: unknown[]) => unknown
 
 type BrowserMock = {
@@ -26,6 +28,8 @@ const shared = vi.hoisted(() => ({
   IDLE_INTERVAL_SECONDS: 60,
   getState: vi.fn(),
   setState: vi.fn(),
+  resetState: vi.fn(),
+  triggerTakeover: vi.fn(),
   takeoverUrl: vi.fn(() => 'moz-extension://test/takeover.html'),
 }))
 
@@ -73,6 +77,15 @@ describe('background', () => {
     Object.assign(globalThis, { browser: mock.browser as BrowserMock })
     shared.getState.mockResolvedValue({ armed: false, takeoverTabId: null, lastIdleAt: null, idleIntervalSeconds: 120 })
     shared.setState.mockResolvedValue(undefined)
+    shared.resetState.mockImplementation(async (state: { idleIntervalSeconds: number }) => {
+      await shared.setState({ armed: false, takeoverTabId: null, lastIdleAt: null, idleIntervalSeconds: state.idleIntervalSeconds })
+    })
+    shared.triggerTakeover.mockImplementation(async (state: { armed: boolean; takeoverTabId: number | null; lastIdleAt: number | null; idleIntervalSeconds: number }) => {
+      const tabs = await mock.browser.tabs.query({ url: 'moz-extension://test/takeover.html' })
+      const existing = tabs[0]
+      const takeoverTabId = existing?.id ?? (await mock.browser.tabs.create({ url: 'moz-extension://test/takeover.html', active: true })).id ?? null
+      await shared.setState({ ...state, lastIdleAt: Date.now(), takeoverTabId })
+    })
 
     await import('../src/background')
 
@@ -80,12 +93,12 @@ describe('background', () => {
     expect(shared.setState).toHaveBeenCalledWith({ armed: false, takeoverTabId: null, lastIdleAt: null, idleIntervalSeconds: 120 })
 
     shared.getState.mockResolvedValueOnce({ armed: false, takeoverTabId: null, lastIdleAt: null, idleIntervalSeconds: 120 })
-    await mock.listeners.message[0]({ type: 'arm' })
+    await mock.listeners.message[0]({ type: 'arm' } satisfies BackgroundMessage)
     expect(mock.browser.idle.setDetectionInterval).toHaveBeenCalledWith(120)
     expect(shared.setState).toHaveBeenCalledWith({ armed: true, takeoverTabId: null, lastIdleAt: null, idleIntervalSeconds: 120 })
 
     shared.getState.mockResolvedValueOnce({ armed: true, takeoverTabId: 7, lastIdleAt: 1, idleIntervalSeconds: 120 })
-    await mock.listeners.message[0]({ type: 'disarm' })
+    await mock.listeners.message[0]({ type: 'disarm' } satisfies BackgroundMessage)
     expect(mock.browser.tabs.remove).toHaveBeenCalledWith(7)
     expect(shared.setState).toHaveBeenCalledWith({ armed: false, takeoverTabId: null, lastIdleAt: null, idleIntervalSeconds: 120 })
   })
@@ -95,6 +108,15 @@ describe('background', () => {
     Object.assign(globalThis, { browser: mock.browser as BrowserMock })
     shared.getState.mockResolvedValue({ armed: true, takeoverTabId: null, lastIdleAt: null, idleIntervalSeconds: 60 })
     shared.setState.mockResolvedValue(undefined)
+    shared.resetState.mockImplementation(async (state: { idleIntervalSeconds: number }) => {
+      await shared.setState({ armed: false, takeoverTabId: null, lastIdleAt: null, idleIntervalSeconds: state.idleIntervalSeconds })
+    })
+    shared.triggerTakeover.mockImplementation(async (state: { armed: boolean; takeoverTabId: number | null; lastIdleAt: number | null; idleIntervalSeconds: number }) => {
+      const tabs = await mock.browser.tabs.query({ url: 'moz-extension://test/takeover.html' })
+      const existing = tabs[0]
+      const takeoverTabId = existing?.id ?? (await mock.browser.tabs.create({ url: 'moz-extension://test/takeover.html', active: true })).id ?? null
+      await shared.setState({ ...state, lastIdleAt: Date.now(), takeoverTabId })
+    })
     mock.browser.tabs.query.mockResolvedValue([])
     mock.browser.tabs.create.mockResolvedValue({ id: 42 })
 

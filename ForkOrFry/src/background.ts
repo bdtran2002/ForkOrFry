@@ -1,4 +1,4 @@
-import { DEFAULT_STATE, IDLE_INTERVAL_SECONDS, getState, setState, takeoverUrl } from './shared'
+import { DEFAULT_STATE, IDLE_INTERVAL_SECONDS, type BackgroundMessage, getState, resetState, setState, triggerTakeover } from './shared'
 
 let stateQueue = Promise.resolve()
 
@@ -6,21 +6,6 @@ function serializeStateTask(task: () => Promise<void>) {
   const next = stateQueue.then(task, task)
   stateQueue = next.catch(() => undefined)
   return next
-}
-
-async function ensureTakeoverTab() {
-  const url = takeoverUrl()
-  const tabs = await browser.tabs.query({ url })
-  const existing = tabs[0]
-
-  if (existing?.id !== undefined) {
-    await browser.tabs.update(existing.id, { active: true })
-    if (existing.windowId !== undefined) await browser.windows.update(existing.windowId, { focused: true })
-    return existing.id
-  }
-
-  const tab = await browser.tabs.create({ url, active: true })
-  return tab.id ?? null
 }
 
 async function closeTakeoverTab(tabId: number | null) {
@@ -49,7 +34,7 @@ async function updateIdleInterval(idleIntervalSeconds: number) {
 async function disarm() {
   const state = await getState()
   await closeTakeoverTab(state.takeoverTabId)
-  await setState({ ...DEFAULT_STATE, idleIntervalSeconds: state.idleIntervalSeconds })
+  await resetState(state)
 }
 
 browser.runtime.onInstalled.addListener(async () => {
@@ -72,13 +57,11 @@ browser.idle.onStateChanged.addListener((idleState) => {
     const state = await getState()
     if (!state.armed) return
 
-    const takeoverTabId = await ensureTakeoverTab()
-    await setState({ ...state, lastIdleAt: Date.now(), takeoverTabId })
+    await triggerTakeover(state)
   })
 })
 
-browser.runtime.onMessage.addListener(async (message) => {
-  if (!message || typeof message !== 'object' || !('type' in message)) return
+browser.runtime.onMessage.addListener(async (message: BackgroundMessage) => {
 
   if (message.type === 'arm') {
     return serializeStateTask(arm)
@@ -92,15 +75,14 @@ browser.runtime.onMessage.addListener(async (message) => {
     return serializeStateTask(async () => {
       const state = await getState()
       await closeTakeoverTab(state.takeoverTabId)
-      await setState({ ...DEFAULT_STATE, idleIntervalSeconds: state.idleIntervalSeconds })
+      await resetState(state)
     })
   }
 
   if (message.type === 'demo-now') {
     return serializeStateTask(async () => {
       const state = await getState()
-      const takeoverTabId = await ensureTakeoverTab()
-      await setState({ ...state, lastIdleAt: Date.now(), takeoverTabId })
+      await triggerTakeover(state)
     })
   }
 
