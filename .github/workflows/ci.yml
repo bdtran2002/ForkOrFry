@@ -4,6 +4,13 @@ on:
   push:
   pull_request:
 
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
 jobs:
   build:
     runs-on: ubuntu-latest
@@ -29,3 +36,10 @@ jobs:
 
       - name: Build
         run: npm run build
+
+      - name: Upload Firefox extension artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: forkorfry-firefox-mv3
+          path: ForkOrFry/dist/firefox-mv3
+          if-no-files-found: error

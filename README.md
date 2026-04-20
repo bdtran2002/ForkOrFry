@@ -1,23 +1,29 @@
 # ForkOrFry
 
 [![CI](https://github.com/bdtran2002/ForkOrFry/actions/workflows/ci.yml/badge.svg)](https://github.com/bdtran2002/ForkOrFry/actions/workflows/ci.yml)
+![Firefox only](https://img.shields.io/badge/firefox-MV3-orange?logo=firefoxbrowser&logoColor=white)
+![Node](https://img.shields.io/badge/node-20.19%2B-339933?logo=node.js&logoColor=white)
+![WXT](https://img.shields.io/badge/WXT-0.20-8b5cf6)
 [![License: MIT](https://img.shields.io/badge/license-MIT-green.svg)](./LICENSE)
 
 Firefox-only idle-triggered parody extension that opens a local takeover page when the browser goes idle.
 
 ## What it is
 
-ForkOrFry is a local-only Firefox extension built with WXT:
+ForkOrFry is a local-only Firefox Manifest V3 extension built with WXT:
 
 - background service worker watches `browser.idle`
-- popup arms/disarms, clears stored state, or triggers a demo
+- popup arms/disarms the extension, clears stored state, or triggers a demo
 - takeover page runs the fake scripted parody sequence with a simulated cursor
 - state lives in `browser.storage.local`
 - no content scripts, host permissions, or network requests are used
 
-## Run locally
+## Project layout
 
-The frontend app lives in the nested `ForkOrFry/` folder.
+- repo root: docs and GitHub Actions
+- `ForkOrFry/`: the actual frontend Firefox extension app
+
+## Develop locally
 
 Requires Node `^20.19.0 || >=22.12.0`.
 
@@ -27,7 +33,18 @@ npm install
 npm run dev
 ```
 
-Then load the extension in Firefox via `about:debugging` → `This Firefox` → `Load Temporary Add-on` and pick the built `manifest.json` from `ForkOrFry/dist/firefox-mv3/`.
+## Build and load in Firefox
+
+```bash
+cd ForkOrFry
+npm run build
+```
+
+Then load the extension in Firefox via `about:debugging` → `This Firefox` → `Load Temporary Add-on` and select:
+
+```text
+ForkOrFry/dist/firefox-mv3/manifest.json
+```
 
 ## Verification
 
@@ -37,21 +54,23 @@ npm run lint
 npm run build
 ```
 
-`npm run build` remains the main full verification check.
+`npm run build` is the main full verification check for the Firefox extension.
 
-## Build
+## CI
 
-```bash
-cd ForkOrFry
-npm run build
-```
+GitHub Actions runs from the repo root but builds the nested extension app. Each CI run:
+
+- installs dependencies from `ForkOrFry/package-lock.json`
+- runs `npm run lint`
+- runs `npm run build`
+- uploads the built Firefox extension files from `ForkOrFry/dist/firefox-mv3/` as an artifact
 
 ## Notes
 
-- Use the extension popup to arm/disarm or run the demo.
+- Use the popup to arm/disarm or run the demo.
 - **Clear state** removes the stored idle timestamp and closes any open takeover tab.
 - The takeover page is fake-only and does not control the real cursor.
-- No content scripts, no host permissions, no network calls.
+- Permissions stay minimal: `idle`, `storage`, `tabs`.
 
 ## Developer TODO
 
