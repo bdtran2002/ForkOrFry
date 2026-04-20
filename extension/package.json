@@ -15,6 +15,7 @@
     "package:firefox": "npm run build && rm -f dist/forkorfry-firefox-mv3.xpi && cd dist/firefox-mv3 && zip -r ../forkorfry-firefox-mv3.xpi .",
     "package:source-bundle": "node scripts/package-source-bundle.mjs",
     "package:release": "node scripts/package-release.mjs",
+    "validate:release-artifacts": "node scripts/validate-release-artifacts.mjs",
     "preview": "wxt serve -b firefox",
     "lint": "eslint .",
     "lint:fix": "eslint . --fix",

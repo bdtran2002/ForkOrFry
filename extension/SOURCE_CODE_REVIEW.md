@@ -18,6 +18,7 @@ This bundle is intended for AMO reviewer rebuild checks.
 - `npm run package:firefox` creates `dist/forkorfry-firefox-mv3.xpi`
 - `npm run package:source-bundle` creates `dist/forkorfry-source-bundle.zip`
 - `npm run package:release` creates both release artifacts in one pass
+- `npm run validate:release-artifacts` checks the packaged outputs before submission
 
 ## Contents
 

@@ -3,6 +3,7 @@ import { spawnSync } from 'node:child_process'
 const steps = [
   ['npm', ['run', 'package:firefox']],
   ['npm', ['run', 'package:source-bundle']],
+  ['npm', ['run', 'validate:release-artifacts']],
 ]
 
 for (const [command, args] of steps) {
