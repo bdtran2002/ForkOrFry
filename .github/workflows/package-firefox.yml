@@ -2,6 +2,11 @@ name: Package Firefox Extension
 
 on:
   workflow_dispatch:
+    inputs:
+      gecko_id:
+        description: Published Firefox add-on ID
+        required: false
+        type: string
   push:
     tags:
       - 'v*'
@@ -33,17 +38,23 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      - name: Resolve release Gecko ID
+        run: |
+          RELEASE_GECKO_ID="${{ github.event.inputs.gecko_id || vars.FORKORFRY_GECKO_ID || secrets.FORKORFRY_GECKO_ID }}"
+          if [ -z "$RELEASE_GECKO_ID" ]; then
+            echo "Set workflow input gecko_id or configure FORKORFRY_GECKO_ID as a repo variable/secret before packaging release artifacts."
+            exit 1
+          fi
+          echo "FORKORFRY_GECKO_ID=$RELEASE_GECKO_ID" >> "$GITHUB_ENV"
+
       - name: Lint
         run: npm run lint
 
       - name: Test
         run: npm test
 
-      - name: Package unsigned Firefox XPI
-        run: npm run package:firefox
-
-      - name: Package source bundle
-        run: npm run package:source-bundle
+      - name: Package and validate release artifacts
+        run: npm run package:release
 
       - name: Upload unsigned Firefox XPI
         uses: actions/upload-artifact@v4

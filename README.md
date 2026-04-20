@@ -81,7 +81,7 @@ GitHub Actions runs from the repo root but builds the dedicated `extension/` pac
 - runs `npm run build`
 - uploads the built Firefox extension files from `extension/dist/firefox-mv3/` as an artifact
 
-There is also a manual/tag packaging workflow that runs `npm run package:firefox`, creates an AMO source bundle, and uploads both artifacts.
+There is also a manual/tag packaging workflow that runs `npm run package:release`, validates the release artifacts, and uploads both artifacts.
 
 ## Packaging
 
@@ -107,6 +107,8 @@ extension/dist/forkorfry-source-bundle.zip
 That package is useful for CI artifacts and debug/testing flows. Public Firefox distribution still needs signing through AMO or another Firefox signing flow.
 
 For release builds, set `FORKORFRY_GECKO_ID` to the real AMO/Firefox add-on ID before running `npm run package:firefox` or `npm run package:release`. If unset, local/dev builds keep using the safe placeholder ID.
+
+The GitHub packaging workflow expects that value either as the manual dispatch `gecko_id` input or as a repository variable/secret named `FORKORFRY_GECKO_ID`.
 
 If you want to regenerate the committed Firefox icons:
 
