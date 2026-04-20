@@ -42,9 +42,19 @@ jobs:
       - name: Package unsigned Firefox XPI
         run: npm run package:firefox
 
+      - name: Package source bundle
+        run: npm run package:source-bundle
+
       - name: Upload unsigned Firefox XPI
         uses: actions/upload-artifact@v4
         with:
           name: forkorfry-firefox-xpi
           path: extension/dist/forkorfry-firefox-mv3.xpi
+          if-no-files-found: error
+
+      - name: Upload source bundle
+        uses: actions/upload-artifact@v4
+        with:
+          name: forkorfry-source-bundle
+          path: extension/dist/forkorfry-source-bundle.zip
           if-no-files-found: error

@@ -27,3 +27,7 @@ npm run lint
 npm test
 npm run build
 ```
+
+## Source bundle
+
+`npm run package:source-bundle` creates the AMO review bundle at `extension/dist/forkorfry-source-bundle.zip`.
