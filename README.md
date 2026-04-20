@@ -13,10 +13,21 @@ Firefox-only idle-triggered parody extension that opens a local takeover page wh
 ForkOrFry is a local-only Firefox Manifest V3 extension built with WXT:
 
 - background service worker watches `browser.idle`
-- popup arms/disarms the extension, clears stored state, or triggers a demo
-- takeover page runs the fake scripted parody sequence with a simulated cursor
+- popup arms/disarms the extension, clears stored state, triggers a demo, and shows live status details
+- popup includes configurable idle timing presets for faster demos or slower prank pacing
+- takeover page runs a staged fake onboarding sequence with progress, activity logs, and a simulated cursor
 - state lives in `browser.storage.local`
+- generated Firefox toolbar/extension icons are included in the build output
 - no content scripts, host permissions, or network requests are used
+
+## Current feature set
+
+- **Arming flow:** arm, disarm, demo, and clear state directly from the popup
+- **Live popup status:** mode, takeover-tab state, and last trigger timestamp are visible from the toolbar UI
+- **Adjustable idle timing:** switch between preset idle intervals without editing code
+- **Theatrical takeover:** fake onboarding steps, progress bar, fake activity log, and local-only completion state
+- **Firefox packaging:** CI uploads the raw build output and a separate workflow can package an unsigned `.xpi`
+- **Firefox branding assets:** generated PNG icons are wired into the Firefox MV3 manifest
 
 ## Project layout
 
@@ -82,17 +93,25 @@ ForkOrFry/dist/forkorfry-firefox-mv3.xpi
 
 That package is useful for CI artifacts and debug/testing flows. Public Firefox distribution still needs signing through AMO or another Firefox signing flow.
 
+If you want to regenerate the committed Firefox icons:
+
+```bash
+cd ForkOrFry
+npm run icons:generate
+```
+
 ## Notes
 
 - Use the popup to arm/disarm or run the demo.
+- The popup also shows the current mode, takeover-tab status, last trigger time, and selected idle interval.
 - **Clear state** removes the stored idle timestamp and closes any open takeover tab.
+- Changing the idle interval updates Firefox idle detection immediately when the extension is armed.
 - The takeover page is fake-only and does not control the real cursor.
 - Permissions stay minimal: `idle`, `storage`, `tabs`.
 
 ## Developer TODO
 
-- Add richer fake application steps, more fields, and slightly more theatrical takeover pacing.
-- Add real extension icons/assets for the popup and Firefox toolbar.
 - Add automated tests around background state changes and popup command behavior.
 - Do a focused manual Firefox QA pass on idle timing, takeover tab reuse, and dismiss/reset flows.
+- Add theme-aware icon variants for Firefox light/dark toolbar contexts.
 - Review copy/branding for AMO-safe parody language before any public submission.
