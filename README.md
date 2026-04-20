@@ -65,6 +65,23 @@ GitHub Actions runs from the repo root but builds the nested extension app. Each
 - runs `npm run build`
 - uploads the built Firefox extension files from `ForkOrFry/dist/firefox-mv3/` as an artifact
 
+There is also a manual/tag packaging workflow that runs `npm run package:firefox` and uploads an unsigned `.xpi` artifact.
+
+## Packaging
+
+```bash
+cd ForkOrFry
+npm run package:firefox
+```
+
+This writes:
+
+```text
+ForkOrFry/dist/forkorfry-firefox-mv3.xpi
+```
+
+That package is useful for CI artifacts and debug/testing flows. Public Firefox distribution still needs signing through AMO or another Firefox signing flow.
+
 ## Notes
 
 - Use the popup to arm/disarm or run the demo.
