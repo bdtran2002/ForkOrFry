@@ -26,8 +26,9 @@ ForkOrFry is a local-only Firefox Manifest V3 extension built with WXT:
 - **Live popup status:** mode, takeover-tab state, and last trigger timestamp are visible from the toolbar UI
 - **Adjustable idle timing:** switch between preset idle intervals without editing code
 - **Theatrical takeover:** fake onboarding steps, progress bar, fake activity log, and local-only completion state
+- **Automated coverage:** Vitest checks core background state transitions and popup command wiring
 - **Firefox packaging:** CI uploads the raw build output and a separate workflow can package an unsigned `.xpi`
-- **Firefox branding assets:** generated PNG icons are wired into the Firefox MV3 manifest
+- **Firefox branding assets:** generated PNG icons are wired into the Firefox MV3 manifest, including light/dark toolbar variants
 
 ## Project layout
 
@@ -62,6 +63,7 @@ ForkOrFry/dist/firefox-mv3/manifest.json
 ```bash
 cd ForkOrFry
 npm run lint
+npm test
 npm run build
 ```
 
@@ -73,6 +75,7 @@ GitHub Actions runs from the repo root but builds the nested extension app. Each
 
 - installs dependencies from `ForkOrFry/package-lock.json`
 - runs `npm run lint`
+- runs `npm test`
 - runs `npm run build`
 - uploads the built Firefox extension files from `ForkOrFry/dist/firefox-mv3/` as an artifact
 
@@ -106,12 +109,11 @@ npm run icons:generate
 - The popup also shows the current mode, takeover-tab status, last trigger time, and selected idle interval.
 - **Clear state** removes the stored idle timestamp and closes any open takeover tab.
 - Changing the idle interval updates Firefox idle detection immediately when the extension is armed.
+- Firefox toolbar icons now include theme-aware light/dark variants for better contrast.
 - The takeover page is fake-only and does not control the real cursor.
 - Permissions stay minimal: `idle`, `storage`, `tabs`.
 
 ## Developer TODO
 
-- Add automated tests around background state changes and popup command behavior.
 - Do a focused manual Firefox QA pass on idle timing, takeover tab reuse, and dismiss/reset flows.
-- Add theme-aware icon variants for Firefox light/dark toolbar contexts.
 - Review copy/branding for AMO-safe parody language before any public submission.
