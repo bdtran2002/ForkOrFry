@@ -16,6 +16,13 @@ CARTON: Color = (20, 14, 28, 255)
 FRIES: Color = (246, 237, 225, 255)
 FORK: Color = (130, 242, 211, 255)
 SHADOW: Color = (16, 9, 20, 52)
+LIGHT_BG: Color = (246, 237, 225, 255)
+LIGHT_BORDER: Color = (255, 255, 255, 255)
+DARK_BG: Color = (20, 14, 28, 255)
+DARK_CARTON: Color = (255, 154, 47, 255)
+LIGHT_CARTON: Color = (255, 79, 116, 255)
+LIGHT_FORK: Color = (255, 154, 47, 255)
+LIGHT_BLUSH: Color = (130, 242, 211, 132)
 
 
 def clamp(value: int, low: int, high: int) -> int:
@@ -98,16 +105,26 @@ def write_png(path: Path, canvas: list[list[Color]]) -> None:
     path.write_bytes(png)
 
 
-def draw_icon(size: int) -> list[list[Color]]:
+def draw_icon(
+    size: int,
+    *,
+    bg: Color = BG,
+    blush: Color = BLUSH,
+    border: Color = BORDER,
+    carton: Color = CARTON,
+    fries: Color = FRIES,
+    fork: Color = FORK,
+    shadow: Color = SHADOW,
+) -> list[list[Color]]:
     canvas = [[TRANSPARENT for _ in range(size)] for _ in range(size)]
     inset = max(1, round(size * 0.08))
     radius = max(2, round(size * 0.2))
 
-    draw_rounded_rect(canvas, inset, inset + 1, size - inset, size - inset + 1, radius, SHADOW)
-    draw_rounded_rect(canvas, inset, inset, size - inset, size - inset, radius, BORDER)
-    draw_rounded_rect(canvas, inset + 1, inset + 1, size - inset - 1, size - inset - 1, max(1, radius - 1), BG)
+    draw_rounded_rect(canvas, inset, inset + 1, size - inset, size - inset + 1, radius, shadow)
+    draw_rounded_rect(canvas, inset, inset, size - inset, size - inset, radius, border)
+    draw_rounded_rect(canvas, inset + 1, inset + 1, size - inset - 1, size - inset - 1, max(1, radius - 1), bg)
 
-    draw_circle(canvas, round(size * 0.72), round(size * 0.7), round(size * 0.24), BLUSH)
+    draw_circle(canvas, round(size * 0.72), round(size * 0.7), round(size * 0.24), blush)
 
     fry_width = max(1, round(size * 0.08))
     fry_bottom = round(size * 0.55)
@@ -121,27 +138,27 @@ def draw_icon(size: int) -> list[list[Color]]:
         x0 = round(size * x_ratio)
         x1 = x0 + fry_width
         y0 = round(size * top_ratio)
-        draw_rounded_rect(canvas, x0, y0, x1, fry_bottom, max(1, fry_width // 2), FRIES)
+        draw_rounded_rect(canvas, x0, y0, x1, fry_bottom, max(1, fry_width // 2), fries)
 
     carton_x0 = round(size * 0.26)
     carton_y0 = round(size * 0.46)
     carton_x1 = round(size * 0.76)
     carton_y1 = round(size * 0.82)
-    draw_rounded_rect(canvas, carton_x0, carton_y0, carton_x1, carton_y1, max(2, round(size * 0.08)), CARTON)
-    draw_rect(canvas, carton_x0, carton_y0, carton_x1, carton_y0 + max(1, size // 16), BLUSH)
+    draw_rounded_rect(canvas, carton_x0, carton_y0, carton_x1, carton_y1, max(2, round(size * 0.08)), carton)
+    draw_rect(canvas, carton_x0, carton_y0, carton_x1, carton_y0 + max(1, size // 16), blush)
 
     fork_x0 = round(size * 0.17)
     fork_x1 = fork_x0 + max(1, round(size * 0.07))
     handle_y0 = round(size * 0.32)
     handle_y1 = round(size * 0.78)
-    draw_rounded_rect(canvas, fork_x0, handle_y0, fork_x1, handle_y1, max(1, size // 18), FORK)
+    draw_rounded_rect(canvas, fork_x0, handle_y0, fork_x1, handle_y1, max(1, size // 18), fork)
     prong_height = max(2, round(size * 0.12))
     prong_gap = max(1, size // 32)
     prong_width = max(1, round(size * 0.04))
     for prong_index in range(3):
         prong_x0 = fork_x0 - prong_width + prong_index * (prong_width + prong_gap)
         prong_x1 = prong_x0 + prong_width
-        draw_rect(canvas, prong_x0, handle_y0 - prong_height, prong_x1, handle_y0, FORK)
+        draw_rect(canvas, prong_x0, handle_y0 - prong_height, prong_x1, handle_y0, fork)
 
     return canvas
 
@@ -153,6 +170,34 @@ def main() -> None:
 
     for size in (16, 32, 48, 96, 128):
         write_png(public_dir / f'icon-{size}.png', draw_icon(size))
+
+    for size in (16, 32):
+        write_png(
+            public_dir / f'icon-light-{size}.png',
+            draw_icon(
+                size,
+                bg=LIGHT_BG,
+                blush=LIGHT_BLUSH,
+                border=LIGHT_BORDER,
+                carton=LIGHT_CARTON,
+                fries=(255, 255, 255, 255),
+                fork=LIGHT_FORK,
+                shadow=(255, 255, 255, 80),
+            ),
+        )
+        write_png(
+            public_dir / f'icon-dark-{size}.png',
+            draw_icon(
+                size,
+                bg=DARK_BG,
+                blush=BLUSH,
+                border=BORDER,
+                carton=DARK_CARTON,
+                fries=FRIES,
+                fork=FORK,
+                shadow=SHADOW,
+            ),
+        )
 
 
 if __name__ == '__main__':

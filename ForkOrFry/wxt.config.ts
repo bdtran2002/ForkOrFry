@@ -27,6 +27,18 @@ export default defineConfig({
         16: 'icon-16.png',
         32: 'icon-32.png',
       },
+      theme_icons: [
+        {
+          light: 'icon-light-16.png',
+          dark: 'icon-dark-16.png',
+          size: 16,
+        },
+        {
+          light: 'icon-light-32.png',
+          dark: 'icon-dark-32.png',
+          size: 32,
+        },
+      ],
       default_popup: 'popup.html',
       default_title: 'ForkOrFry',
     },
