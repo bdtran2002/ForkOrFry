@@ -28,6 +28,7 @@ ForkOrFry is a local-only Firefox Manifest V3 extension built with WXT:
 - **Theatrical takeover:** fake onboarding steps, progress bar, fake activity log, and local-only completion state
 - **Automated coverage:** Vitest checks core background state transitions and popup command wiring
 - **Firefox packaging:** CI uploads the raw build output and a separate workflow can package an unsigned `.xpi`
+- **Release metadata:** the Firefox manifest version comes from `extension/package.json`, and the Gecko ID can be set per release with `FORKORFRY_GECKO_ID`
 - **Firefox branding assets:** generated PNG icons are wired into the Firefox MV3 manifest, including light/dark toolbar variants
 
 ## Project layout
@@ -88,6 +89,7 @@ There is also a manual/tag packaging workflow that runs `npm run package:firefox
 cd extension
 npm run package:firefox
 npm run package:source-bundle
+npm run package:release
 ```
 
 This writes:
@@ -103,6 +105,8 @@ extension/dist/forkorfry-source-bundle.zip
 ```
 
 That package is useful for CI artifacts and debug/testing flows. Public Firefox distribution still needs signing through AMO or another Firefox signing flow.
+
+For release builds, set `FORKORFRY_GECKO_ID` to the real AMO/Firefox add-on ID before running `npm run package:firefox` or `npm run package:release`. If unset, local/dev builds keep using the safe placeholder ID.
 
 If you want to regenerate the committed Firefox icons:
 

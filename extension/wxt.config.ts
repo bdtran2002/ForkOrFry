@@ -1,4 +1,16 @@
+import { readFileSync } from 'node:fs'
+import { resolve } from 'node:path'
+import { fileURLToPath } from 'node:url'
 import { defineConfig } from 'wxt'
+
+const extensionRoot = resolve(fileURLToPath(new URL('.', import.meta.url)))
+
+const packageJson = JSON.parse(readFileSync(resolve(extensionRoot, 'package.json'), 'utf8')) as {
+  version?: string
+}
+
+const manifestVersion = packageJson.version ?? '0.0.0'
+const geckoId = process.env.FORKORFRY_GECKO_ID?.trim() || 'forkorfry@example.invalid'
 
 export default defineConfig({
   browser: 'firefox',
@@ -6,7 +18,7 @@ export default defineConfig({
   manifest: {
     name: 'ForkOrFry',
     description: 'Firefox-only idle parody takeover extension.',
-    version: '0.0.0',
+    version: manifestVersion,
     icons: {
       16: 'icon-16.png',
       32: 'icon-32.png',
@@ -16,7 +28,7 @@ export default defineConfig({
     },
     browser_specific_settings: {
       gecko: {
-        id: 'forkorfry@example.invalid',
+        id: geckoId,
         data_collection_permissions: {
           required: ['none'],
         },

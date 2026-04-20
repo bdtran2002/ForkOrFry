@@ -11,11 +11,13 @@ This bundle is intended for AMO reviewer rebuild checks.
 5. `npm test`
 6. `npm run build`
 7. Confirm the Firefox package output at `dist/firefox-mv3/`.
+8. For release builds, set `FORKORFRY_GECKO_ID` before packaging so the manifest carries the published Gecko ID.
 
 ## Packaging commands
 
 - `npm run package:firefox` creates `dist/forkorfry-firefox-mv3.xpi`
 - `npm run package:source-bundle` creates `dist/forkorfry-source-bundle.zip`
+- `npm run package:release` creates both release artifacts in one pass
 
 ## Contents
 
