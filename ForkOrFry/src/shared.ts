@@ -9,12 +9,14 @@ export interface ExtensionState {
   armed: boolean
   takeoverTabId: number | null
   lastIdleAt: number | null
+  idleIntervalSeconds: number
 }
 
 export const DEFAULT_STATE: ExtensionState = {
   armed: false,
   takeoverTabId: null,
   lastIdleAt: null,
+  idleIntervalSeconds: IDLE_INTERVAL_SECONDS,
 }
 
 export async function getState() {

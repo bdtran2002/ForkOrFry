@@ -35,14 +35,21 @@ async function closeTakeoverTab(tabId: number | null) {
 
 async function arm() {
   const state = await getState()
-  browser.idle.setDetectionInterval(IDLE_INTERVAL_SECONDS)
+  browser.idle.setDetectionInterval(state.idleIntervalSeconds ?? IDLE_INTERVAL_SECONDS)
   await setState({ ...state, armed: true })
+}
+
+async function updateIdleInterval(idleIntervalSeconds: number) {
+  const state = await getState()
+  const nextState = { ...state, idleIntervalSeconds }
+  if (state.armed) browser.idle.setDetectionInterval(idleIntervalSeconds)
+  await setState(nextState)
 }
 
 async function disarm() {
   const state = await getState()
   await closeTakeoverTab(state.takeoverTabId)
-  await setState({ ...DEFAULT_STATE })
+  await setState({ ...DEFAULT_STATE, idleIntervalSeconds: state.idleIntervalSeconds })
 }
 
 browser.runtime.onInstalled.addListener(async () => {
@@ -85,7 +92,7 @@ browser.runtime.onMessage.addListener(async (message) => {
     return serializeStateTask(async () => {
       const state = await getState()
       await closeTakeoverTab(state.takeoverTabId)
-      await setState({ ...DEFAULT_STATE })
+      await setState({ ...DEFAULT_STATE, idleIntervalSeconds: state.idleIntervalSeconds })
     })
   }
 
@@ -95,5 +102,9 @@ browser.runtime.onMessage.addListener(async (message) => {
       const takeoverTabId = await ensureTakeoverTab()
       await setState({ ...state, lastIdleAt: Date.now(), takeoverTabId })
     })
+  }
+
+  if (message.type === 'set-idle-interval' && typeof message.idleIntervalSeconds === 'number') {
+    return serializeStateTask(() => updateIdleInterval(message.idleIntervalSeconds))
   }
 })

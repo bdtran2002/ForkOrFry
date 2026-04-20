@@ -7,6 +7,9 @@ button { font:inherit; border:0; cursor:pointer; }
 .eyebrow { text-transform:uppercase; letter-spacing:.18em; color:var(--accent); font-size:.72rem; margin:0 0 .5rem; }
 .eyebrow.compact { margin-bottom:.25rem; }
 .lede { color:var(--muted); line-height:1.5; }
+.interval-row { display:flex; align-items:center; justify-content:space-between; gap:10px; margin:14px 0 10px; padding:10px 12px; border:1px solid var(--line); background:rgba(255,255,255,.04); border-radius:14px; }
+.interval-label { color:var(--muted); font-size:.82rem; letter-spacing:.05em; text-transform:uppercase; }
+.interval-select { min-height:34px; border-radius:10px; border:1px solid var(--line); background:rgba(255,255,255,.07); color:var(--text); padding:6px 10px; }
 .popup, .takeover { min-height:100vh; padding:18px; }
 .popup { width:320px; }
 .card, .status, .actions button, .field .input { border:1px solid var(--line); background:var(--panel); border-radius:16px; }
