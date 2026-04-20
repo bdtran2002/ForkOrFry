@@ -9,6 +9,7 @@
   "scripts": {
     "dev": "wxt -b firefox",
     "build": "wxt build -b firefox",
+    "icons:generate": "python3 scripts/generate-icons.py",
     "package:firefox": "npm run build && rm -f dist/forkorfry-firefox-mv3.xpi && cd dist/firefox-mv3 && zip -r ../forkorfry-firefox-mv3.xpi .",
     "preview": "wxt serve -b firefox",
     "lint": "eslint .",

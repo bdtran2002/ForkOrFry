@@ -7,6 +7,13 @@ export default defineConfig({
     name: 'ForkOrFry',
     description: 'Firefox-only idle parody takeover extension.',
     version: '0.0.0',
+    icons: {
+      16: 'icon-16.png',
+      32: 'icon-32.png',
+      48: 'icon-48.png',
+      96: 'icon-96.png',
+      128: 'icon-128.png',
+    },
     browser_specific_settings: {
       gecko: {
         id: 'forkorfry@example.invalid',
@@ -16,6 +23,10 @@ export default defineConfig({
       },
     },
     action: {
+      default_icon: {
+        16: 'icon-16.png',
+        32: 'icon-32.png',
+      },
       default_popup: 'popup.html',
       default_title: 'ForkOrFry',
     },
