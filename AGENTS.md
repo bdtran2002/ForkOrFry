@@ -1,15 +1,18 @@
 # AGENTS.md
 
 ## Workspace
-- The actual app lives in `ForkOrFry/`. The repo root only holds docs/license/git metadata, so run app commands from `ForkOrFry/`.
+- The actual app lives in `ForkOrFry/`. The repo root mainly holds docs, git metadata, and GitHub workflow files, so run app commands from `ForkOrFry/`.
 - Use `npm` here (`ForkOrFry/package-lock.json` is the only lockfile). There is no workspace/monorepo toolchain.
+- Vite 8 requires Node `^20.19.0 || >=22.12.0`; older Node versions will fail before app code runs.
 
 ## Commands
 - Install: `cd ForkOrFry && npm install`
 - Dev server: `cd ForkOrFry && npm run dev`
 - Main verification: `cd ForkOrFry && npm run build`
 - Preview production build: `cd ForkOrFry && npm run preview`
-- There are no repo scripts for lint, tests, or formatting. `npm run build` is the only built-in full check because it runs `tsc && vite build`.
+- Lint: `cd ForkOrFry && npm run lint`
+- Auto-fix lint issues: `cd ForkOrFry && npm run lint:fix`
+- `npm run build` remains the main full check because it runs `tsc && vite build`.
 
 ## Architecture
 - This is a plain TypeScript + Vite SPA, not React/Vue/Svelte.
@@ -31,5 +34,5 @@
 - TypeScript uses `noUnusedLocals`, `noUnusedParameters`, and `noEmit`; unused code/params will fail `npm run build`.
 
 ## Workflow
-- No CI workflows or other repo-local agent instruction files were present when this file was written.
+- GitHub Actions CI lives in `.github/workflows/ci.yml` and runs lint plus build from the nested app folder.
 - User workflow preference: direct work on `main` is acceptable when a task explicitly includes pushing; do not assume a PR-only flow.

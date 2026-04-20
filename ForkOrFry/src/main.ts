@@ -529,7 +529,7 @@ function render() {
 
   els.diagnosticHeadline.textContent =
     phase === 'result'
-      ? state.prediction.badge
+      ? 'Forecast sealed.'
       : phase === 'predicting'
         ? 'The app is compiling a deeply unserious destiny.'
         : phase === 'warning'
@@ -539,7 +539,7 @@ function render() {
             : 'No doomscroll detected yet.'
   els.diagnosticBody.textContent =
     phase === 'result'
-      ? state.prediction.summary
+      ? `Final reading: ${state.prediction.cause}. ${state.prediction.summary}`
       : phase === 'predicting'
         ? 'The future is currently being ladled into a paper tray.'
         : phase === 'warning'

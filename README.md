@@ -1,5 +1,8 @@
 # ForkOrFry
 
+[![CI](https://github.com/bdtran2002/ForkOrFry/actions/workflows/ci.yml/badge.svg)](https://github.com/bdtran2002/ForkOrFry/actions/workflows/ci.yml)
+[![License: MIT](https://img.shields.io/badge/license-MIT-green.svg)](./LICENSE)
+
 An idle-triggered CS future-predicting simulator that gives you a preview of your future putting the fries in the bag when you spend too long scrolling reels on your phone.
 
 ## What it is
@@ -18,6 +21,8 @@ The app also keeps the current phase in `localStorage`, so panic-refreshing does
 
 The frontend app lives in the nested `ForkOrFry/` folder.
 
+Requires Node `^20.19.0 || >=22.12.0`.
+
 ```bash
 cd ForkOrFry
 npm install
@@ -25,6 +30,16 @@ npm run dev
 ```
 
 Then open the local Vite URL in your browser.
+
+## Verification
+
+```bash
+cd ForkOrFry
+npm run lint
+npm run build
+```
+
+`npm run build` remains the main full verification check.
 
 ## Build
 
