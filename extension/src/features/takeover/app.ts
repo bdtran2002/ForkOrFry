@@ -1,5 +1,6 @@
 import '../../style.css'
 import { type BackgroundMessage } from '../../core/messages'
+import { takeoverCopy } from './copy'
 
 document.body.classList.add('takeover-mode')
 
@@ -10,40 +11,36 @@ app.innerHTML = `
 <main class="takeover">
   <div class="cursor" id="cursor"></div>
   <header>
-    <p class="eyebrow">ForkOrFry local parody</p>
-    <div class="safety-banner">LOCAL DEMO · FAKE CURSOR · NO NETWORK · NO REAL SUBMISSION</div>
-    <h1>Drive-thru destiny simulator</h1>
-    <p class="lede">A playful, local-only onboarding loop that pretends to prep a crew member, then politely reveals it was theater all along.</p>
+    <p class="eyebrow">${takeoverCopy.eyebrow}</p>
+    <div class="safety-banner">${takeoverCopy.banner}</div>
+    <h1>${takeoverCopy.title}</h1>
+    <p class="lede">${takeoverCopy.lede}</p>
   </header>
   <section class="card stage" id="stage">
     <div class="status-row">
       <div>
-        <p class="eyebrow compact">Session status</p>
-        <div class="status-text" id="status-text">Booting fake onboarding...</div>
+        <p class="eyebrow compact">${takeoverCopy.sessionStatus}</p>
+        <div class="status-text" id="status-text">${takeoverCopy.booting}</div>
       </div>
-      <div class="stage-pill" id="stage-pill">Step 1 of 5</div>
+      <div class="stage-pill" id="stage-pill">${takeoverCopy.stepPill(1)}</div>
     </div>
     <div class="progress-track" aria-hidden="true"><div class="progress-fill" id="progress-fill"></div></div>
     <div class="stepper" id="stepper">
-      <span>Briefing</span>
-      <span>Profile</span>
-      <span>Preferences</span>
-      <span>Receipt</span>
-      <span>Done</span>
+      ${takeoverCopy.stepLabels.map((label) => `<span>${label}</span>`).join('')}
     </div>
     <div class="log-panel">
-      <div class="log-title">Fake activity log</div>
+      <div class="log-title">${takeoverCopy.logTitle}</div>
       <ul class="log-list" id="log-list"></ul>
     </div>
     <div class="form-grid" id="form-grid"></div>
     <div class="completion" id="completion" hidden>
-      <div class="completion-badge">Simulation complete</div>
-      <p>Nothing was submitted. Nothing left this tab. The onboarding storyline simply reached its tiny dramatic finale.</p>
+      <div class="completion-badge">${takeoverCopy.completionTitle}</div>
+      <p>${takeoverCopy.completionBody}</p>
     </div>
   </section>
   <div class="actions">
-    <button type="button" id="reset">Reset</button>
-    <button type="button" id="dismiss">Dismiss takeover</button>
+    <button type="button" id="reset">${takeoverCopy.buttons.reset}</button>
+    <button type="button" id="dismiss">${takeoverCopy.buttons.dismiss}</button>
   </div>
 </main>`
 
@@ -58,25 +55,14 @@ const completion = app.querySelector<HTMLElement>('#completion')!
 const dismissButton = app.querySelector<HTMLButtonElement>('#dismiss')
 const resetButton = app.querySelector<HTMLButtonElement>('#reset')
 
-const fields = [
-  { label: 'Employee alias', value: 'Night Fry Ace' },
-  { label: 'Shift vibe', value: 'mildly chaotic' },
-  { label: 'Sauce alignment', value: 'ultra ranch' },
-  { label: 'Bagging confidence', value: '100%' },
-]
+const fields = takeoverCopy.fields
 
 formGrid.innerHTML = fields
   .map((field) => `<div class="field"><label>${field.label}</label><div class="input" data-fill></div></div>`)
-  .join('') + `<div class="note">This page never submits anything and never talks to the network.</div>`
+  .join('') + `<div class="note">${takeoverCopy.note}</div>`
 
 const fills = [...formGrid.querySelectorAll<HTMLElement>('[data-fill]')]
-const logs = [
-  'Local session opened.',
-  'Loaded fake crew profile template.',
-  'Queued pretend preferences and badge colors.',
-  'Verified nothing is being sent anywhere.',
-  'Finalizing the theatrical checkout sequence.',
-]
+const logs = takeoverCopy.logs
 
 const sleep = (ms: number) => new Promise((resolve) => window.setTimeout(resolve, ms))
 
@@ -97,14 +83,8 @@ async function moveCursorToElement(el: Element) {
 function setStep(index: number) {
   const step = Math.min(index + 1, 5)
 
-  stagePill.textContent = `Step ${step} of 5`
-  statusText.textContent = [
-    'Booting fake onboarding...',
-    'Collecting a delightfully fictional profile...',
-    'Confirming pretend preferences...',
-    'Reviewing the local-only receipt preview...',
-    'Wrapping up the simulation with no side effects...',
-  ][index] ?? 'Simulation complete.'
+  stagePill.textContent = takeoverCopy.stepPill(step)
+  statusText.textContent = takeoverCopy.stepStatuses[index] ?? 'Simulation complete.'
   progressFill.style.width = `${(step / 5) * 100}%`
   stepper.querySelectorAll('span').forEach((item, itemIndex) => {
     item.classList.toggle('is-active', itemIndex === index)
@@ -137,8 +117,8 @@ async function run() {
   completion.hidden = false
   await moveCursorToElement(completion)
   await sleep(300)
-  stagePill.textContent = 'Complete'
-  statusText.textContent = 'Simulation complete. Local-only and safely over the top.'
+  stagePill.textContent = takeoverCopy.complete
+  statusText.textContent = takeoverCopy.completeStatus
 }
 
 resetButton?.addEventListener('click', () => window.location.reload())
