@@ -50,6 +50,7 @@ app.innerHTML = `
       <div class="field"><label>${runtimeFrameCopy.labels.facing}</label><div class="input" id="facing-value"></div></div>
       <div class="field"><label>${runtimeFrameCopy.labels.heldItem}</label><div class="input" id="held-item-value"></div></div>
       <div class="field"><label>${runtimeFrameCopy.labels.order}</label><div class="input" id="order-value"></div></div>
+      <div class="field"><label>${runtimeFrameCopy.labels.nextTicket}</label><div class="input" id="next-ticket-value"></div></div>
       <div class="field"><label>${runtimeFrameCopy.labels.upcomingOrders}</label><div class="input" id="upcoming-orders-value"></div></div>
       <div class="field"><label>${runtimeFrameCopy.labels.activeTile}</label><div class="input" id="active-tile-value"></div></div>
       <div class="field"><label>${runtimeFrameCopy.labels.grill}</label><div class="input" id="grill-value"></div></div>
@@ -88,6 +89,7 @@ const locationValue = app.querySelector<HTMLElement>('#location-value')!
 const facingValue = app.querySelector<HTMLElement>('#facing-value')!
 const heldItemValue = app.querySelector<HTMLElement>('#held-item-value')!
 const orderValue = app.querySelector<HTMLElement>('#order-value')!
+const nextTicketValue = app.querySelector<HTMLElement>('#next-ticket-value')!
 const upcomingOrdersValue = app.querySelector<HTMLElement>('#upcoming-orders-value')!
 const activeTileValue = app.querySelector<HTMLElement>('#active-tile-value')!
 const grillValue = app.querySelector<HTMLElement>('#grill-value')!
@@ -212,6 +214,18 @@ function grillPressureText() {
   return runtimeFrameCopy.grillPressureSummary(safeTicks)
 }
 
+function nextScheduledTicket() {
+  return state.upcomingOrders[0] ?? null
+}
+
+function nextTicketText() {
+  const nextTicket = nextScheduledTicket()
+  if (!nextTicket) return runtimeFrameCopy.noNextTicket
+
+  const ticksUntilRelease = Math.max(nextTicket.releaseTick - state.tick, 0)
+  return `${getBurgerRecipe(nextTicket.recipeId).label} · ${runtimeFrameCopy.nextTicketSummary(ticksUntilRelease)}`
+}
+
 function render() {
   statusText.textContent = runtimeFrameCopy.phaseLabels[state.phase]
   stagePill.textContent = `${runtimeFrameCopy.phasePrefix} ${state.phase}`
@@ -227,8 +241,9 @@ function render() {
       .map((order) => `${order.id}: ${getBurgerRecipe(order.recipeId).label} · ${order.remainingTicks}/${order.durationTicks} ticks left`)
       .join(' | ')
     : runtimeFrameCopy.noCurrentOrder
+  nextTicketValue.textContent = nextTicketText()
   upcomingOrdersValue.textContent = state.upcomingOrders.length > 0
-    ? state.upcomingOrders.map((order) => `${order.id}: ${getBurgerRecipe(order.recipeId).label}`).join(', ')
+    ? state.upcomingOrders.map((order) => `${order.id}: ${getBurgerRecipe(order.recipeId).label} · in ${Math.max(order.releaseTick - state.tick, 0)} ticks`).join(', ')
     : runtimeFrameCopy.noUpcomingOrders
   activeTileValue.textContent = (() => {
     const tile = getBurgerTile(state.player.position)

@@ -2,7 +2,7 @@ export const runtimeFrameCopy = {
   eyebrow: 'Burger session runtime',
   title: 'Local burger-level session',
   lede:
-    'This child runtime now owns a local burger kitchen with explicit crates, walkable tiles, and action-timed single-player state inside the extension host.',
+    'This child runtime now owns a local burger kitchen with explicit crates, walkable tiles, action-timed single-player state, and scheduled rush pacing inside the extension host.',
   sessionStatus: 'Runtime state',
   booting: 'Waiting for host boot…',
   phasePrefix: 'Phase',
@@ -28,6 +28,7 @@ export const runtimeFrameCopy = {
     facing: 'Facing',
     heldItem: 'Held item',
     order: 'Live tickets',
+    nextTicket: 'Next ticket',
     upcomingOrders: 'Queued tickets',
     grill: 'Grill state',
     board: 'Assembly board',
@@ -49,6 +50,7 @@ export const runtimeFrameCopy = {
       : `Shift complete with ${servedCount} served and ${failedCount} failed orders.`,
   noCurrentOrder: 'No live tickets',
   noUpcomingOrders: 'No more tickets queued',
+  noNextTicket: 'No incoming tickets scheduled',
   noActiveTile: 'No station in reach',
   emptyValue: 'empty',
   grillStates: {
@@ -58,12 +60,13 @@ export const runtimeFrameCopy = {
     burnt: 'burnt',
   },
   grillPressureSummary: (remaining: number) => remaining > 0 ? `${remaining} safe tick${remaining === 1 ? '' : 's'} left` : 'Will burn on the next tick',
+  nextTicketSummary: (ticksUntilRelease: number) => ticksUntilRelease <= 0 ? 'Rush incoming now' : `Next ticket in ${ticksUntilRelease} tick${ticksUntilRelease === 1 ? '' : 's'}`,
   buttons: {
     interact: 'Interact',
     tick: 'Wait',
     reset: 'Reset session',
   },
-  movementHint: 'Use the arrow buttons or keyboard arrows to move. Every move, interact, or wait action spends one kitchen tick, so don’t leave cooked patties on the grill for too long.',
+  movementHint: 'Use the arrow buttons or keyboard arrows to move. Every move, interact, or wait action spends one kitchen tick, so watch the grill and the next scheduled rush.',
   phaseLabels: {
     booting: 'Booting the burger session…',
     running: 'Burger shift running locally.',
