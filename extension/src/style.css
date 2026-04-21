@@ -2,7 +2,6 @@
 * { box-sizing:border-box; }
 html, body { margin:0; min-height:100%; }
 body { font-family: system-ui, sans-serif; color:var(--text); background: radial-gradient(circle at top, rgba(255,154,47,.16), transparent 24%), linear-gradient(180deg, #150d1d, var(--bg)); }
-body.takeover-mode { cursor:none; }
 button { font:inherit; border:0; cursor:pointer; }
 .eyebrow { text-transform:uppercase; letter-spacing:.18em; color:var(--accent); font-size:.72rem; margin:0 0 .5rem; }
 .eyebrow.compact { margin-bottom:.25rem; }
@@ -38,15 +37,18 @@ button { font:inherit; border:0; cursor:pointer; }
 .stepper span { padding:7px 10px; border-radius:999px; border:1px solid var(--line); color:var(--muted); background:rgba(255,255,255,.03); font-size:.8rem; }
 .stepper span.is-active { color:var(--text); border-color:rgba(255,154,47,.5); background:rgba(255,154,47,.14); }
 .stepper span.is-complete { color:var(--accent-3); border-color:rgba(130,242,211,.34); background:rgba(130,242,211,.08); }
+.checkpoint-card { padding:14px; border-radius:16px; border:1px solid var(--line); background:rgba(255,255,255,.04); position:relative; z-index:1; }
+.checkpoint-grid { display:grid; grid-template-columns:repeat(2, minmax(0, 1fr)); gap:12px; }
+.checkpoint-item { display:grid; gap:4px; }
+.checkpoint-label { color:var(--muted); font-size:.72rem; letter-spacing:.06em; text-transform:uppercase; }
 .log-panel { padding:14px; border-radius:16px; border:1px solid var(--line); background:rgba(255,255,255,.04); position:relative; z-index:1; }
 .log-title { color:var(--accent-3); text-transform:uppercase; letter-spacing:.14em; font-size:.7rem; margin-bottom:.65rem; }
 .log-list { margin:0; padding-left:1.1rem; display:grid; gap:.45rem; color:var(--muted); }
-.form-grid { display:grid; gap:12px; position:relative; z-index:1; }
+.shell-grid { display:grid; gap:12px; grid-template-columns:repeat(2, minmax(0, 1fr)); position:relative; z-index:1; }
 .field { display:grid; gap:6px; }
 .field label { color:var(--muted); font-size:.9rem; }
 .field .input { min-height:44px; display:flex; align-items:center; padding:0 12px; font-variant-ligatures:none; }
 .note { color:var(--accent-3); font-size:.92rem; }
 .completion { position:relative; z-index:1; padding:16px; border-radius:18px; border:1px solid rgba(130,242,211,.24); background:linear-gradient(135deg, rgba(130,242,211,.14), rgba(255,255,255,.04)); }
 .completion-badge { display:inline-flex; margin-bottom:.6rem; padding:8px 10px; border-radius:999px; background:rgba(130,242,211,.14); color:var(--accent-3); text-transform:uppercase; letter-spacing:.14em; font-size:.72rem; }
-.cursor { width:14px; height:14px; border-radius:50%; background:var(--accent-2); box-shadow:0 0 0 8px rgba(255,79,116,.15); position:fixed; left:0; top:0; transition:transform .22s linear; pointer-events:none; }
-.cursor::after { content:'DEMO'; position:absolute; left:18px; top:-4px; padding:2px 6px; border-radius:999px; background:rgba(255,79,116,.18); color:var(--text); font-size:.64rem; letter-spacing:.1em; }
+@media (max-width: 560px) { .shell-grid, .checkpoint-grid { grid-template-columns:1fr; } .popup { width:auto; min-width:280px; } }

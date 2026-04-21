@@ -7,15 +7,23 @@ export const TAKEOVER_PAGE = 'takeover.html'
 
 export interface ExtensionState {
   armed: boolean
-  takeoverTabId: number | null
+  surfaceOpen: boolean
+  takeoverWindowId: number | null
+  waitingForActivity: boolean
   lastIdleAt: number | null
+  lastTriggerAt: number | null
+  lastOpenAt: number | null
   idleIntervalSeconds: number
 }
 
 export const DEFAULT_STATE: ExtensionState = {
   armed: false,
-  takeoverTabId: null,
+  surfaceOpen: false,
+  takeoverWindowId: null,
+  waitingForActivity: false,
   lastIdleAt: null,
+  lastTriggerAt: null,
+  lastOpenAt: null,
   idleIntervalSeconds: IDLE_INTERVAL_SECONDS,
 }
 
