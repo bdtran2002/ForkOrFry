@@ -53,6 +53,7 @@ app.innerHTML = `
       <div class="field"><label>${runtimeFrameCopy.labels.upcomingOrders}</label><div class="input" id="upcoming-orders-value"></div></div>
       <div class="field"><label>${runtimeFrameCopy.labels.activeTile}</label><div class="input" id="active-tile-value"></div></div>
       <div class="field"><label>${runtimeFrameCopy.labels.grill}</label><div class="input" id="grill-value"></div></div>
+      <div class="field"><label>${runtimeFrameCopy.labels.grillPressure}</label><div class="input" id="grill-pressure-value"></div></div>
       <div class="field"><label>${runtimeFrameCopy.labels.board}</label><div class="input" id="board-value"></div></div>
       <div class="field"><label>${runtimeFrameCopy.labels.pantry}</label><div class="input" id="pantry-value"></div></div>
     </div>
@@ -90,6 +91,7 @@ const orderValue = app.querySelector<HTMLElement>('#order-value')!
 const upcomingOrdersValue = app.querySelector<HTMLElement>('#upcoming-orders-value')!
 const activeTileValue = app.querySelector<HTMLElement>('#active-tile-value')!
 const grillValue = app.querySelector<HTMLElement>('#grill-value')!
+const grillPressureValue = app.querySelector<HTMLElement>('#grill-pressure-value')!
 const boardValue = app.querySelector<HTMLElement>('#board-value')!
 const pantryValue = app.querySelector<HTMLElement>('#pantry-value')!
 const moveActions = [...app.querySelectorAll<HTMLButtonElement>('[data-direction]')]
@@ -195,6 +197,18 @@ function orderProgressPercent() {
   return Math.max(((completedOrders + currentOrderProgress) / state.shift.totalOrders) * 100, 0)
 }
 
+function grillPressureText() {
+  if (state.stations.grill.patty === 'empty') return runtimeFrameCopy.emptyValue
+  if (state.stations.grill.patty === 'burnt') return 'Clear the grill before cooking again'
+  if (state.stations.grill.patty === 'cooking') {
+    const ticksUntilCooked = Math.max(BURGER_LEVEL.grillCookTicks - state.stations.grill.progressTicks, 0)
+    return `${ticksUntilCooked} tick${ticksUntilCooked === 1 ? '' : 's'} until cooked`
+  }
+
+  const safeTicks = Math.max(BURGER_LEVEL.grillBurnTicks - state.stations.grill.progressTicks, 0)
+  return runtimeFrameCopy.grillPressureSummary(safeTicks)
+}
+
 function render() {
   statusText.textContent = runtimeFrameCopy.phaseLabels[state.phase]
   stagePill.textContent = `${runtimeFrameCopy.phasePrefix} ${state.phase}`
@@ -217,7 +231,8 @@ function render() {
     const interactable = tile?.interactable ?? forwardTile?.interactable
     return interactable ? legendById[interactable]?.label ?? interactable : runtimeFrameCopy.noActiveTile
   })()
-  grillValue.textContent = `${state.stations.grill.patty} · ${state.stations.grill.progressTicks}/${BURGER_LEVEL.grillCookTicks}`
+  grillValue.textContent = `${runtimeFrameCopy.grillStates[state.stations.grill.patty]} · ${state.stations.grill.progressTicks}/${BURGER_LEVEL.grillBurnTicks}`
+  grillPressureValue.textContent = grillPressureText()
   boardValue.textContent = state.stations.board.items.join(', ') || runtimeFrameCopy.emptyValue
   pantryValue.textContent = `bun ${state.inventory.bun} · patty ${state.inventory.patty} · cheese ${state.inventory.cheese}`
   renderKitchenMap()

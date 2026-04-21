@@ -34,6 +34,7 @@ export const runtimeFrameCopy = {
     pantry: 'Pantry stock',
     activeTile: 'Facing tile',
     kitchen: 'Kitchen layout',
+    grillPressure: 'Grill window',
   },
   kitchenLegendTitle: 'Kitchen legend',
   logTitle: 'Runtime events',
@@ -50,12 +51,19 @@ export const runtimeFrameCopy = {
   noUpcomingOrders: 'No more orders queued',
   noActiveTile: 'No station in reach',
   emptyValue: 'empty',
+  grillStates: {
+    empty: 'empty',
+    cooking: 'cooking',
+    cooked: 'cooked',
+    burnt: 'burnt',
+  },
+  grillPressureSummary: (remaining: number) => remaining > 0 ? `${remaining} safe tick${remaining === 1 ? '' : 's'} left` : 'Will burn on the next tick',
   buttons: {
     interact: 'Interact',
     tick: 'Wait',
     reset: 'Reset session',
   },
-  movementHint: 'Use the arrow buttons or keyboard arrows to move. Every move, interact, or wait action spends one kitchen tick.',
+  movementHint: 'Use the arrow buttons or keyboard arrows to move. Every move, interact, or wait action spends one kitchen tick, so don’t leave cooked patties on the grill for too long.',
   phaseLabels: {
     booting: 'Booting the burger session…',
     running: 'Burger shift running locally.',
