@@ -1,6 +1,15 @@
-export type BurgerStationId = 'storage' | 'grill' | 'board' | 'counter'
+export type BurgerDirection = 'up' | 'down' | 'left' | 'right'
+export type BurgerInteractableKind = 'bun-crate' | 'patty-crate' | 'cheese-crate' | 'grill' | 'board' | 'counter'
+export type BurgerStationId = BurgerInteractableKind
 export type BurgerIngredient = 'bun' | 'patty' | 'cheese'
 export type BurgerCarryIngredient = BurgerIngredient | 'cooked-patty'
+export type BurgerTile = {
+  x: number
+  y: number
+  walkable: boolean
+  interactable?: BurgerInteractableKind
+}
+export type BurgerPosition = { x: number; y: number }
 
 export const BURGER_RECIPES = {
   'plain-burger': {
@@ -22,6 +31,21 @@ export type BurgerRecipeDefinition = {
 
 export const BURGER_LEVEL = {
   id: 'burger',
+  spawn: { x: 1, y: 2 } satisfies BurgerPosition,
+  tiles: [
+    { x: 0, y: 0, walkable: false },
+    { x: 1, y: 0, walkable: false },
+    { x: 2, y: 0, walkable: false },
+    { x: 3, y: 0, walkable: false },
+    { x: 0, y: 1, walkable: true, interactable: 'bun-crate' },
+    { x: 1, y: 1, walkable: true, interactable: 'grill' },
+    { x: 2, y: 1, walkable: true, interactable: 'board' },
+    { x: 3, y: 1, walkable: true, interactable: 'counter' },
+    { x: 0, y: 2, walkable: true, interactable: 'patty-crate' },
+    { x: 1, y: 2, walkable: true },
+    { x: 2, y: 2, walkable: true, interactable: 'cheese-crate' },
+    { x: 3, y: 2, walkable: false },
+  ] as readonly BurgerTile[],
   pantry: {
     bun: 6,
     patty: 6,
@@ -36,6 +60,19 @@ export const BURGER_LEVEL = {
 } as const
 
 export type BurgerShiftOrderDefinition = (typeof BURGER_LEVEL.orders)[number]
+
+export function getBurgerTile(position: BurgerPosition) {
+  return BURGER_LEVEL.tiles.find((tile) => tile.x === position.x && tile.y === position.y) ?? null
+}
+
+export function getBurgerAdjacentPosition(position: BurgerPosition, direction: BurgerDirection): BurgerPosition {
+  switch (direction) {
+    case 'up': return { x: position.x, y: position.y - 1 }
+    case 'down': return { x: position.x, y: position.y + 1 }
+    case 'left': return { x: position.x - 1, y: position.y }
+    case 'right': return { x: position.x + 1, y: position.y }
+  }
+}
 
 export function getBurgerRecipe(recipeId: BurgerRecipeId): BurgerRecipeDefinition {
   return BURGER_RECIPES[recipeId]

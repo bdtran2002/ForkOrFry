@@ -8,7 +8,7 @@ import {
 } from '../runtime-host/contract'
 import { createBurgerSessionCheckpoint, restoreBurgerSessionCheckpoint } from './checkpoint'
 import { runtimeFrameCopy } from './copy'
-import { BURGER_LEVEL, getBurgerRecipe, type BurgerStationId } from './burger-level'
+import { BURGER_LEVEL, getBurgerAdjacentPosition, getBurgerRecipe, getBurgerTile, type BurgerDirection } from './burger-level'
 import { reduceBurgerSession } from './burger-session-reducer'
 import { createInitialBurgerSessionState, type BurgerSessionState } from './burger-session-state'
 
@@ -34,23 +34,31 @@ app.innerHTML = `
       <div class="stage-pill" id="stage-pill"></div>
     </div>
     <div class="progress-track" aria-hidden="true"><div class="progress-fill" id="progress-fill"></div></div>
-    <div class="stepper" id="location-stepper">
-      ${runtimeFrameCopy.locationItems.map(({ label }) => `<span>${label}</span>`).join('')}
+    <div class="field">
+      <label>${runtimeFrameCopy.labels.kitchen}</label>
+      <div class="kitchen-map" id="kitchen-map"></div>
+    </div>
+    <div class="kitchen-legend">
+      <div class="log-title">${runtimeFrameCopy.kitchenLegendTitle}</div>
+      <div class="legend-items">${runtimeFrameCopy.tileLegend.map(({ glyph, label }) => `<span class="legend-item"><strong>${glyph}</strong>${label}</span>`).join('')}</div>
     </div>
     <div class="shell-grid" id="state-grid">
       <div class="field"><label>${runtimeFrameCopy.labels.tick}</label><div class="input" id="tick-value"></div></div>
       <div class="field"><label>${runtimeFrameCopy.labels.score}</label><div class="input" id="score-value"></div></div>
       <div class="field"><label>${runtimeFrameCopy.labels.shift}</label><div class="input" id="shift-value"></div></div>
       <div class="field"><label>${runtimeFrameCopy.labels.location}</label><div class="input" id="location-value"></div></div>
+      <div class="field"><label>${runtimeFrameCopy.labels.facing}</label><div class="input" id="facing-value"></div></div>
       <div class="field"><label>${runtimeFrameCopy.labels.heldItem}</label><div class="input" id="held-item-value"></div></div>
       <div class="field"><label>${runtimeFrameCopy.labels.order}</label><div class="input" id="order-value"></div></div>
       <div class="field"><label>${runtimeFrameCopy.labels.upcomingOrders}</label><div class="input" id="upcoming-orders-value"></div></div>
+      <div class="field"><label>${runtimeFrameCopy.labels.activeTile}</label><div class="input" id="active-tile-value"></div></div>
       <div class="field"><label>${runtimeFrameCopy.labels.grill}</label><div class="input" id="grill-value"></div></div>
       <div class="field"><label>${runtimeFrameCopy.labels.board}</label><div class="input" id="board-value"></div></div>
       <div class="field"><label>${runtimeFrameCopy.labels.pantry}</label><div class="input" id="pantry-value"></div></div>
     </div>
+    <p class="helper runtime-helper">${runtimeFrameCopy.movementHint}</p>
     <div class="actions runtime-controls" id="move-actions">
-      ${runtimeFrameCopy.locationItems.map(({ id, label }) => `<button type="button" class="secondary" data-move="${id}">${label}</button>`).join('')}
+      ${runtimeFrameCopy.directionItems.map(({ id, label, key }) => `<button type="button" class="secondary" data-direction="${id}" data-key="${key}">${label}</button>`).join('')}
     </div>
     <div class="actions runtime-controls">
       <button type="button" class="primary" id="interact">${runtimeFrameCopy.buttons.interact}</button>
@@ -71,18 +79,20 @@ app.innerHTML = `
 const statusText = app.querySelector<HTMLElement>('#status-text')!
 const stagePill = app.querySelector<HTMLElement>('#stage-pill')!
 const progressFill = app.querySelector<HTMLElement>('#progress-fill')!
-const locationStepper = app.querySelector<HTMLElement>('#location-stepper')!
+const kitchenMap = app.querySelector<HTMLElement>('#kitchen-map')!
 const tickValue = app.querySelector<HTMLElement>('#tick-value')!
 const scoreValue = app.querySelector<HTMLElement>('#score-value')!
 const shiftValue = app.querySelector<HTMLElement>('#shift-value')!
 const locationValue = app.querySelector<HTMLElement>('#location-value')!
+const facingValue = app.querySelector<HTMLElement>('#facing-value')!
 const heldItemValue = app.querySelector<HTMLElement>('#held-item-value')!
 const orderValue = app.querySelector<HTMLElement>('#order-value')!
 const upcomingOrdersValue = app.querySelector<HTMLElement>('#upcoming-orders-value')!
+const activeTileValue = app.querySelector<HTMLElement>('#active-tile-value')!
 const grillValue = app.querySelector<HTMLElement>('#grill-value')!
 const boardValue = app.querySelector<HTMLElement>('#board-value')!
 const pantryValue = app.querySelector<HTMLElement>('#pantry-value')!
-const moveActions = [...app.querySelectorAll<HTMLButtonElement>('[data-move]')]
+const moveActions = [...app.querySelectorAll<HTMLButtonElement>('[data-direction]')]
 const interactButton = app.querySelector<HTMLButtonElement>('#interact')!
 const tickButton = app.querySelector<HTMLButtonElement>('#tick')!
 const resetButton = app.querySelector<HTMLButtonElement>('#reset')!
@@ -92,7 +102,46 @@ const completionBody = app.querySelector<HTMLElement>('#completion-body')!
 
 let sessionId = ''
 let state: BurgerSessionState = createInitialBurgerSessionState()
-const locationLabels = Object.fromEntries(runtimeFrameCopy.locationItems.map(({ id, label }) => [id, label])) as Record<BurgerStationId, string>
+const directionLabels = Object.fromEntries(runtimeFrameCopy.directionItems.map(({ id, label }) => [id, label])) as Record<BurgerDirection, string>
+const legendById = Object.fromEntries(runtimeFrameCopy.tileLegend.map((item) => [item.id, item]))
+
+function renderKitchenMap() {
+  const maxX = Math.max(...BURGER_LEVEL.tiles.map((tile) => tile.x))
+  const maxY = Math.max(...BURGER_LEVEL.tiles.map((tile) => tile.y))
+
+  kitchenMap.style.gridTemplateColumns = `repeat(${maxX + 1}, minmax(0, 1fr))`
+  kitchenMap.innerHTML = ''
+
+  for (let y = 0; y <= maxY; y += 1) {
+    for (let x = 0; x <= maxX; x += 1) {
+      const tile = BURGER_LEVEL.tiles.find((entry) => entry.x === x && entry.y === y)
+      const cell = document.createElement('div')
+      const isPlayer = state.player.position.x === x && state.player.position.y === y
+      const facingTile = getBurgerAdjacentPosition(state.player.position, state.player.facing)
+      const isFacing = facingTile.x === x && facingTile.y === y
+
+      cell.className = 'kitchen-tile'
+      cell.classList.toggle('is-wall', !tile?.walkable)
+      cell.classList.toggle('is-interactable', Boolean(tile?.interactable))
+      cell.classList.toggle('is-player', isPlayer)
+      cell.classList.toggle('is-facing', isFacing)
+      cell.setAttribute('aria-label', tile?.interactable ?? (tile?.walkable ? 'walkable tile' : 'wall'))
+
+      if (tile?.interactable) {
+        cell.textContent = legendById[tile.interactable]?.glyph ?? '?'
+      }
+
+      if (isPlayer) {
+        const marker = document.createElement('span')
+        marker.className = 'player-marker'
+        marker.textContent = '●'
+        cell.appendChild(marker)
+      }
+
+      kitchenMap.appendChild(cell)
+    }
+  }
+}
 
 function postToHost(message: RuntimeToHostMessage) {
   window.parent.postMessage(message, window.location.origin)
@@ -153,7 +202,8 @@ function render() {
   tickValue.textContent = String(state.tick)
   scoreValue.textContent = String(state.score)
   shiftValue.textContent = `${state.shift.servedCount} served · ${state.shift.failedCount} failed · ${state.shift.completedOrders.length}/${state.shift.totalOrders} complete`
-  locationValue.textContent = locationLabels[state.player.location]
+  locationValue.textContent = `${state.player.position.x}, ${state.player.position.y}`
+  facingValue.textContent = directionLabels[state.player.facing]
   heldItemValue.textContent = state.player.heldItem ?? runtimeFrameCopy.emptyValue
   orderValue.textContent = state.currentOrder
     ? `${getBurgerRecipe(state.currentOrder.recipeId).label} · ${state.currentOrder.remainingTicks}/${state.currentOrder.durationTicks} ticks left`
@@ -161,13 +211,16 @@ function render() {
   upcomingOrdersValue.textContent = state.upcomingOrders.length > 0
     ? state.upcomingOrders.map((order) => getBurgerRecipe(order.recipeId).label).join(', ')
     : runtimeFrameCopy.noUpcomingOrders
+  activeTileValue.textContent = (() => {
+    const tile = getBurgerTile(state.player.position)
+    const forwardTile = getBurgerTile(getBurgerAdjacentPosition(state.player.position, state.player.facing))
+    const interactable = tile?.interactable ?? forwardTile?.interactable
+    return interactable ? legendById[interactable]?.label ?? interactable : runtimeFrameCopy.noActiveTile
+  })()
   grillValue.textContent = `${state.stations.grill.patty} · ${state.stations.grill.progressTicks}/${BURGER_LEVEL.grillCookTicks}`
   boardValue.textContent = state.stations.board.items.join(', ') || runtimeFrameCopy.emptyValue
   pantryValue.textContent = `bun ${state.inventory.bun} · patty ${state.inventory.patty} · cheese ${state.inventory.cheese}`
-
-  locationStepper.querySelectorAll('span').forEach((item, index) => {
-    item.classList.toggle('is-active', runtimeFrameCopy.locationItems[index]?.id === state.player.location)
-  })
+  renderKitchenMap()
 
   const controlsDisabled = state.phase === 'paused' || state.phase === 'completed'
   for (const button of moveActions) {
@@ -227,7 +280,7 @@ function handleHostMessage(message: HostToRuntimeMessage) {
 
 for (const button of moveActions) {
   button.addEventListener('click', () => {
-    dispatch({ type: 'move', location: button.dataset.move as BurgerStationId })
+    dispatch({ type: 'move', direction: button.dataset.direction as BurgerDirection })
   })
 }
 
@@ -241,6 +294,14 @@ tickButton.addEventListener('click', () => {
 
 resetButton.addEventListener('click', () => {
   dispatch({ type: 'reset' })
+})
+
+window.addEventListener('keydown', (event) => {
+  const match = runtimeFrameCopy.directionItems.find((item) => item.key === event.key)
+  if (!match || state.phase === 'paused' || state.phase === 'completed') return
+
+  event.preventDefault()
+  dispatch({ type: 'move', direction: match.id })
 })
 
 window.addEventListener('message', (event) => {

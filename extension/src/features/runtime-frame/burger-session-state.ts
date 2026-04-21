@@ -5,10 +5,10 @@ import {
   type BurgerIngredient,
   type BurgerRecipeId,
   type BurgerShiftOrderDefinition,
-  type BurgerStationId,
+  type BurgerPosition,
 } from './burger-level'
 
-export const BURGER_SESSION_SAVE_VERSION = 2 as const
+export const BURGER_SESSION_SAVE_VERSION = 3 as const
 
 export type BurgerSessionPhase = 'booting' | 'running' | 'paused' | 'completed'
 
@@ -44,7 +44,8 @@ export interface BurgerSessionState {
   currentOrder: BurgerActiveOrder | null
   upcomingOrders: BurgerShiftOrderDefinition[]
   player: {
-    location: BurgerStationId
+    position: BurgerPosition
+    facing: 'up' | 'down' | 'left' | 'right'
     heldItem: BurgerCarryItem | null
   }
   log: string[]
@@ -87,7 +88,8 @@ export function createInitialBurgerSessionState(): BurgerSessionState {
     currentOrder: firstOrder ? createBurgerActiveOrder(firstOrder) : null,
     upcomingOrders: [...upcomingOrders],
     player: {
-      location: 'storage',
+      position: BURGER_LEVEL.spawn,
+      facing: 'up',
       heldItem: null,
     },
     log: ['Booted the local burger shift.'],

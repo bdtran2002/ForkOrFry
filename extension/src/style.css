@@ -51,6 +51,18 @@ button { font:inherit; border:0; cursor:pointer; }
 .runtime-shell-header { display:flex; justify-content:space-between; gap:12px; align-items:flex-start; }
 .runtime-shell-copy { margin:0; color:var(--muted); line-height:1.5; }
 .runtime-frame { width:100%; min-height:540px; border:1px solid var(--line); border-radius:18px; background:rgba(8,6,12,.92); }
+.runtime-helper { position:relative; z-index:1; margin:0; }
+.kitchen-map { display:grid; gap:8px; position:relative; z-index:1; }
+.kitchen-tile { min-height:62px; border-radius:14px; border:1px solid var(--line); background:rgba(255,255,255,.04); display:flex; align-items:center; justify-content:center; position:relative; color:var(--text); font-weight:700; }
+.kitchen-tile.is-wall { background:rgba(255,255,255,.02); opacity:.35; }
+.kitchen-tile.is-interactable { border-color:rgba(255,154,47,.35); background:rgba(255,154,47,.1); }
+.kitchen-tile.is-facing { box-shadow:0 0 0 1px rgba(130,242,211,.45) inset; }
+.kitchen-tile.is-player { outline:2px solid rgba(130,242,211,.6); outline-offset:2px; }
+.player-marker { position:absolute; right:8px; bottom:6px; color:var(--accent-3); font-size:.9rem; }
+.kitchen-legend { position:relative; z-index:1; display:grid; gap:8px; }
+.legend-items { display:flex; flex-wrap:wrap; gap:8px; }
+.legend-item { display:inline-flex; align-items:center; gap:6px; padding:7px 10px; border-radius:999px; border:1px solid var(--line); background:rgba(255,255,255,.03); color:var(--muted); font-size:.8rem; }
+.legend-item strong { color:var(--text); }
 .log-panel { padding:14px; border-radius:16px; border:1px solid var(--line); background:rgba(255,255,255,.04); position:relative; z-index:1; }
 .log-title { color:var(--accent-3); text-transform:uppercase; letter-spacing:.14em; font-size:.7rem; margin-bottom:.65rem; }
 .log-list { margin:0; padding-left:1.1rem; display:grid; gap:.45rem; color:var(--muted); }
@@ -62,4 +74,4 @@ button { font:inherit; border:0; cursor:pointer; }
 .completion { position:relative; z-index:1; padding:16px; border-radius:18px; border:1px solid rgba(130,242,211,.24); background:linear-gradient(135deg, rgba(130,242,211,.14), rgba(255,255,255,.04)); }
 .completion-badge { display:inline-flex; margin-bottom:.6rem; padding:8px 10px; border-radius:999px; background:rgba(130,242,211,.14); color:var(--accent-3); text-transform:uppercase; letter-spacing:.14em; font-size:.72rem; }
 @media (max-width: 780px) { .host-status-grid { grid-template-columns:repeat(2, minmax(0, 1fr)); } .host-status-wide { grid-column:span 2; } .runtime-frame { min-height:460px; } }
-@media (max-width: 560px) { .shell-grid, .checkpoint-grid, .host-status-grid { grid-template-columns:1fr; } .host-status-wide { grid-column:span 1; } .popup { width:auto; min-width:280px; } .runtime-frame { min-height:380px; } }
+@media (max-width: 560px) { .shell-grid, .checkpoint-grid, .host-status-grid { grid-template-columns:1fr; } .host-status-wide { grid-column:span 1; } .popup { width:auto; min-width:280px; } .runtime-frame { min-height:380px; } .kitchen-tile { min-height:52px; } }

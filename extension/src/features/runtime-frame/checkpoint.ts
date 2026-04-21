@@ -13,6 +13,8 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 }
 
 function isBurgerSessionState(value: unknown): value is BurgerSessionState {
+  const position = isRecord(value) && isRecord(value.player) && isRecord(value.player.position) ? value.player.position : null
+
   return (
     isRecord(value) &&
     value.saveVersion === BURGER_SESSION_SAVE_VERSION &&
@@ -29,6 +31,11 @@ function isBurgerSessionState(value: unknown): value is BurgerSessionState {
     isRecord(value.stations.board) &&
     Array.isArray(value.stations.board.items) &&
     Array.isArray(value.upcomingOrders) &&
+    isRecord(value.player) &&
+    isRecord(position) &&
+    typeof position.x === 'number' &&
+    typeof position.y === 'number' &&
+    (value.player.facing === 'up' || value.player.facing === 'down' || value.player.facing === 'left' || value.player.facing === 'right') &&
     ('currentOrder' in value ? value.currentOrder === null || isRecord(value.currentOrder) : false)
   )
 }

@@ -1,10 +1,12 @@
 import {
   BURGER_LEVEL,
+  getBurgerAdjacentPosition,
+  getBurgerTile,
   getBurgerRecipe,
   isBurgerRecipeId,
   resolveBurgerRecipe,
-  type BurgerCarryItem,
-  type BurgerStationId,
+  type BurgerDirection,
+  type BurgerInteractableKind,
 } from './burger-level'
 import {
   createBurgerActiveOrder,
@@ -15,7 +17,7 @@ import {
 export type BurgerSessionAction =
   | { type: 'boot'; checkpoint: BurgerSessionState | null }
   | { type: 'tick' }
-  | { type: 'move'; location: BurgerStationId }
+  | { type: 'move'; direction: BurgerDirection }
   | { type: 'interact' }
   | { type: 'pause' }
   | { type: 'resume' }
@@ -36,22 +38,6 @@ function appendLog(state: BurgerSessionState, message: string) {
   }
 }
 
-function chooseStorageItem(state: BurgerSessionState): BurgerCarryItem | null {
-  const recipe = state.currentOrder ? getBurgerRecipe(state.currentOrder.recipeId) : null
-  const boardItems = new Set(state.stations.board.items)
-
-  if (state.inventory.patty > 0 && state.stations.grill.patty === 'empty' && !boardItems.has('cooked-patty')) return 'patty'
-
-  const nextRequiredIngredient = recipe?.ingredients.find(
-    (ingredient) => ingredient !== 'cooked-patty' && !boardItems.has(ingredient) && state.inventory[ingredient] > 0,
-  )
-
-  if (nextRequiredIngredient) return nextRequiredIngredient
-
-  const fallback = (['cheese', 'bun', 'patty'] as const).find((item) => state.inventory[item] > 0)
-  return fallback ?? null
-}
-
 function resetStationsAndPlayer(state: BurgerSessionState) {
   return {
     ...state,
@@ -60,9 +46,25 @@ function resetStationsAndPlayer(state: BurgerSessionState) {
       board: { items: [] },
     },
     player: {
-      location: 'storage' as const,
+      position: BURGER_LEVEL.spawn,
+      facing: 'up' as const,
       heldItem: null,
     },
+  }
+}
+
+function getActiveInteractable(state: BurgerSessionState) {
+  const currentTile = getBurgerTile(state.player.position)
+  if (currentTile?.interactable) return currentTile
+  return getBurgerTile(getBurgerAdjacentPosition(state.player.position, state.player.facing))
+}
+
+function getInteractableIngredient(kind: BurgerInteractableKind): 'bun' | 'patty' | 'cheese' {
+  switch (kind) {
+    case 'bun-crate': return 'bun'
+    case 'patty-crate': return 'patty'
+    case 'cheese-crate': return 'cheese'
+    default: return 'bun'
   }
 }
 
@@ -111,22 +113,16 @@ function resolveInteract(state: BurgerSessionState) {
 
   const heldItem = state.player.heldItem
 
-  switch (state.player.location) {
-    case 'storage': {
-      if (heldItem) return appendLog(state, 'Hands are full. Move to a station before taking more ingredients.')
-      const nextItem = chooseStorageItem(state)
-      if (!nextItem || nextItem === 'cooked-patty' || isBurgerRecipeId(nextItem)) {
-        return appendLog(state, 'The pantry is empty for this order.')
-      }
+  const activeInteractable = getActiveInteractable(state)
 
-      return appendLog(
-        {
-          ...state,
-          inventory: { ...state.inventory, [nextItem]: state.inventory[nextItem] - 1 },
-          player: { ...state.player, heldItem: nextItem },
-        },
-        `Picked up ${nextItem} from storage.`,
-      )
+  switch (activeInteractable?.interactable) {
+    case 'bun-crate':
+    case 'patty-crate':
+    case 'cheese-crate': {
+      const ingredient = getInteractableIngredient(activeInteractable.interactable)
+      if (heldItem) return appendLog(state, 'Hands are full. Put that down first.')
+      if (state.inventory[ingredient] <= 0) return appendLog(state, `The ${ingredient} crate is empty.`)
+      return appendLog({ ...state, inventory: { ...state.inventory, [ingredient]: state.inventory[ingredient] - 1 }, player: { ...state.player, heldItem: ingredient } }, `Picked up ${ingredient} from the crate.`)
     }
     case 'grill': {
       if (heldItem === 'patty' && state.stations.grill.patty === 'empty') {
@@ -216,6 +212,8 @@ function resolveInteract(state: BurgerSessionState) {
 
       return appendLog(state, 'The counter needs a finished burger.')
     }
+    default:
+      return appendLog(state, 'There is nothing to interact with here.')
   }
 }
 
@@ -273,10 +271,13 @@ export function reduceBurgerSession(state: BurgerSessionState, action: BurgerSes
     }
     case 'tick':
       return resolveTick(state)
-    case 'move':
-      return state.phase === 'running'
-        ? appendLog({ ...state, player: { ...state.player, location: action.location } }, `Moved to ${action.location}.`)
-        : state
+    case 'move': {
+      if (state.phase !== 'running') return state
+      const destination = getBurgerAdjacentPosition(state.player.position, action.direction)
+      const tile = getBurgerTile(destination)
+      if (!tile?.walkable) return appendLog({ ...state, player: { ...state.player, facing: action.direction } }, 'That path is blocked.')
+      return appendLog({ ...state, player: { ...state.player, position: destination, facing: action.direction } }, `Moved ${action.direction}.`)
+    }
     case 'interact':
       return resolveInteract(state)
     case 'pause':
