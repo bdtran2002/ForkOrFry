@@ -27,6 +27,7 @@ function isBurgerSessionState(value: unknown): value is BurgerSessionState {
     typeof value.shift.servedCount === 'number' &&
     typeof value.shift.failedCount === 'number' &&
     Array.isArray(value.shift.completedOrders) &&
+    Array.isArray(value.activeOrders) &&
     isRecord(value.stations) &&
     isRecord(value.stations.grill) &&
     (value.stations.grill.patty === 'empty' || value.stations.grill.patty === 'cooking' || value.stations.grill.patty === 'cooked' || value.stations.grill.patty === 'burnt') &&
@@ -39,7 +40,7 @@ function isBurgerSessionState(value: unknown): value is BurgerSessionState {
     typeof position.x === 'number' &&
     typeof position.y === 'number' &&
     (value.player.facing === 'up' || value.player.facing === 'down' || value.player.facing === 'left' || value.player.facing === 'right') &&
-    ('currentOrder' in value ? value.currentOrder === null || isRecord(value.currentOrder) : false)
+    true
   )
 }
 

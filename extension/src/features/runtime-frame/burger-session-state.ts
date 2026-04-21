@@ -8,7 +8,7 @@ import {
   type BurgerPosition,
 } from './burger-level'
 
-export const BURGER_SESSION_SAVE_VERSION = 4 as const
+export const BURGER_SESSION_SAVE_VERSION = 5 as const
 
 export type BurgerSessionPhase = 'booting' | 'running' | 'paused' | 'completed'
 
@@ -41,7 +41,7 @@ export interface BurgerSessionState {
     failedCount: number
     completedOrders: string[]
   }
-  currentOrder: BurgerActiveOrder | null
+  activeOrders: BurgerActiveOrder[]
   upcomingOrders: BurgerShiftOrderDefinition[]
   player: {
     position: BurgerPosition
@@ -61,7 +61,8 @@ export function createBurgerActiveOrder(order: BurgerShiftOrderDefinition): Burg
 }
 
 export function createInitialBurgerSessionState(): BurgerSessionState {
-  const [firstOrder, ...upcomingOrders] = BURGER_LEVEL.orders
+  const activeOrders = BURGER_LEVEL.orders.slice(0, BURGER_LEVEL.activeOrderLimit).map(createBurgerActiveOrder)
+  const upcomingOrders = BURGER_LEVEL.orders.slice(BURGER_LEVEL.activeOrderLimit)
 
   return {
     saveVersion: BURGER_SESSION_SAVE_VERSION,
@@ -85,7 +86,7 @@ export function createInitialBurgerSessionState(): BurgerSessionState {
       failedCount: 0,
       completedOrders: [],
     },
-    currentOrder: firstOrder ? createBurgerActiveOrder(firstOrder) : null,
+    activeOrders,
     upcomingOrders: [...upcomingOrders],
     player: {
       position: BURGER_LEVEL.spawn,

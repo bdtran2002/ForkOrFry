@@ -191,10 +191,13 @@ function dispatch(action: Parameters<typeof reduceBurgerSession>[1], options?: {
 function orderProgressPercent() {
   const completedOrders = state.shift.servedCount + state.shift.failedCount
   if (state.phase === 'completed') return 100
-  if (!state.currentOrder) return Math.max((completedOrders / state.shift.totalOrders) * 100, 0)
+  if (state.activeOrders.length === 0) return Math.max((completedOrders / state.shift.totalOrders) * 100, 0)
 
-  const currentOrderProgress = 1 - (state.currentOrder.remainingTicks / state.currentOrder.durationTicks)
-  return Math.max(((completedOrders + currentOrderProgress) / state.shift.totalOrders) * 100, 0)
+  const activeProgress = state.activeOrders.reduce((sum, order) => {
+    return sum + (1 - (order.remainingTicks / order.durationTicks))
+  }, 0)
+
+  return Math.max(((completedOrders + activeProgress) / state.shift.totalOrders) * 100, 0)
 }
 
 function grillPressureText() {
@@ -219,11 +222,13 @@ function render() {
   locationValue.textContent = `${state.player.position.x}, ${state.player.position.y}`
   facingValue.textContent = directionLabels[state.player.facing]
   heldItemValue.textContent = state.player.heldItem ?? runtimeFrameCopy.emptyValue
-  orderValue.textContent = state.currentOrder
-    ? `${getBurgerRecipe(state.currentOrder.recipeId).label} · ${state.currentOrder.remainingTicks}/${state.currentOrder.durationTicks} ticks left`
+  orderValue.textContent = state.activeOrders.length > 0
+    ? state.activeOrders
+      .map((order) => `${order.id}: ${getBurgerRecipe(order.recipeId).label} · ${order.remainingTicks}/${order.durationTicks} ticks left`)
+      .join(' | ')
     : runtimeFrameCopy.noCurrentOrder
   upcomingOrdersValue.textContent = state.upcomingOrders.length > 0
-    ? state.upcomingOrders.map((order) => getBurgerRecipe(order.recipeId).label).join(', ')
+    ? state.upcomingOrders.map((order) => `${order.id}: ${getBurgerRecipe(order.recipeId).label}`).join(', ')
     : runtimeFrameCopy.noUpcomingOrders
   activeTileValue.textContent = (() => {
     const tile = getBurgerTile(state.player.position)

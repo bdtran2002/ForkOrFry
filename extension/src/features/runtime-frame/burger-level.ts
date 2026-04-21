@@ -53,6 +53,7 @@ export const BURGER_LEVEL = {
   },
   grillCookTicks: 3,
   grillBurnTicks: 6,
+  activeOrderLimit: 2,
   orders: [
     { id: 'burger-order-1', recipeId: 'cheeseburger', durationTicks: 36 },
     { id: 'burger-order-2', recipeId: 'plain-burger', durationTicks: 32 },

@@ -27,8 +27,8 @@ export const runtimeFrameCopy = {
     location: 'Player position',
     facing: 'Facing',
     heldItem: 'Held item',
-    order: 'Current order recipe',
-    upcomingOrders: 'Upcoming orders',
+    order: 'Live tickets',
+    upcomingOrders: 'Queued tickets',
     grill: 'Grill state',
     board: 'Assembly board',
     pantry: 'Pantry stock',
@@ -47,8 +47,8 @@ export const runtimeFrameCopy = {
     failedCount === 0
       ? `Shift complete with ${servedCount} served orders.`
       : `Shift complete with ${servedCount} served and ${failedCount} failed orders.`,
-  noCurrentOrder: 'Shift complete',
-  noUpcomingOrders: 'No more orders queued',
+  noCurrentOrder: 'No live tickets',
+  noUpcomingOrders: 'No more tickets queued',
   noActiveTile: 'No station in reach',
   emptyValue: 'empty',
   grillStates: {

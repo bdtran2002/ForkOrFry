@@ -38,21 +38,6 @@ function appendLog(state: BurgerSessionState, message: string) {
   }
 }
 
-function resetStationsAndPlayer(state: BurgerSessionState) {
-  return {
-    ...state,
-    stations: {
-      grill: { patty: 'empty' as const, progressTicks: 0 },
-      board: { items: [] },
-    },
-    player: {
-      position: BURGER_LEVEL.spawn,
-      facing: 'up' as const,
-      heldItem: null,
-    },
-  }
-}
-
 function getActiveInteractable(state: BurgerSessionState) {
   const currentTile = getBurgerTile(state.player.position)
   if (currentTile?.interactable) return currentTile
@@ -68,43 +53,7 @@ function getInteractableIngredient(kind: BurgerInteractableKind): 'bun' | 'patty
   }
 }
 
-function completeCurrentOrder(state: BurgerSessionState, outcome: 'served' | 'failed') {
-  const currentOrder = state.currentOrder
-  if (!currentOrder) {
-    return appendLog(state, 'The burger shift is already complete.')
-  }
-
-  const [nextOrderDefinition, ...upcomingOrders] = state.upcomingOrders
-  const nextOrder = nextOrderDefinition ? createBurgerActiveOrder(nextOrderDefinition) : null
-  const servedCount = state.shift.servedCount + (outcome === 'served' ? 1 : 0)
-  const failedCount = state.shift.failedCount + (outcome === 'failed' ? 1 : 0)
-  const finished = resetStationsAndPlayer({
-    ...state,
-    score: state.score + (outcome === 'served' ? 1 : 0),
-    shift: {
-      ...state.shift,
-      servedCount,
-      failedCount,
-      completedOrders: [...state.shift.completedOrders, currentOrder.id],
-    },
-    currentOrder: nextOrder,
-    upcomingOrders,
-    phase: nextOrder ? 'running' : 'completed',
-  })
-
-  return appendLog(
-    finished,
-    outcome === 'served'
-      ? nextOrder
-        ? `Served ${currentOrder.id}. ${nextOrder.id} is now live.`
-        : `Served ${currentOrder.id}. Burger shift complete.`
-      : nextOrder
-        ? `${currentOrder.id} timed out. ${nextOrder.id} is now live.`
-        : `${currentOrder.id} timed out. Burger shift complete.`,
-  )
-}
-
-function advanceKitchenTick(state: BurgerSessionState, timedOrderId: string | null = state.currentOrder?.id ?? null) {
+function advanceKitchenTick(state: BurgerSessionState) {
   if (state.phase !== 'running') return state
 
   let next: BurgerSessionState = {
@@ -135,27 +84,47 @@ function advanceKitchenTick(state: BurgerSessionState, timedOrderId: string | nu
     )
   }
 
-  if (!timedOrderId || !next.currentOrder || next.currentOrder.id !== timedOrderId) {
-    return next
+  if (next.activeOrders.length === 0) return next
+
+  const decremented = next.activeOrders.map((order) => ({ ...order, remainingTicks: Math.max(order.remainingTicks - 1, 0) }))
+  const expiredOrders = decremented.filter((order) => order.remainingTicks === 0)
+  const liveOrders = decremented.filter((order) => order.remainingTicks > 0)
+
+  if (expiredOrders.length === 0) {
+    return { ...next, activeOrders: decremented }
   }
 
-  const remainingTicks = Math.max(next.currentOrder.remainingTicks - 1, 0)
-  next = {
-    ...next,
-    currentOrder: { ...next.currentOrder, remainingTicks },
+  let finalState: BurgerSessionState = { ...next, activeOrders: liveOrders }
+  for (const expiredOrder of expiredOrders) {
+    const [nextOrderDefinition, ...restUpcoming] = finalState.upcomingOrders
+    const nextOrder = nextOrderDefinition ? createBurgerActiveOrder(nextOrderDefinition) : null
+    finalState = {
+      ...finalState,
+      score: finalState.score,
+      shift: {
+        ...finalState.shift,
+        failedCount: finalState.shift.failedCount + 1,
+        completedOrders: [...finalState.shift.completedOrders, expiredOrder.id],
+      },
+      activeOrders: nextOrder ? [...finalState.activeOrders, nextOrder] : finalState.activeOrders,
+      upcomingOrders: restUpcoming,
+      phase: finalState.activeOrders.length + (nextOrder ? 1 : 0) > 0 || restUpcoming.length > 0 ? 'running' : 'completed',
+    }
+    finalState = appendLog(
+      finalState,
+      nextOrder
+        ? `${expiredOrder.id} timed out. ${nextOrder.id} is now live.`
+        : `${expiredOrder.id} timed out. Burger shift complete.`,
+    )
   }
 
-  if (remainingTicks === 0) {
-    return completeCurrentOrder(next, 'failed')
-  }
-
-  return next
+  return finalState
 }
 
 function resolveInteract(state: BurgerSessionState) {
   if (state.phase !== 'running') return state
 
-  if (!state.currentOrder) {
+  if (state.activeOrders.length === 0) {
     return appendLog(state, 'The burger shift is already finished.')
   }
 
@@ -275,18 +244,40 @@ function resolveInteract(state: BurgerSessionState) {
       break
     }
     case 'counter': {
-      if (heldItem && isBurgerRecipeId(heldItem) && state.currentOrder && heldItem === state.currentOrder.recipeId) {
-        nextState = completeCurrentOrder(state, 'served')
+      const matchingOrderIndex = state.activeOrders.findIndex((order) => heldItem && isBurgerRecipeId(heldItem) && order.recipeId === heldItem)
+      if (heldItem && isBurgerRecipeId(heldItem) && matchingOrderIndex >= 0) {
+        const completedOrder = state.activeOrders[matchingOrderIndex]
+        const remainingActiveOrders = state.activeOrders.filter((_, index) => index !== matchingOrderIndex)
+        const [nextOrderDefinition, ...upcomingOrders] = state.upcomingOrders
+        const nextOrder = nextOrderDefinition ? createBurgerActiveOrder(nextOrderDefinition) : null
+        nextState = appendLog(
+          {
+            ...state,
+            score: state.score + 1,
+            shift: {
+              ...state.shift,
+              servedCount: state.shift.servedCount + 1,
+              completedOrders: [...state.shift.completedOrders, completedOrder.id],
+            },
+            activeOrders: nextOrder ? [...remainingActiveOrders, nextOrder] : remainingActiveOrders,
+            upcomingOrders,
+            player: { ...state.player, heldItem: null },
+            phase: remainingActiveOrders.length > 0 || upcomingOrders.length > 0 || nextOrder ? 'running' : 'completed',
+          },
+          nextOrder
+            ? `Served ${completedOrder.id}. ${nextOrder.id} is now live.`
+            : `Served ${completedOrder.id}. Burger shift complete.`,
+        )
         break
       }
 
-      if (heldItem && isBurgerRecipeId(heldItem) && state.currentOrder) {
+      if (heldItem && isBurgerRecipeId(heldItem) && state.activeOrders.length > 0) {
         nextState = appendLog(
           {
             ...state,
             player: { ...state.player, heldItem: null },
           },
-          `Counter rejected ${getBurgerRecipe(heldItem).label}. Need ${getBurgerRecipe(state.currentOrder.recipeId).label}.`,
+          `Counter rejected ${getBurgerRecipe(heldItem).label}. Need ${getBurgerRecipe(state.activeOrders[0].recipeId).label}.`,
         )
         break
       }
@@ -298,7 +289,7 @@ function resolveInteract(state: BurgerSessionState) {
       nextState = appendLog(state, 'There is nothing to interact with here.')
   }
 
-  return advanceKitchenTick(nextState, state.currentOrder?.id ?? null)
+  return advanceKitchenTick(nextState)
 }
 
 export function reduceBurgerSession(state: BurgerSessionState, action: BurgerSessionAction): BurgerSessionState {
@@ -307,7 +298,7 @@ export function reduceBurgerSession(state: BurgerSessionState, action: BurgerSes
       const booted = action.checkpoint ? cloneSessionState(action.checkpoint) : createInitialBurgerSessionState()
       return {
         ...booted,
-        phase: booted.phase === 'completed' || booted.currentOrder === null ? 'completed' : 'running',
+        phase: booted.phase === 'completed' || booted.activeOrders.length === 0 ? 'completed' : 'running',
       }
     }
     case 'tick':
@@ -315,12 +306,11 @@ export function reduceBurgerSession(state: BurgerSessionState, action: BurgerSes
     case 'move': {
       if (state.phase !== 'running') return state
       const destination = getBurgerAdjacentPosition(state.player.position, action.direction)
-      const timedOrderId = state.currentOrder?.id ?? null
       const tile = getBurgerTile(destination)
       if (!tile?.walkable) {
-        return advanceKitchenTick(appendLog({ ...state, player: { ...state.player, facing: action.direction } }, 'That path is blocked.'), timedOrderId)
+        return advanceKitchenTick(appendLog({ ...state, player: { ...state.player, facing: action.direction } }, 'That path is blocked.'))
       }
-      return advanceKitchenTick(appendLog({ ...state, player: { ...state.player, position: destination, facing: action.direction } }, `Moved ${action.direction}.`), timedOrderId)
+      return advanceKitchenTick(appendLog({ ...state, player: { ...state.player, position: destination, facing: action.direction } }, `Moved ${action.direction}.`))
     }
     case 'interact':
       return resolveInteract(state)
