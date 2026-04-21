@@ -12,6 +12,10 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null
 }
 
+function isBurgerCarryItem(value: unknown): boolean {
+  return value === 'bun' || value === 'patty' || value === 'cheese' || value === 'cooked-patty' || value === 'plain-burger' || value === 'cheeseburger' || (isRecord(value) && value.kind === 'partial-burger' && Array.isArray(value.ingredients))
+}
+
 function isBurgerSessionState(value: unknown): value is BurgerSessionState {
   const position = isRecord(value) && isRecord(value.player) && isRecord(value.player.position) ? value.player.position : null
   const activeOrders = isRecord(value) && Array.isArray(value.activeOrders) ? value.activeOrders : null
@@ -40,9 +44,9 @@ function isBurgerSessionState(value: unknown): value is BurgerSessionState {
     (value.stations.grill.patty === 'empty' || value.stations.grill.patty === 'cooking' || value.stations.grill.patty === 'cooked' || value.stations.grill.patty === 'burnt') &&
     typeof value.stations.grill.progressTicks === 'number' &&
     isRecord(value.stations.board) &&
-    Array.isArray(value.stations.board.items) &&
+    ((Array.isArray(value.stations.board.items) && value.stations.board.items.every((item) => item === 'bun' || item === 'patty' || item === 'cheese' || item === 'cooked-patty')) || value.stations.board.item === null || isBurgerCarryItem(value.stations.board.item)) &&
     isRecord(value.stations.counter) &&
-    (value.stations.counter.finishedBurger === null || value.stations.counter.finishedBurger === 'plain-burger' || value.stations.counter.finishedBurger === 'cheeseburger') &&
+    ((value.stations.counter.finishedBurger === null || isBurgerCarryItem(value.stations.counter.finishedBurger)) || value.stations.counter.item === null || isBurgerCarryItem(value.stations.counter.item)) &&
     Array.isArray(upcomingOrders) &&
     upcomingOrders.every((order) => isRecord(order)
       && typeof order.id === 'string'

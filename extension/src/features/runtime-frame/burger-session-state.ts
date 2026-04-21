@@ -8,7 +8,7 @@ import {
   type BurgerPosition,
 } from './burger-level'
 
-export const BURGER_SESSION_SAVE_VERSION = 7 as const
+export const BURGER_SESSION_SAVE_VERSION = 8 as const
 
 export type BurgerSessionPhase = 'booting' | 'running' | 'paused' | 'completed'
 
@@ -33,9 +33,11 @@ export interface BurgerSessionState {
     }
     board: {
       items: BurgerCarryIngredient[]
+      item: BurgerCarryItem | null
     }
     counter: {
       finishedBurger: BurgerCarryItem | null
+      item: BurgerCarryItem | null
     }
   }
   shift: {
@@ -96,9 +98,11 @@ export function createInitialBurgerSessionState(): BurgerSessionState {
       },
       board: {
         items: [],
+        item: null,
       },
       counter: {
         finishedBurger: null,
+        item: null,
       },
     },
     shift: {

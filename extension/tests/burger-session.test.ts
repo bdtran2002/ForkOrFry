@@ -112,7 +112,7 @@ describe('burger session reducer', () => {
     expect(state.score).toBe(1)
     expect(state.shift.servedCount).toBe(1)
     expect(state.activeOrders.map((order) => order.id)).toEqual(['burger-order-2', 'burger-order-3'])
-    expect(state.stations.board.items).toEqual([])
+    expect(state.stations.board.item).toBeNull()
     expect(state.stations.grill.patty).toBe('empty')
 
     state.player.heldItem = 'plain-burger'
@@ -121,7 +121,7 @@ describe('burger session reducer', () => {
     expect(state.score).toBe(2)
     expect(state.shift.servedCount).toBe(2)
     expect(state.activeOrders.map((order) => order.id)).toEqual(['burger-order-3'])
-    expect(state.stations.board.items).toEqual([])
+    expect(state.stations.board.item).toBeNull()
 
     state.player.heldItem = 'cheeseburger'
     state = reduceBurgerSession(state, { type: 'interact' })
@@ -214,7 +214,7 @@ describe('burger session reducer', () => {
     expect(state.shift.servedCount).toBe(0)
     expect(state.activeOrders[0].id).toBe('burger-order-1')
     expect(state.player.heldItem).toBeNull()
-    expect(state.stations.counter.finishedBurger).toBe('cheeseburger')
+    expect(state.stations.counter.item).toBe('cheeseburger')
     expect(state.log.at(-1)).toContain('Staged Cheeseburger on the counter.')
   })
 
@@ -231,13 +231,13 @@ describe('burger session reducer', () => {
     state = reduceBurgerSession(state, { type: 'interact' })
 
     expect(state.player.heldItem).toBeNull()
-    expect(state.stations.counter.finishedBurger).toBe('cheeseburger')
+    expect(state.stations.counter.item).toBe('cheeseburger')
     expect(state.log.at(-1)).toContain('Staged Cheeseburger on the counter.')
 
     state = reduceBurgerSession(state, { type: 'interact' })
 
     expect(state.player.heldItem).toBe('cheeseburger')
-    expect(state.stations.counter.finishedBurger).toBeNull()
+    expect(state.stations.counter.item).toBeNull()
     expect(state.log.at(-1)).toContain('Picked up Cheeseburger from the counter.')
   })
 
@@ -254,7 +254,7 @@ describe('burger session reducer', () => {
     state = reduceBurgerSession(state, { type: 'interact' })
 
     expect(state.player.heldItem).toBeNull()
-    expect(state.stations.counter.finishedBurger).toBeNull()
+    expect(state.stations.counter.item).toBeNull()
     expect(state.shift.servedCount).toBe(1)
   })
 
@@ -263,7 +263,7 @@ describe('burger session reducer', () => {
     state = {
       ...state,
       activeOrders: [createActiveOrder('burger-order-1', 'plain-burger')],
-      stations: { ...state.stations, counter: { finishedBurger: 'cheeseburger' } },
+      stations: { ...state.stations, counter: { finishedBurger: 'cheeseburger' as const, item: 'cheeseburger' as const } },
     }
 
     state.player.heldItem = null
@@ -272,7 +272,7 @@ describe('burger session reducer', () => {
     state = reduceBurgerSession(state, { type: 'interact' })
 
     expect(state.player.heldItem).toBe('cheeseburger')
-    expect(state.stations.counter.finishedBurger).toBeNull()
+    expect(state.stations.counter.item).toBeNull()
   })
 
   it('round-trips a checkpoint with player position and kitchen state', () => {
@@ -280,7 +280,7 @@ describe('burger session reducer', () => {
     state.player.heldItem = 'bun'
     state.stations.grill.patty = 'cooked'
     state.stations.grill.progressTicks = 2
-    state.stations.board.items = ['bun', 'cooked-patty']
+    state.stations.board.item = { kind: 'partial-burger', ingredients: ['bun', 'cooked-patty'] as const } as never
     state = move(state, 'right')
 
     const checkpoint = createBurgerSessionCheckpoint('burger-runtime', state)
@@ -298,14 +298,14 @@ describe('burger session reducer', () => {
   it('round-trips the counter staging state in a checkpoint', () => {
     const state = {
       ...extendTickets(bootBurger()),
-      stations: { ...bootBurger().stations, counter: { finishedBurger: 'cheeseburger' } },
+      stations: { ...bootBurger().stations, counter: { finishedBurger: 'cheeseburger' as const, item: 'cheeseburger' as const } },
     }
 
     const checkpoint = createBurgerSessionCheckpoint('burger-runtime', state)
     const restored = restoreBurgerSessionCheckpoint('burger-runtime', checkpoint)
 
-    expect(restored.saveVersion).toBe(7)
-    expect(restored.stations.counter.finishedBurger).toBe('cheeseburger')
+    expect(restored.saveVersion).toBe(8)
+    expect(restored.stations.counter.item).toBe('cheeseburger')
   })
 
   it('rejects an old checkpoint version and restores the fresh session instead', () => {
@@ -314,14 +314,65 @@ describe('burger session reducer', () => {
       saveVersion: 3 as never,
       stations: {
         grill: { patty: 'burnt', progressTicks: 99 },
-        board: { items: ['bun'] },
+        board: { items: ['bun'], item: { kind: 'partial-burger', ingredients: ['bun'] as const } as never },
+        counter: { finishedBurger: null, item: null },
       },
     })
 
     const restored = restoreBurgerSessionCheckpoint('burger-runtime', checkpoint)
 
-    expect(restored.saveVersion).toBe(7)
+    expect(restored.saveVersion).toBe(8)
     expect(restored.stations.grill.patty).toBe('empty')
-    expect(restored.stations.board.items).toEqual([])
+    expect(restored.stations.board.item).toBeNull()
+  })
+
+  it('supports partial build pickup, restage, and completion on the board', () => {
+    let state = extendTickets(bootBurger())
+    state = { ...state, activeOrders: [] }
+
+    state.player.heldItem = 'bun'
+    state.player.position = { x: 2, y: 1 }
+    state.player.facing = 'right'
+    state = reduceBurgerSession(state, { type: 'interact' })
+
+    expect(state.player.heldItem).toBeNull()
+    expect(state.stations.board.item).toEqual({ kind: 'partial-burger', ingredients: ['bun'] })
+
+    state = reduceBurgerSession(state, { type: 'interact' })
+    expect(state.player.heldItem).toEqual({ kind: 'partial-burger', ingredients: ['bun'] })
+    expect(state.stations.board.item).toBeNull()
+
+    state = reduceBurgerSession(state, { type: 'interact' })
+    expect(state.stations.board.item).toEqual({ kind: 'partial-burger', ingredients: ['bun'] })
+
+    state.player.heldItem = 'cooked-patty'
+    state = reduceBurgerSession(state, { type: 'interact' })
+    expect(state.stations.board.item).toBe('plain-burger')
+
+    state = reduceBurgerSession(state, { type: 'interact' })
+    expect(state.player.heldItem).toBe('plain-burger')
+    expect(state.stations.board.item).toBeNull()
+  })
+
+  it('stages partial builds on the counter and serves only completed live orders', () => {
+    let state = extendTickets(bootBurger())
+    state = { ...state, activeOrders: [createActiveOrder('burger-order-1', 'plain-burger')] }
+
+    state.player.heldItem = { kind: 'partial-burger', ingredients: ['bun'] }
+    state.player.position = { x: 3, y: 1 }
+    state.player.facing = 'right'
+    state = reduceBurgerSession(state, { type: 'interact' })
+
+    expect(state.player.heldItem).toBeNull()
+    expect(state.stations.counter.item).toEqual({ kind: 'partial-burger', ingredients: ['bun'] })
+
+    state = reduceBurgerSession(state, { type: 'interact' })
+    expect(state.player.heldItem).toEqual({ kind: 'partial-burger', ingredients: ['bun'] })
+
+    state.player.heldItem = 'plain-burger'
+    state = reduceBurgerSession(state, { type: 'interact' })
+    expect(state.shift.servedCount).toBe(1)
+    expect(state.score).toBe(1)
+    expect(state.player.heldItem).toBeNull()
   })
 })

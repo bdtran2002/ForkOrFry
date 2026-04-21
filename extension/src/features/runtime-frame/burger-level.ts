@@ -3,6 +3,10 @@ export type BurgerInteractableKind = 'bun-crate' | 'patty-crate' | 'cheese-crate
 export type BurgerStationId = BurgerInteractableKind
 export type BurgerIngredient = 'bun' | 'patty' | 'cheese'
 export type BurgerCarryIngredient = BurgerIngredient | 'cooked-patty'
+export type BurgerBuildItem = {
+  kind: 'partial-burger'
+  ingredients: BurgerCarryIngredient[]
+}
 export type BurgerTile = {
   x: number
   y: number
@@ -23,7 +27,7 @@ export const BURGER_RECIPES = {
 } as const
 
 export type BurgerRecipeId = keyof typeof BURGER_RECIPES
-export type BurgerCarryItem = BurgerCarryIngredient | BurgerRecipeId
+export type BurgerCarryItem = BurgerCarryIngredient | BurgerRecipeId | BurgerBuildItem
 export type BurgerRecipeDefinition = {
   label: string
   ingredients: readonly BurgerCarryIngredient[]
@@ -87,6 +91,10 @@ export function getBurgerRecipe(recipeId: BurgerRecipeId): BurgerRecipeDefinitio
 
 export function isBurgerRecipeId(item: BurgerCarryItem | null): item is BurgerRecipeId {
   return item === 'plain-burger' || item === 'cheeseburger'
+}
+
+export function isBurgerBuildItem(item: BurgerCarryItem | null): item is BurgerBuildItem {
+  return !!item && typeof item === 'object' && item.kind === 'partial-burger' && Array.isArray(item.ingredients)
 }
 
 export function resolveBurgerRecipe(items: BurgerCarryIngredient[]): BurgerRecipeId | null {

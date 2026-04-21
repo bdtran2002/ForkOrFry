@@ -3,8 +3,10 @@ import {
   getBurgerAdjacentPosition,
   getBurgerTile,
   getBurgerRecipe,
+  isBurgerBuildItem,
   isBurgerRecipeId,
   resolveBurgerRecipe,
+  type BurgerCarryIngredient,
   type BurgerDirection,
   type BurgerInteractableKind,
 } from './burger-level'
@@ -64,6 +66,18 @@ function syncBurgerShiftPhase(state: BurgerSessionState): BurgerSessionState {
 
 function hasLiveMatchingOrder(state: BurgerSessionState, recipeId: BurgerSessionState['player']['heldItem']) {
   return !!recipeId && isBurgerRecipeId(recipeId) && state.activeOrders.some((order) => order.recipeId === recipeId)
+}
+
+function isLooseBurgerItem(item: BurgerSessionState['player']['heldItem']) {
+  return !!item && !isBurgerRecipeId(item) && !isBurgerBuildItem(item)
+}
+
+function getBoardItem(state: BurgerSessionState) {
+  return state.stations.board.item ?? (state.stations.board.items.length > 0 ? { kind: 'partial-burger' as const, ingredients: state.stations.board.items } : null)
+}
+
+function getCounterItem(state: BurgerSessionState) {
+  return state.stations.counter.item ?? state.stations.counter.finishedBurger
 }
 
 function promoteEligibleOrders(state: BurgerSessionState) {
@@ -236,23 +250,40 @@ function resolveInteract(state: BurgerSessionState) {
       break
     }
     case 'board': {
-      if (heldItem && !isBurgerRecipeId(heldItem) && !state.stations.board.items.includes(heldItem)) {
-        nextState = appendLog(
-          {
+      const boardItem = getBoardItem(state)
+
+      if (heldItem && (isLooseBurgerItem(heldItem) || isBurgerBuildItem(heldItem))) {
+        if (!boardItem) {
+          nextState = appendLog({
             ...state,
             player: { ...state.player, heldItem: null },
-            stations: {
-              ...state.stations,
-              board: { items: [...state.stations.board.items, heldItem] },
-            },
-          },
-          `Placed ${heldItem} on the board.`,
-        )
-        break
+            stations: { ...state.stations, board: { items: isBurgerBuildItem(heldItem) ? heldItem.ingredients : [heldItem] as BurgerCarryIngredient[], item: isBurgerBuildItem(heldItem) ? heldItem : { kind: 'partial-burger', ingredients: [heldItem] as BurgerCarryIngredient[] } } },
+          }, isBurgerBuildItem(heldItem) ? 'Placed a partial burger on the board.' : `Started a partial burger on the board with ${heldItem}.`)
+          break
+        }
+
+        if (isBurgerBuildItem(boardItem)) {
+          if (isBurgerBuildItem(heldItem)) {
+            nextState = appendLog(state, 'The board already has a partial burger.')
+            break
+          }
+          const ingredients = [...boardItem.ingredients, heldItem] as BurgerCarryIngredient[]
+          const recipeId = resolveBurgerRecipe(ingredients)
+          nextState = appendLog({
+            ...state,
+            player: { ...state.player, heldItem: null },
+            stations: { ...state.stations, board: { items: ingredients, item: recipeId ?? { kind: 'partial-burger', ingredients } } },
+          }, recipeId ? `Completed ${getBurgerRecipe(recipeId).label} on the board.` : `Added ${heldItem} to the partial burger.`)
+          break
+        }
       }
 
-      if (heldItem && !isBurgerRecipeId(heldItem) && state.stations.board.items.includes(heldItem)) {
-        nextState = appendLog(state, `${heldItem} is already on the board.`)
+      if (!heldItem && boardItem) {
+        nextState = appendLog({
+          ...state,
+          player: { ...state.player, heldItem: boardItem },
+          stations: { ...state.stations, board: { items: [], item: null } },
+        }, isBurgerBuildItem(boardItem) ? 'Picked up a partial burger from the board.' : isBurgerRecipeId(boardItem) ? `Picked up ${getBurgerRecipe(boardItem).label} from the board.` : `Picked up ${boardItem} from the board.`)
         break
       }
 
@@ -261,26 +292,11 @@ function resolveInteract(state: BurgerSessionState) {
         break
       }
 
-      const assembledRecipe = resolveBurgerRecipe(state.stations.board.items)
-      if (!heldItem && assembledRecipe) {
-        nextState = appendLog(
-          {
-            ...state,
-            player: { ...state.player, heldItem: assembledRecipe },
-            stations: {
-              ...state.stations,
-              board: { items: [] },
-            },
-          },
-          `Assembled ${getBurgerRecipe(assembledRecipe).label}.`,
-        )
-        break
-      }
-
-      nextState = appendLog(state, heldItem ? 'That item does not belong on the board yet.' : 'The board recipe is incomplete or mismatched.')
+      nextState = appendLog(state, boardItem ? 'The board is already occupied.' : 'Nothing can be assembled here right now.')
       break
     }
     case 'counter': {
+      const counterItem = getCounterItem(state)
       const matchingOrderIndex = state.activeOrders.findIndex((order) => heldItem && isBurgerRecipeId(heldItem) && order.recipeId === heldItem)
       if (heldItem && isBurgerRecipeId(heldItem) && matchingOrderIndex >= 0) {
         const completedOrder = state.activeOrders[matchingOrderIndex]
@@ -304,41 +320,37 @@ function resolveInteract(state: BurgerSessionState) {
         break
       }
 
-      if (heldItem && isBurgerRecipeId(heldItem)) {
-        if (!hasLiveMatchingOrder(state, heldItem) && state.stations.counter.finishedBurger === null) {
-          nextState = appendLog(
-            {
-              ...state,
-              player: { ...state.player, heldItem: null },
-              stations: { ...state.stations, counter: { finishedBurger: heldItem } },
-            },
-            `Staged ${getBurgerRecipe(heldItem).label} on the counter.`,
-          )
-          break
-        }
-
-        nextState = appendLog(
-          state,
-          state.activeOrders.length > 0
-            ? `Counter rejected ${getBurgerRecipe(heldItem).label}. Need ${getBurgerRecipe(state.activeOrders[0].recipeId).label}.`
-            : `No live ticket matches ${getBurgerRecipe(heldItem).label} right now.`,
-        )
+      if (heldItem && (isBurgerBuildItem(heldItem) || !hasLiveMatchingOrder(state, heldItem)) && !counterItem) {
+        nextState = appendLog({
+          ...state,
+          player: { ...state.player, heldItem: null },
+          stations: { ...state.stations, counter: { finishedBurger: heldItem, item: heldItem } },
+        }, isBurgerBuildItem(heldItem)
+          ? 'Staged a partial burger on the counter.'
+          : isBurgerRecipeId(heldItem)
+            ? `Staged ${getBurgerRecipe(heldItem).label} on the counter.`
+            : `Staged ${heldItem} on the counter.`)
         break
       }
 
-      if (!heldItem && state.stations.counter.finishedBurger) {
+      if (heldItem && isBurgerRecipeId(heldItem) && !hasLiveMatchingOrder(state, heldItem)) {
+        nextState = appendLog(state, state.activeOrders.length > 0 ? `Counter rejected ${getBurgerRecipe(heldItem).label}. Need ${getBurgerRecipe(state.activeOrders[0].recipeId).label}.` : `No live ticket matches ${getBurgerRecipe(heldItem).label} right now.`)
+        break
+      }
+
+      if (!heldItem && counterItem) {
         nextState = appendLog(
           {
             ...state,
-            player: { ...state.player, heldItem: state.stations.counter.finishedBurger },
-            stations: { ...state.stations, counter: { finishedBurger: null } },
+            player: { ...state.player, heldItem: counterItem },
+            stations: { ...state.stations, counter: { finishedBurger: null, item: null } },
           },
-          `Picked up ${getBurgerRecipe(state.stations.counter.finishedBurger).label} from the counter.`,
+          isBurgerBuildItem(counterItem) ? 'Picked up a partial burger from the counter.' : isBurgerRecipeId(counterItem) ? `Picked up ${getBurgerRecipe(counterItem).label} from the counter.` : `Picked up ${counterItem} from the counter.`,
         )
         break
       }
 
-      nextState = appendLog(state, 'The counter needs a finished burger.')
+      nextState = appendLog(state, counterItem ? 'The counter is already staging something.' : 'The counter needs a burger to stage.')
       break
     }
     default:
