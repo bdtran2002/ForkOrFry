@@ -1,5 +1,9 @@
 import { BURGER_LEVEL, type BurgerCarryItem, type BurgerStationId } from './burger-level'
-import { createInitialBurgerSessionState, type BurgerSessionState } from './burger-session-state'
+import {
+  createBurgerActiveOrder,
+  createInitialBurgerSessionState,
+  type BurgerSessionState,
+} from './burger-session-state'
 
 export type BurgerSessionAction =
   | { type: 'boot'; checkpoint: BurgerSessionState | null }
@@ -34,11 +38,61 @@ function chooseStorageItem(state: BurgerSessionState): BurgerCarryItem | null {
   return fallback ?? null
 }
 
+function resetStationsAndPlayer(state: BurgerSessionState) {
+  return {
+    ...state,
+    stations: {
+      grill: { patty: 'empty' as const, progressTicks: 0 },
+      board: { bun: false, patty: false, cheese: false },
+    },
+    player: {
+      location: 'storage' as const,
+      heldItem: null,
+    },
+  }
+}
+
+function completeCurrentOrder(state: BurgerSessionState, outcome: 'served' | 'failed') {
+  const currentOrder = state.currentOrder
+  if (!currentOrder) {
+    return appendLog(state, 'The burger shift is already complete.')
+  }
+
+  const [nextOrderDefinition, ...upcomingOrders] = state.upcomingOrders
+  const nextOrder = nextOrderDefinition ? createBurgerActiveOrder(nextOrderDefinition) : null
+  const servedCount = state.shift.servedCount + (outcome === 'served' ? 1 : 0)
+  const failedCount = state.shift.failedCount + (outcome === 'failed' ? 1 : 0)
+  const finished = resetStationsAndPlayer({
+    ...state,
+    score: state.score + (outcome === 'served' ? 1 : 0),
+    shift: {
+      ...state.shift,
+      servedCount,
+      failedCount,
+      completedOrders: [...state.shift.completedOrders, currentOrder.id],
+    },
+    currentOrder: nextOrder,
+    upcomingOrders,
+    phase: nextOrder ? 'running' : 'completed',
+  })
+
+  return appendLog(
+    finished,
+    outcome === 'served'
+      ? nextOrder
+        ? `Served ${currentOrder.id}. ${nextOrder.id} is now live.`
+        : `Served ${currentOrder.id}. Burger shift complete.`
+      : nextOrder
+        ? `${currentOrder.id} timed out. ${nextOrder.id} is now live.`
+        : `${currentOrder.id} timed out. Burger shift complete.`,
+  )
+}
+
 function resolveInteract(state: BurgerSessionState) {
   if (state.phase !== 'running') return state
 
-  if (state.activeOrder.status !== 'waiting') {
-    return appendLog(state, 'The burger order loop is already finished.')
+  if (!state.currentOrder) {
+    return appendLog(state, 'The burger shift is already finished.')
   }
 
   const heldItem = state.player.heldItem
@@ -152,16 +206,7 @@ function resolveInteract(state: BurgerSessionState) {
     }
     case 'counter': {
       if (heldItem === 'burger') {
-        return appendLog(
-          {
-            ...state,
-            phase: 'completed',
-            score: state.score + 1,
-            player: { ...state.player, heldItem: null },
-            activeOrder: { ...state.activeOrder, status: 'served', remainingTicks: state.activeOrder.remainingTicks },
-          },
-          'Served the burger order. Session complete.',
-        )
+        return completeCurrentOrder(state, 'served')
       }
 
       return appendLog(state, 'The counter needs a finished burger.')
@@ -195,25 +240,18 @@ function resolveTick(state: BurgerSessionState) {
     )
   }
 
-  if (next.activeOrder.status !== 'waiting') {
+  if (!next.currentOrder) {
     return next
   }
 
-  const remainingTicks = Math.max(next.activeOrder.remainingTicks - 1, 0)
+  const remainingTicks = Math.max(next.currentOrder.remainingTicks - 1, 0)
   next = {
     ...next,
-    activeOrder: { ...next.activeOrder, remainingTicks },
+    currentOrder: { ...next.currentOrder, remainingTicks },
   }
 
   if (remainingTicks === 0) {
-    return appendLog(
-      {
-        ...next,
-        phase: 'completed',
-        activeOrder: { ...next.activeOrder, status: 'failed', remainingTicks },
-      },
-      'The burger order timed out before service.',
-    )
+    return completeCurrentOrder(next, 'failed')
   }
 
   return next
@@ -225,7 +263,7 @@ export function reduceBurgerSession(state: BurgerSessionState, action: BurgerSes
       const booted = action.checkpoint ? cloneSessionState(action.checkpoint) : createInitialBurgerSessionState()
       return {
         ...booted,
-        phase: booted.phase === 'completed' ? 'completed' : 'running',
+        phase: booted.phase === 'completed' || booted.currentOrder === null ? 'completed' : 'running',
       }
     }
     case 'tick':
@@ -242,7 +280,7 @@ export function reduceBurgerSession(state: BurgerSessionState, action: BurgerSes
       return state.phase === 'completed' || state.phase === 'booting' ? state : { ...state, phase: 'running' }
     case 'reset': {
       const reset = createInitialBurgerSessionState()
-      return { ...reset, phase: 'running', log: ['Reset the local burger session.'] }
+      return { ...reset, phase: 'running', log: ['Reset the local burger shift.'] }
     }
   }
 }

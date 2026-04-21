@@ -1,9 +1,22 @@
-import { BURGER_LEVEL, type BurgerCarryItem, type BurgerIngredient, type BurgerStationId } from './burger-level'
+import {
+  BURGER_LEVEL,
+  type BurgerCarryItem,
+  type BurgerIngredient,
+  type BurgerOrderRecipe,
+  type BurgerShiftOrderDefinition,
+  type BurgerStationId,
+} from './burger-level'
 
 export const BURGER_SESSION_SAVE_VERSION = 1 as const
 
 export type BurgerSessionPhase = 'booting' | 'running' | 'paused' | 'completed'
-export type BurgerOrderStatus = 'waiting' | 'served' | 'failed'
+
+export interface BurgerActiveOrder {
+  id: string
+  recipe: BurgerOrderRecipe
+  remainingTicks: number
+  durationTicks: number
+}
 
 export interface BurgerSessionState {
   saveVersion: typeof BURGER_SESSION_SAVE_VERSION
@@ -23,12 +36,14 @@ export interface BurgerSessionState {
       cheese: boolean
     }
   }
-  activeOrder: {
-    id: string
-    recipe: 'burger'
-    status: BurgerOrderStatus
-    remainingTicks: number
+  shift: {
+    totalOrders: number
+    servedCount: number
+    failedCount: number
+    completedOrders: string[]
   }
+  currentOrder: BurgerActiveOrder | null
+  upcomingOrders: BurgerShiftOrderDefinition[]
   player: {
     location: BurgerStationId
     heldItem: BurgerCarryItem | null
@@ -36,7 +51,18 @@ export interface BurgerSessionState {
   log: string[]
 }
 
+export function createBurgerActiveOrder(order: BurgerShiftOrderDefinition): BurgerActiveOrder {
+  return {
+    id: order.id,
+    recipe: order.recipe,
+    remainingTicks: order.durationTicks,
+    durationTicks: order.durationTicks,
+  }
+}
+
 export function createInitialBurgerSessionState(): BurgerSessionState {
+  const [firstOrder, ...upcomingOrders] = BURGER_LEVEL.orders
+
   return {
     saveVersion: BURGER_SESSION_SAVE_VERSION,
     levelId: BURGER_LEVEL.id,
@@ -55,16 +81,18 @@ export function createInitialBurgerSessionState(): BurgerSessionState {
         cheese: false,
       },
     },
-    activeOrder: {
-      id: 'burger-order-1',
-      recipe: 'burger',
-      status: 'waiting',
-      remainingTicks: BURGER_LEVEL.orderDurationTicks,
+    shift: {
+      totalOrders: BURGER_LEVEL.orders.length,
+      servedCount: 0,
+      failedCount: 0,
+      completedOrders: [],
     },
+    currentOrder: firstOrder ? createBurgerActiveOrder(firstOrder) : null,
+    upcomingOrders: [...upcomingOrders],
     player: {
       location: 'storage',
       heldItem: null,
     },
-    log: ['Booted the local burger session.'],
+    log: ['Booted the local burger shift.'],
   }
 }

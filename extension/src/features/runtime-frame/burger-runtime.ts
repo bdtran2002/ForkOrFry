@@ -40,9 +40,11 @@ app.innerHTML = `
     <div class="shell-grid" id="state-grid">
       <div class="field"><label>${runtimeFrameCopy.labels.tick}</label><div class="input" id="tick-value"></div></div>
       <div class="field"><label>${runtimeFrameCopy.labels.score}</label><div class="input" id="score-value"></div></div>
+      <div class="field"><label>${runtimeFrameCopy.labels.shift}</label><div class="input" id="shift-value"></div></div>
       <div class="field"><label>${runtimeFrameCopy.labels.location}</label><div class="input" id="location-value"></div></div>
       <div class="field"><label>${runtimeFrameCopy.labels.heldItem}</label><div class="input" id="held-item-value"></div></div>
       <div class="field"><label>${runtimeFrameCopy.labels.order}</label><div class="input" id="order-value"></div></div>
+      <div class="field"><label>${runtimeFrameCopy.labels.upcomingOrders}</label><div class="input" id="upcoming-orders-value"></div></div>
       <div class="field"><label>${runtimeFrameCopy.labels.grill}</label><div class="input" id="grill-value"></div></div>
       <div class="field"><label>${runtimeFrameCopy.labels.board}</label><div class="input" id="board-value"></div></div>
       <div class="field"><label>${runtimeFrameCopy.labels.pantry}</label><div class="input" id="pantry-value"></div></div>
@@ -72,9 +74,11 @@ const progressFill = app.querySelector<HTMLElement>('#progress-fill')!
 const locationStepper = app.querySelector<HTMLElement>('#location-stepper')!
 const tickValue = app.querySelector<HTMLElement>('#tick-value')!
 const scoreValue = app.querySelector<HTMLElement>('#score-value')!
+const shiftValue = app.querySelector<HTMLElement>('#shift-value')!
 const locationValue = app.querySelector<HTMLElement>('#location-value')!
 const heldItemValue = app.querySelector<HTMLElement>('#held-item-value')!
 const orderValue = app.querySelector<HTMLElement>('#order-value')!
+const upcomingOrdersValue = app.querySelector<HTMLElement>('#upcoming-orders-value')!
 const grillValue = app.querySelector<HTMLElement>('#grill-value')!
 const boardValue = app.querySelector<HTMLElement>('#board-value')!
 const pantryValue = app.querySelector<HTMLElement>('#pantry-value')!
@@ -117,9 +121,7 @@ function currentPhase() {
 
 function currentPhaseDetail() {
   if (state.phase === 'completed') {
-    return state.activeOrder.status === 'served'
-      ? runtimeFrameCopy.readyServed
-      : runtimeFrameCopy.readyFailed
+    return runtimeFrameCopy.readySummary(state.shift.servedCount, state.shift.failedCount)
   }
 
   return runtimeFrameCopy.phaseLabels[state.phase]
@@ -136,7 +138,12 @@ function dispatch(action: Parameters<typeof reduceBurgerSession>[1], options?: {
 }
 
 function orderProgressPercent() {
-  return Math.max((state.activeOrder.remainingTicks / 18) * 100, 0)
+  const completedOrders = state.shift.servedCount + state.shift.failedCount
+  if (state.phase === 'completed') return 100
+  if (!state.currentOrder) return Math.max((completedOrders / state.shift.totalOrders) * 100, 0)
+
+  const currentOrderProgress = 1 - (state.currentOrder.remainingTicks / state.currentOrder.durationTicks)
+  return Math.max(((completedOrders + currentOrderProgress) / state.shift.totalOrders) * 100, 0)
 }
 
 function render() {
@@ -145,9 +152,15 @@ function render() {
   progressFill.style.width = `${orderProgressPercent()}%`
   tickValue.textContent = String(state.tick)
   scoreValue.textContent = String(state.score)
+  shiftValue.textContent = `${state.shift.servedCount} served · ${state.shift.failedCount} failed · ${state.shift.completedOrders.length}/${state.shift.totalOrders} complete`
   locationValue.textContent = locationLabels[state.player.location]
   heldItemValue.textContent = state.player.heldItem ?? runtimeFrameCopy.emptyValue
-  orderValue.textContent = `${state.activeOrder.status} · ${state.activeOrder.remainingTicks} ticks left`
+  orderValue.textContent = state.currentOrder
+    ? `${state.currentOrder.id} · ${state.currentOrder.remainingTicks}/${state.currentOrder.durationTicks} ticks left`
+    : runtimeFrameCopy.noCurrentOrder
+  upcomingOrdersValue.textContent = state.upcomingOrders.length > 0
+    ? state.upcomingOrders.map((order) => order.id).join(', ')
+    : runtimeFrameCopy.noUpcomingOrders
   grillValue.textContent = `${state.stations.grill.patty} · ${state.stations.grill.progressTicks}/${BURGER_LEVEL.grillCookTicks}`
   boardValue.textContent = [
     state.stations.board.bun ? 'bun' : null,
@@ -177,9 +190,7 @@ function render() {
   })
 
   completion.hidden = state.phase !== 'completed'
-  completionBody.textContent = state.activeOrder.status === 'served'
-    ? runtimeFrameCopy.completionServed
-    : runtimeFrameCopy.completionFailed
+  completionBody.textContent = runtimeFrameCopy.completionSummary(state.shift.servedCount, state.shift.failedCount)
 }
 
 function boot(checkpoint: RuntimeCheckpointEnvelope | null, nextSessionId: string) {

@@ -19,7 +19,14 @@ function isBurgerSessionState(value: unknown): value is BurgerSessionState {
     value.levelId === 'burger' &&
     typeof value.tick === 'number' &&
     typeof value.score === 'number' &&
-    Array.isArray(value.log)
+    Array.isArray(value.log) &&
+    isRecord(value.shift) &&
+    typeof value.shift.totalOrders === 'number' &&
+    typeof value.shift.servedCount === 'number' &&
+    typeof value.shift.failedCount === 'number' &&
+    Array.isArray(value.shift.completedOrders) &&
+    Array.isArray(value.upcomingOrders) &&
+    ('currentOrder' in value ? value.currentOrder === null || isRecord(value.currentOrder) : false)
   )
 }
 
