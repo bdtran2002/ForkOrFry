@@ -1,0 +1,147 @@
+import '../../style.css'
+import { type BackgroundMessage } from '../../core/messages'
+import { createRuntimeHostController, type RuntimeMountRequest } from './controller'
+import { runtimeHostCopy } from './copy'
+import { type RuntimeHostSession } from './checkpoint-store'
+
+const RUNTIME_ID = 'demo-runtime'
+const app = document.querySelector<HTMLDivElement>('#app')
+
+if (!app) throw new Error('Missing takeover root')
+
+app.innerHTML = `
+<main class="takeover host-shell">
+  <header>
+    <p class="eyebrow">${runtimeHostCopy.eyebrow}</p>
+    <div class="safety-banner">${runtimeHostCopy.banner}</div>
+    <h1>${runtimeHostCopy.title}</h1>
+    <p class="lede">${runtimeHostCopy.lede}</p>
+  </header>
+  <section class="card stage host-stage">
+    <div class="status-grid host-status-grid" aria-label="Runtime host state">
+      <div class="status-tile"><span class="status-label">${runtimeHostCopy.labels.status}</span><strong class="status-value" id="host-status"></strong></div>
+      <div class="status-tile"><span class="status-label">${runtimeHostCopy.labels.runtime}</span><strong class="status-value" id="runtime-id"></strong></div>
+      <div class="status-tile"><span class="status-label">${runtimeHostCopy.labels.session}</span><strong class="status-value" id="session-id"></strong></div>
+      <div class="status-tile"><span class="status-label">${runtimeHostCopy.labels.resumeCount}</span><strong class="status-value" id="resume-count"></strong></div>
+      <div class="status-tile host-status-wide"><span class="status-label">${runtimeHostCopy.labels.lastCheckpoint}</span><strong class="status-value" id="checkpoint-at"></strong></div>
+    </div>
+    <section class="runtime-shell">
+      <div class="runtime-shell-header">
+        <div>
+          <p class="eyebrow compact">${runtimeHostCopy.runtimeCardTitle}</p>
+          <p class="runtime-shell-copy">${runtimeHostCopy.runtimeCardBody}</p>
+        </div>
+      </div>
+      <iframe id="runtime-frame" class="runtime-frame" title="ForkOrFry runtime frame"></iframe>
+    </section>
+    <div class="log-panel">
+      <div class="log-title">${runtimeHostCopy.notesTitle}</div>
+      <ul class="log-list">
+        ${runtimeHostCopy.notes.map((note) => `<li>${note}</li>`).join('')}
+      </ul>
+    </div>
+  </section>
+  <div class="actions">
+    <button type="button" class="secondary" id="reset">${runtimeHostCopy.buttons.reset}</button>
+    <button type="button" class="secondary" id="dismiss">${runtimeHostCopy.buttons.dismiss}</button>
+  </div>
+</main>`
+
+const hostStatus = app.querySelector<HTMLElement>('#host-status')!
+const runtimeIdValue = app.querySelector<HTMLElement>('#runtime-id')!
+const sessionIdValue = app.querySelector<HTMLElement>('#session-id')!
+const resumeCountValue = app.querySelector<HTMLElement>('#resume-count')!
+const checkpointAtValue = app.querySelector<HTMLElement>('#checkpoint-at')!
+const runtimeFrame = app.querySelector<HTMLIFrameElement>('#runtime-frame')!
+const resetButton = app.querySelector<HTMLButtonElement>('#reset')
+const dismissButton = app.querySelector<HTMLButtonElement>('#dismiss')
+
+const runtimeUrl = browser.runtime.getURL('runtime-frame.html')
+
+function formatTimestamp(value: number | null) {
+  if (!value) return runtimeHostCopy.emptyCheckpoint
+
+  return new Intl.DateTimeFormat(undefined, {
+    month: 'short',
+    day: 'numeric',
+    hour: 'numeric',
+    minute: '2-digit',
+  }).format(new Date(value))
+}
+
+function shortSessionId(value: string) {
+  return value ? value.slice(0, 8) : 'pending'
+}
+
+function renderSession(session: RuntimeHostSession) {
+  hostStatus.textContent = session.detail ? `${session.status} — ${session.detail}` : session.status
+  runtimeIdValue.textContent = session.runtimeId
+  sessionIdValue.textContent = shortSessionId(session.sessionId)
+  resumeCountValue.textContent = String(session.resumeCount)
+  checkpointAtValue.textContent = formatTimestamp(session.lastCheckpointAt)
+}
+
+async function mountRuntime({ reset }: RuntimeMountRequest) {
+  return new Promise<{ frame: HTMLIFrameElement; runtimeWindow: Window }>((resolve, reject) => {
+    const onLoad = () => {
+      runtimeFrame.removeEventListener('load', onLoad)
+      const runtimeWindow = runtimeFrame.contentWindow
+      if (!runtimeWindow) {
+        reject(new Error('Missing runtime frame window'))
+        return
+      }
+
+      resolve({ frame: runtimeFrame, runtimeWindow })
+    }
+
+    runtimeFrame.addEventListener('load', onLoad)
+    runtimeFrame.src = reset ? `${runtimeUrl}?t=${Date.now()}` : runtimeUrl
+  })
+}
+
+const controller = createRuntimeHostController({
+  runtimeId: RUNTIME_ID,
+  mountRuntime,
+  onSessionChange: renderSession,
+})
+
+let hiddenPause = false
+let closing = false
+
+resetButton?.addEventListener('click', async () => {
+  await controller.reset()
+})
+
+dismissButton?.addEventListener('click', async () => {
+  if (closing) return
+  closing = true
+  await controller.pause('Closing the host window.')
+  await controller.shutdown()
+  await browser.runtime.sendMessage({ type: 'disarm' } satisfies BackgroundMessage)
+  window.close()
+})
+
+window.addEventListener('keydown', async (event) => {
+  if (event.key !== 'Escape') return
+  dismissButton?.click()
+})
+
+document.addEventListener('visibilitychange', () => {
+  if (document.hidden) {
+    hiddenPause = true
+    void controller.pause('Host window hidden.')
+    return
+  }
+
+  if (!hiddenPause) return
+  hiddenPause = false
+  void controller.resume()
+})
+
+window.addEventListener('pagehide', () => {
+  if (closing) return
+  void controller.pause('Host page unloading.')
+  void controller.shutdown()
+})
+
+void controller.start()
