@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 
 import { createBurgerSessionCheckpoint, restoreBurgerSessionCheckpoint } from '../src/features/runtime-frame/checkpoint'
+import { BURGER_LEVEL } from '../src/features/runtime-frame/burger-level'
 import { reduceBurgerSession } from '../src/features/runtime-frame/burger-session-reducer'
 import { createInitialBurgerSessionState } from '../src/features/runtime-frame/burger-session-state'
 
@@ -75,6 +76,8 @@ describe('burger session reducer', () => {
 
     state = reduceBurgerSession(state, { type: 'interact' })
     expect(state.log.at(-1)).toContain('Nothing is ready on the grill yet.')
+    expect(state.tick).toBe(1)
+    expect(state.currentOrder?.remainingTicks).toBe(BURGER_LEVEL.orders[0].durationTicks - 1)
 
     state = move(state, 'left')
     state = move(state, 'up')
@@ -82,10 +85,28 @@ describe('burger session reducer', () => {
     expect(state.player.position).toEqual({ x: 0, y: 1 })
     expect(state.player.facing).toBe('up')
     expect(state.log.at(-1)).toContain('That path is blocked.')
+    expect(state.tick).toBe(4)
 
     state = move(state, 'left')
     state = reduceBurgerSession(state, { type: 'interact' })
     expect(state.player.heldItem).toBe('bun')
+    expect(state.tick).toBe(6)
+  })
+
+  it('spends one tick on move, interact, and wait actions', () => {
+    let state = bootBurger()
+
+    state = move(state, 'left')
+    expect(state.tick).toBe(1)
+    expect(state.currentOrder?.remainingTicks).toBe(BURGER_LEVEL.orders[0].durationTicks - 1)
+
+    state = reduceBurgerSession(state, { type: 'interact' })
+    expect(state.tick).toBe(2)
+    expect(state.currentOrder?.remainingTicks).toBe(BURGER_LEVEL.orders[0].durationTicks - 2)
+
+    state = reduceBurgerSession(state, { type: 'tick' })
+    expect(state.tick).toBe(3)
+    expect(state.currentOrder?.remainingTicks).toBe(BURGER_LEVEL.orders[0].durationTicks - 3)
   })
 
   it('serves the full burger shift through the spatial kitchen', () => {
@@ -114,7 +135,7 @@ describe('burger session reducer', () => {
   it('fails an order and continues with the next one', () => {
     let state = bootBurger()
 
-    for (let index = 0; index < 18; index += 1) {
+    for (let index = 0; index < BURGER_LEVEL.orders[0].durationTicks; index += 1) {
       state = reduceBurgerSession(state, { type: 'tick' })
     }
 
@@ -166,7 +187,7 @@ describe('burger session reducer', () => {
 
     expect(restored.shift.servedCount).toBe(1)
     expect(restored.currentOrder?.id).toBe('burger-order-2')
-    expect(restored.tick).toBe(4)
+    expect(restored.tick).toBe(28)
     expect(restored.player.position).toEqual({ x: 0, y: 1 })
     expect(restored.player.facing).toBe('up')
     expect(restored.player.heldItem).toBe('bun')

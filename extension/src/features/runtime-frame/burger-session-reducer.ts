@@ -104,120 +104,7 @@ function completeCurrentOrder(state: BurgerSessionState, outcome: 'served' | 'fa
   )
 }
 
-function resolveInteract(state: BurgerSessionState) {
-  if (state.phase !== 'running') return state
-
-  if (!state.currentOrder) {
-    return appendLog(state, 'The burger shift is already finished.')
-  }
-
-  const heldItem = state.player.heldItem
-
-  const activeInteractable = getActiveInteractable(state)
-
-  switch (activeInteractable?.interactable) {
-    case 'bun-crate':
-    case 'patty-crate':
-    case 'cheese-crate': {
-      const ingredient = getInteractableIngredient(activeInteractable.interactable)
-      if (heldItem) return appendLog(state, 'Hands are full. Put that down first.')
-      if (state.inventory[ingredient] <= 0) return appendLog(state, `The ${ingredient} crate is empty.`)
-      return appendLog({ ...state, inventory: { ...state.inventory, [ingredient]: state.inventory[ingredient] - 1 }, player: { ...state.player, heldItem: ingredient } }, `Picked up ${ingredient} from the crate.`)
-    }
-    case 'grill': {
-      if (heldItem === 'patty' && state.stations.grill.patty === 'empty') {
-        return appendLog(
-          {
-            ...state,
-            player: { ...state.player, heldItem: null },
-            stations: {
-              ...state.stations,
-              grill: { patty: 'cooking', progressTicks: 0 },
-            },
-          },
-          'Dropped a patty onto the grill.',
-        )
-      }
-
-      if (!heldItem && state.stations.grill.patty === 'cooked') {
-        return appendLog(
-          {
-            ...state,
-            player: { ...state.player, heldItem: 'cooked-patty' },
-            stations: {
-              ...state.stations,
-              grill: { patty: 'empty', progressTicks: 0 },
-            },
-          },
-          'Picked up the cooked patty.',
-        )
-      }
-
-      return appendLog(state, heldItem ? 'The grill cannot use that item right now.' : 'Nothing is ready on the grill yet.')
-    }
-    case 'board': {
-      if (heldItem && !isBurgerRecipeId(heldItem) && !state.stations.board.items.includes(heldItem)) {
-        return appendLog(
-          {
-            ...state,
-            player: { ...state.player, heldItem: null },
-            stations: {
-              ...state.stations,
-              board: { items: [...state.stations.board.items, heldItem] },
-            },
-          },
-          `Placed ${heldItem} on the board.`,
-        )
-      }
-
-      if (heldItem && !isBurgerRecipeId(heldItem) && state.stations.board.items.includes(heldItem)) {
-        return appendLog(state, `${heldItem} is already on the board.`)
-      }
-
-      if (heldItem && isBurgerRecipeId(heldItem)) {
-        return appendLog(state, 'The board only accepts loose ingredients.')
-      }
-
-      const assembledRecipe = resolveBurgerRecipe(state.stations.board.items)
-      if (!heldItem && assembledRecipe) {
-        return appendLog(
-          {
-            ...state,
-            player: { ...state.player, heldItem: assembledRecipe },
-            stations: {
-              ...state.stations,
-              board: { items: [] },
-            },
-          },
-          `Assembled ${getBurgerRecipe(assembledRecipe).label}.`,
-        )
-      }
-
-      return appendLog(state, heldItem ? 'That item does not belong on the board yet.' : 'The board recipe is incomplete or mismatched.')
-    }
-    case 'counter': {
-      if (heldItem && isBurgerRecipeId(heldItem) && state.currentOrder && heldItem === state.currentOrder.recipeId) {
-        return completeCurrentOrder(state, 'served')
-      }
-
-      if (heldItem && isBurgerRecipeId(heldItem) && state.currentOrder) {
-        return appendLog(
-          {
-            ...state,
-            player: { ...state.player, heldItem: null },
-          },
-          `Counter rejected ${getBurgerRecipe(heldItem).label}. Need ${getBurgerRecipe(state.currentOrder.recipeId).label}.`,
-        )
-      }
-
-      return appendLog(state, 'The counter needs a finished burger.')
-    }
-    default:
-      return appendLog(state, 'There is nothing to interact with here.')
-  }
-}
-
-function resolveTick(state: BurgerSessionState) {
+function advanceKitchenTick(state: BurgerSessionState, timedOrderId: string | null = state.currentOrder?.id ?? null) {
   if (state.phase !== 'running') return state
 
   let next: BurgerSessionState = {
@@ -243,7 +130,7 @@ function resolveTick(state: BurgerSessionState) {
     )
   }
 
-  if (!next.currentOrder) {
+  if (!timedOrderId || !next.currentOrder || next.currentOrder.id !== timedOrderId) {
     return next
   }
 
@@ -260,6 +147,141 @@ function resolveTick(state: BurgerSessionState) {
   return next
 }
 
+function resolveInteract(state: BurgerSessionState) {
+  if (state.phase !== 'running') return state
+
+  if (!state.currentOrder) {
+    return appendLog(state, 'The burger shift is already finished.')
+  }
+
+  const heldItem = state.player.heldItem
+
+  const activeInteractable = getActiveInteractable(state)
+
+  let nextState: BurgerSessionState
+
+  switch (activeInteractable?.interactable) {
+    case 'bun-crate':
+    case 'patty-crate':
+    case 'cheese-crate': {
+      const ingredient = getInteractableIngredient(activeInteractable.interactable)
+      if (heldItem) {
+        nextState = appendLog(state, 'Hands are full. Put that down first.')
+        break
+      }
+      if (state.inventory[ingredient] <= 0) {
+        nextState = appendLog(state, `The ${ingredient} crate is empty.`)
+        break
+      }
+      nextState = appendLog({ ...state, inventory: { ...state.inventory, [ingredient]: state.inventory[ingredient] - 1 }, player: { ...state.player, heldItem: ingredient } }, `Picked up ${ingredient} from the crate.`)
+      break
+    }
+    case 'grill': {
+      if (heldItem === 'patty' && state.stations.grill.patty === 'empty') {
+        nextState = appendLog(
+          {
+            ...state,
+            player: { ...state.player, heldItem: null },
+            stations: {
+              ...state.stations,
+              grill: { patty: 'cooking', progressTicks: 0 },
+            },
+          },
+          'Dropped a patty onto the grill.',
+        )
+        break
+      }
+
+      if (!heldItem && state.stations.grill.patty === 'cooked') {
+        nextState = appendLog(
+          {
+            ...state,
+            player: { ...state.player, heldItem: 'cooked-patty' },
+            stations: {
+              ...state.stations,
+              grill: { patty: 'empty', progressTicks: 0 },
+            },
+          },
+          'Picked up the cooked patty.',
+        )
+        break
+      }
+
+      nextState = appendLog(state, heldItem ? 'The grill cannot use that item right now.' : 'Nothing is ready on the grill yet.')
+      break
+    }
+    case 'board': {
+      if (heldItem && !isBurgerRecipeId(heldItem) && !state.stations.board.items.includes(heldItem)) {
+        nextState = appendLog(
+          {
+            ...state,
+            player: { ...state.player, heldItem: null },
+            stations: {
+              ...state.stations,
+              board: { items: [...state.stations.board.items, heldItem] },
+            },
+          },
+          `Placed ${heldItem} on the board.`,
+        )
+        break
+      }
+
+      if (heldItem && !isBurgerRecipeId(heldItem) && state.stations.board.items.includes(heldItem)) {
+        nextState = appendLog(state, `${heldItem} is already on the board.`)
+        break
+      }
+
+      if (heldItem && isBurgerRecipeId(heldItem)) {
+        nextState = appendLog(state, 'The board only accepts loose ingredients.')
+        break
+      }
+
+      const assembledRecipe = resolveBurgerRecipe(state.stations.board.items)
+      if (!heldItem && assembledRecipe) {
+        nextState = appendLog(
+          {
+            ...state,
+            player: { ...state.player, heldItem: assembledRecipe },
+            stations: {
+              ...state.stations,
+              board: { items: [] },
+            },
+          },
+          `Assembled ${getBurgerRecipe(assembledRecipe).label}.`,
+        )
+        break
+      }
+
+      nextState = appendLog(state, heldItem ? 'That item does not belong on the board yet.' : 'The board recipe is incomplete or mismatched.')
+      break
+    }
+    case 'counter': {
+      if (heldItem && isBurgerRecipeId(heldItem) && state.currentOrder && heldItem === state.currentOrder.recipeId) {
+        nextState = completeCurrentOrder(state, 'served')
+        break
+      }
+
+      if (heldItem && isBurgerRecipeId(heldItem) && state.currentOrder) {
+        nextState = appendLog(
+          {
+            ...state,
+            player: { ...state.player, heldItem: null },
+          },
+          `Counter rejected ${getBurgerRecipe(heldItem).label}. Need ${getBurgerRecipe(state.currentOrder.recipeId).label}.`,
+        )
+        break
+      }
+
+      nextState = appendLog(state, 'The counter needs a finished burger.')
+      break
+    }
+    default:
+      nextState = appendLog(state, 'There is nothing to interact with here.')
+  }
+
+  return advanceKitchenTick(nextState, state.currentOrder?.id ?? null)
+}
+
 export function reduceBurgerSession(state: BurgerSessionState, action: BurgerSessionAction): BurgerSessionState {
   switch (action.type) {
     case 'boot': {
@@ -270,13 +292,16 @@ export function reduceBurgerSession(state: BurgerSessionState, action: BurgerSes
       }
     }
     case 'tick':
-      return resolveTick(state)
+      return advanceKitchenTick(state)
     case 'move': {
       if (state.phase !== 'running') return state
       const destination = getBurgerAdjacentPosition(state.player.position, action.direction)
+      const timedOrderId = state.currentOrder?.id ?? null
       const tile = getBurgerTile(destination)
-      if (!tile?.walkable) return appendLog({ ...state, player: { ...state.player, facing: action.direction } }, 'That path is blocked.')
-      return appendLog({ ...state, player: { ...state.player, position: destination, facing: action.direction } }, `Moved ${action.direction}.`)
+      if (!tile?.walkable) {
+        return advanceKitchenTick(appendLog({ ...state, player: { ...state.player, facing: action.direction } }, 'That path is blocked.'), timedOrderId)
+      }
+      return advanceKitchenTick(appendLog({ ...state, player: { ...state.player, position: destination, facing: action.direction } }, `Moved ${action.direction}.`), timedOrderId)
     }
     case 'interact':
       return resolveInteract(state)
