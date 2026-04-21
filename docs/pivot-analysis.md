@@ -2,6 +2,17 @@
 
 This document records the repository analysis and migration design for pivoting ForkOrFry into a browser-extension-hosted local game build based on `hurrycurry`.
 
+## Current implementation update
+
+Since the original analysis pass, the repo now has:
+
+- an extension-owned runtime host shell
+- a typed host/runtime iframe boundary
+- host-owned checkpoint persistence
+- popup-window and full-tab host surfaces for the same local session
+
+The current child runtime is still a custom TypeScript burger scaffold. It is useful as migration scaffolding, but it is not the final runtime direction. The next implementation slices should focus on replacing that child runtime with an upstream-derived local adapter, not on expanding the scaffolded gameplay path.
+
 ## Scope
 
 Target outcome:
@@ -29,7 +40,7 @@ Hard constraints:
 
 - `extension/` currently contains a Firefox MV3 WXT extension.
 - `extension/src/core/background.ts` handles idle detection and trigger orchestration.
-- `extension/src/core/takeover.ts` opens/reuses the current takeover extension page.
+- `extension/src/core/takeover.ts` opens/reuses the current extension-owned host surface.
 - `extension/src/core/state.ts` stores extension state in `browser.storage.local`.
 - `extension/src/features/popup/app.ts` is the current toolbar popup UI.
 - `extension/src/features/runtime-host/app.ts` is the current extension-owned runtime host shell.
@@ -47,7 +58,7 @@ Hard constraints:
 ```text
 ForkOrFry extension
 ├── background idle trigger
-├── popup / takeover UI
+├── popup / host launcher UI
 └── local browser.storage.local state
 
 hurrycurry
@@ -161,6 +172,7 @@ Recommended shape:
 ### Browser/extension compatibility design
 
 - primary runtime should feel like an extension popup/pane app, not a full tab
+- the host may support both popup-window and full-tab surfaces as long as the runtime remains extension-owned and session state stays singular
 - popup lifecycle may unload frequently, so plan around checkpoint/resume
 - prefer a side-panel-style host when persistence matters most
 - popup UI can act as launcher/status UI if a more persistent pane is needed

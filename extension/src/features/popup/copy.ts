@@ -1,7 +1,7 @@
 export const popupCopy = {
-  title: 'Idle trigger + local game pane',
+  title: 'Idle trigger + local game host',
   lede:
-    'Firefox-only local shell. After Firefox detects idle, renewed activity reopens the local game pane. Nothing is sent anywhere.',
+    'Firefox-only local game host. After Firefox detects idle, renewed activity reopens the active game surface. The runtime stays extension-owned and nothing is sent anywhere.',
   intervalLabel: 'Idle interval',
   intervalOptions: [
     { value: 60, label: '1 min' },
@@ -11,13 +11,13 @@ export const popupCopy = {
   ],
   status: {
     armedReady: 'Armed. Firefox is waiting for the next idle period.',
-    waitingForActivity: 'Idle detected. The next return to activity will open or refocus the local game pane.',
-    surfaceOpen: 'The local game pane is open. The next idle → activity cycle will refocus it.',
+    waitingForActivity: (surface: string) => `Idle detected. The next return to activity will open or refocus the ${surface}.`,
+    surfaceOpen: (surface: string) => `The ${surface} is open. The next idle → activity cycle will refocus it.`,
     disarmed: 'Disarmed. Idle triggers are paused.',
   },
   labels: {
     mode: 'Trigger mode',
-    pane: 'Game pane',
+    pane: 'Game surface',
     awaitingActivity: 'Awaiting activity',
     lastTrigger: 'Last trigger / open',
   },
@@ -30,15 +30,17 @@ export const popupCopy = {
   },
   buttons: {
     arm: 'Arm idle trigger',
-    demo: 'Open pane now',
+    demo: 'Open current surface',
+    fullTab: 'Open full tab',
     disarm: 'Pause trigger',
     reset: 'Clear state',
   },
-  helper: 'Clear state closes any open game pane and removes both the idle trigger checkpoint and the saved runtime host session.',
+  helper: 'Clear state closes any open surface and removes both the idle trigger checkpoint and the saved runtime host session.',
   notYet: 'Not yet',
   armed: 'Armed',
   disarmed: 'Paused',
-  open: 'Open',
+  popupWindow: 'Popup window',
+  fullTab: 'Full tab',
   closed: 'Closed',
   yes: 'Yes',
   no: 'No',

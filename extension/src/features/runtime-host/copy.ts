@@ -1,11 +1,12 @@
 export const runtimeHostCopy = {
   eyebrow: 'ForkOrFry runtime host',
-  banner: 'EXTENSION-OWNED HOST · LOCAL SESSION · READY FOR GODOT WASM',
-  title: 'Runtime host boundary',
+  banner: 'EXTENSION-OWNED HOST · LOCAL SESSION · SINGLE-PLAYER PIVOT',
+  title: 'Extension runtime host',
   lede:
-    'This window now boots a child runtime inside an extension-owned host shell. The child is a real local burger-session runtime, and checkpointing plus resume flow through a reusable host contract.',
+    'This surface boots the child runtime inside an extension-owned host shell. The current child is still scaffolding, but the host/checkpoint boundary is the permanent seam for the single-player upstream port.',
   labels: {
     status: 'Host status',
+    surface: 'Surface',
     runtime: 'Runtime',
     session: 'Session',
     resumeCount: 'Resume count',
@@ -13,16 +14,22 @@ export const runtimeHostCopy = {
   },
   runtimeCardTitle: 'Embedded runtime',
   runtimeCardBody:
-    'The iframe below is the current burger-level runtime and the future handoff point for the local hurrycurry build. It already runs behind the same boot/checkpoint/pause/resume boundary.',
+    'The iframe below is the current burger-level scaffolding runtime and the future handoff point for the local hurrycurry build. It already runs behind the same boot/checkpoint/pause/resume boundary.',
   notesTitle: 'What changed in this slice',
   notes: [
     'The host shell owns checkpoint storage instead of the child runtime page.',
     'The child runtime boots through a typed contract instead of direct page logic.',
-    'Swapping the current burger runtime for Godot WASM is now localized to the embedded child surface.',
+    'The host can now support both a popup window and a full-tab surface without duplicating runtime logic.',
   ],
   buttons: {
+    openFullTab: 'Move to full tab',
     reset: 'Reset runtime',
-    dismiss: 'Close pane',
+    closeWindow: 'Close window',
+    closeTab: 'Close tab',
+  },
+  surfaces: {
+    popupWindow: 'Popup window',
+    fullTab: 'Full tab',
   },
   booting: 'Booting child runtime…',
   emptyCheckpoint: 'Not yet',

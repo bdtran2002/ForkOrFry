@@ -25,6 +25,11 @@ export type HostToRuntimeMessage =
       checkpoint: RuntimeCheckpointEnvelope | null
     }
   | {
+      type: 'host:checkpoint'
+      runtimeId: string
+      reason: string
+    }
+  | {
       type: 'host:shutdown'
       runtimeId: string
     }
@@ -88,6 +93,8 @@ export function isHostToRuntimeMessage(value: unknown): value is HostToRuntimeMe
       return typeof value.runtimeId === 'string' && typeof value.reason === 'string'
     case 'host:resume':
       return typeof value.runtimeId === 'string' && (value.checkpoint === null || isCheckpointEnvelope(value.checkpoint))
+    case 'host:checkpoint':
+      return typeof value.runtimeId === 'string' && typeof value.reason === 'string'
     case 'host:shutdown':
       return typeof value.runtimeId === 'string'
     default:

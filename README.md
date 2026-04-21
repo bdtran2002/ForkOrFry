@@ -3,117 +3,185 @@
 [![CI](https://github.com/bdtran2002/ForkOrFry/actions/workflows/ci.yml/badge.svg)](https://github.com/bdtran2002/ForkOrFry/actions/workflows/ci.yml)
 [![License: AGPL-3.0-only](https://img.shields.io/badge/license-AGPL%203.0--only-green.svg)](./LICENSE)
 
-ForkOrFry is pivoting from a fake takeover prank extension into a browser-extension-hosted local game shell based on [`hurrycurry`](https://codeberg.org/hurrycurry/hurrycurry.git).
+ForkOrFry is now an **extension-distributed local game container**.
 
-This branch now has a runtime host boundary and a reducer-driven local burger-session runtime inside the extension-owned UI surface. The old takeover/demo placeholder is gone; Godot integration is **not done yet**.
+The product direction is:
 
-## Current implementation status
+- users install it from Chrome/Firefox as an extension
+- the game lives inside the extension
+- the runtime is **single-player only**
+- all gameplay state is **local**
+- there is **no server dependency**
 
-- ✅ Firefox extension scaffolding exists
-- ✅ WXT-based build/dev/packaging scripts exist
-- ✅ CI runs lint, tests, and build for the extension
-- ✅ Firefox packaging workflow exists
-- ✅ Idle → renewed-activity shell trigger is implemented in the extension background flow
-- ✅ Extension-owned reusable large popup shell window is implemented as the current runtime surface
-- ✅ Runtime host boundary exists between the shell and the local burger-session runtime
-- ✅ Reducer-driven local burger-session runtime exists
-- ✅ Reset clears host runtime state cleanly
-- ⏳ Local hurrycurry client vendoring/integration is still to be implemented
-- ⏳ Multiplayer/server removal is still in progress as a repo pivot
-- ⏳ Bot players, production persistence hardening, and burger-level locking are still to be implemented
-- ⏳ Godot WebAssembly embed is still future work
+The current branch keeps the extension host shell and runtime boundary that were added during the first pivot. The child runtime is still a custom TypeScript burger-session scaffold and is **not** the final game path.
 
-## Roadmap / TODO
+## Product definition
 
-### Completed
+ForkOrFry will ship as a browser extension that bundles a modified fork of [`hurrycurry`](https://codeberg.org/hurrycurry/hurrycurry.git) and runs it inside an extension-owned UI surface.
 
-- [x] Define the single-player local-only direction
-- [x] Keep the browser extension as the runtime container
-- [x] Add CI and Firefox packaging workflows
-- [x] Preserve the extension repo as the implementation home
-- [x] Replace prank/takeover behavior with inactivity → renewed activity flow
-- [x] Move runtime UI into a reusable popup-window shell
-- [x] Add a runtime host boundary between the extension shell and the embedded runtime
-- [x] Replace the old placeholder flow with a minimal local-authoritative burger-session runtime
+The shipped experience must:
 
-### In progress
+- run inside the extension, not a separate app install
+- work as a local single-player game
+- remove multiplayer and server runtime dependence
+- keep game state and persistence local to the extension
+- support both:
+  - a **popup-window host** for the current idle/activity flow
+  - an optional **full-tab host** that expands the same run into a larger surface
 
-- [ ] Vendor or otherwise localize the `hurrycurry` client build
-- [ ] Remove runtime dependency on any game server
-- [ ] Expand the burger runtime from a single-order loop into a fuller local burger shift
-- [ ] Turn local persistence and resume into production-hardened behavior
+There should only be **one active host surface at a time**. Moving from popup window to full tab transfers the current run instead of creating a second live session.
 
-### Pending
+## Current state
 
-- [ ] Implement rule-based bots to replace remote players
-- [ ] Lock the shipped experience to burger level only
-- [ ] Prepare the Godot WebAssembly export path
-- [ ] Separate asset/theme swaps from core gameplay logic
+### What already exists
 
-## Objective
+- Firefox extension scaffolding via WXT
+- CI for lint, tests, build, and Firefox packaging
+- idle → renewed activity trigger flow in the extension background worker
+- an extension-owned runtime host page
+- a host/runtime iframe boundary with typed messaging
+- checkpoint storage owned by the host shell
+- pause, resume, reset, and shutdown plumbing
+- popup-window host and full-tab host support
 
-Convert the project into:
+### What is still temporary
 
-- single player only
-- no server dependency
-- bots replacing all remote players
-- a browser-hosted lightweight extension application running inside a popup or side-panel-style container
+- `extension/src/features/runtime-frame/burger-runtime.ts` is still a custom TypeScript burger scaffold
+- gameplay logic is still local scaffolding, not the real upstream game path
+- upstream `hurrycurry` client behavior has not been integrated yet
+- server/multiplayer coupling in the real upstream code has not been removed yet
 
-The final runtime must live inside a browser extension UI context, not a full-tab application.
+### What should not keep growing
+
+The custom burger runtime is now reference/scaffolding only. Do not keep deepening it unless a change directly supports the upstream local-runtime path.
+
+## Target architecture
+
+```mermaid
+flowchart LR
+  PU[Extension popup UI] --> BG[Background trigger and launch control]
+
+  BG --> PW[Host page in popup window]
+  BG --> FT[Host page in full tab]
+
+  PW --> RH[runtime-host controller]
+  FT --> RH
+
+  RH --> RF[runtime-frame iframe]
+  RF --> UA[upstream local adapter]
+  UA --> LS[local single-player session]
+  RH --> ST[browser.storage.local]
+  LS --> ST
+```
+
+## What stays vs what gets replaced
+
+### Keep
+
+- `extension/src/core/background.ts`
+- `extension/src/core/state.ts`
+- `extension/src/core/messages.ts`
+- `extension/src/features/popup/*`
+- `extension/src/features/runtime-host/*`
+- the extension-owned host page
+- the host/runtime contract
+- checkpoint persistence and resume behavior
+
+### Replace
+
+- the child runtime behind `runtime-frame.html`
+- the custom reducer-driven burger-session gameplay path
+
+## Code structure plan
+
+### Stable shell
+
+```text
+extension/src/
+├── core/
+│   ├── background.ts        # idle/activity trigger, launch control, surface tracking
+│   ├── messages.ts          # popup/background/host message shapes
+│   └── state.ts             # extension-owned persistent state
+├── features/
+│   ├── popup/               # launcher/status UI
+│   └── runtime-host/        # host shell, controller, contract, checkpoint store
+└── entrypoints/
+    ├── popup/
+    ├── takeover/            # current host page entrypoint
+    └── runtime-frame/       # child runtime entrypoint
+```
+
+### Transitional child runtime
+
+```text
+extension/src/features/runtime-frame/
+├── burger-runtime.ts              # current scaffold, not final direction
+├── burger-session-reducer.ts      # scaffold only
+├── burger-session-state.ts        # scaffold only
+├── checkpoint.ts                  # scaffold checkpoint serializer
+└── burger-level.ts                # scaffold burger-level data
+```
+
+### Planned replacement path
+
+```text
+extension/src/features/runtime-frame/
+├── upstream-runtime.ts            # next runtime entrypoint target
+├── upstream-session.ts            # local authoritative session adapter
+├── upstream-checkpoint.ts         # checkpoint serialization for upstream-shaped state
+├── upstream-data.ts               # normalized checked-in burger-level/map data
+└── burger-runtime.ts              # kept only as reference during migration
+```
+
+## Near-term implementation plan
+
+### Slice 1 — host surfaces
+
+- keep the popup-window host as the default idle/activity surface
+- support moving the current run into a full-tab host
+- keep one active host surface at a time
+- preserve checkpoint/resume across the handoff
+
+### Slice 2 — upstream local adapter bootstrap
+
+- add an upstream-shaped local adapter in `extension/src/features/runtime-frame/`
+- point `extension/src/entrypoints/runtime-frame/main.ts` at that adapter
+- use normalized checked-in burger-level/map data first
+- prove local boot, movement/collision baseline, and host checkpoint compatibility
+
+### Slice 3 — remove server startup assumptions
+
+- strip or bypass multiplayer/server-dependent startup paths
+- replace network authority with local single-player authority
+- stop requiring websocket/session bootstrap for runtime
+
+### Slice 4 — single-player systems
+
+- replace remote players with local bots or single-player-specific logic
+- keep gameplay local and offline
+- lock the first shipped build to the burger level only
+
+### Slice 5 — final runtime path
+
+- decide when the Godot/WASM runtime lands inside the same host shell
+- keep the extension-hosted shell architecture unchanged while swapping runtimes
 
 ## Hard constraints
 
-- Do not use Docker.
-- Do not build or deploy the Rust server.
-- Do not preserve multiplayer networking as a runtime feature.
-- Treat server code as reference only.
-- The client must fully own game state.
-- Target environment:
-  - Godot WebAssembly export
-  - embedded inside a browser extension popup or side-panel-style UI
-  - compatible with constrained viewport sizing and frequent open/close lifecycle events
-
-## Product rules
-
-- Trigger on inactivity first, then on renewed mouse activity.
-- Open the game inside an extension-owned popup/pane surface rather than a full browser tab.
-- Bundle a local fork of `hurrycurry` directly in the extension repo.
-- Ship a single-player-only build.
-- Keep gameplay completely local and offline.
-- Persist save/progress locally.
-- Lock the first shipped experience to the burger level only.
-- Leave asset/theme replacement for a later phase.
+- do not use Docker
+- do not build or deploy the Rust server
+- do not preserve multiplayer networking as a runtime feature
+- treat server code as reference only
+- keep the client/runtime authoritative for shipped gameplay state
+- keep the shipped runtime inside an extension-owned surface
 
 ## Repository layout
 
-- `extension/` — Firefox extension app, WXT config, scripts, tests
-- `.github/workflows/` — CI and Firefox packaging workflows
-- `docs/` — pivot analysis and supporting notes
-- `README.md` — project direction, developer guide, and roadmap
-- `LICENSE` / `THIRD_PARTY_NOTICES.md` — licensing and attribution for the hurrycurry pivot
-
-Upstream `hurrycurry` is currently a reference target documented in `docs/pivot-analysis.md`; it is not vendored into this repo yet.
-
-## Workflow / CI overview
-
-- `ci.yml` runs on pull requests plus pushes to `main` / `release/**`
-  - installs dependencies
-  - runs lint
-  - runs tests
-  - runs the Firefox build
-  - uploads the built extension directory as an artifact
-- `pr-preview.yml` runs on pull requests and manual dispatch
-  - installs dependencies
-  - runs lint, tests, and the Firefox package build
-  - builds the review/source bundle
-  - validates the packaged artifacts
-  - uploads preview XPI and source-bundle artifacts for reviewers
-- `package-firefox.yml` runs on tag push or manual dispatch
-  - installs dependencies
-  - resolves the Firefox add-on ID
-  - runs lint and tests
-  - packages release artifacts
-  - uploads the unsigned XPI and source bundle
+- `extension/` — extension app, runtime host, popup UI, tests, packaging scripts
+- `.github/workflows/` — CI and packaging workflows
+- `docs/` — pivot notes, analysis, and AMO reviewer docs
+- `README.md` — project definition, current state, and implementation plan
+- `LICENSE` / `THIRD_PARTY_NOTICES.md` — licensing and attribution
 
 ## Developer setup
 
@@ -121,9 +189,8 @@ Upstream `hurrycurry` is currently a reference target documented in `docs/pivot-
 
 - Node.js `^20.19.0 || >=22.12.0`
 - npm
-- `zip` / `unzip` available on your PATH for packaging + validation scripts
-- Python 3 if you need to regenerate extension icons
-- Firefox desktop browser for temporary loading and manual verification
+- `zip` / `unzip`
+- Firefox for temporary loading and manual verification
 
 ### Install
 
@@ -132,225 +199,45 @@ cd extension
 npm install
 ```
 
-### Dev mode
+### Common commands
 
 ```bash
 cd extension
 npm run dev
-```
-
-### Preview mode
-
-```bash
-cd extension
-npm run preview
-```
-
-### Build
-
-```bash
-cd extension
 npm run build
-```
-
-### Test
-
-```bash
-cd extension
 npm test
-```
-
-Watch mode:
-
-```bash
-cd extension
-npm run test:watch
-```
-
-### Lint
-
-```bash
-cd extension
 npm run lint
-```
-
-Auto-fix where safe:
-
-```bash
-cd extension
-npm run lint:fix
-```
-
-### Packaging
-
-Firefox XPI package:
-
-```bash
-cd extension
 npm run package:firefox
-```
-
-Source bundle:
-
-```bash
-cd extension
-npm run package:source-bundle
-```
-
-Release artifact bundle:
-
-```bash
-cd extension
-npm run package:release
-```
-
-If you are packaging artifacts intended to match a published Firefox add-on ID, set `FORKORFRY_GECKO_ID` before running the release workflow/scripts.
-
-Validate release artifacts:
-
-```bash
-cd extension
-npm run validate:release-artifacts
 ```
 
 ### Temporary loading in Firefox
 
 1. Run `npm run build` in `extension/`
-2. Open Firefox and go to `about:debugging#/runtime/this-firefox`
+2. Open `about:debugging#/runtime/this-firefox`
 3. Click **Load Temporary Add-on**
 4. Select `extension/dist/firefox-mv3/manifest.json`
 
-### Manual smoke test for the current shell
+## Manual verification
 
-1. Load the temporary add-on in Firefox.
-2. Open the toolbar popup and click **Arm idle trigger**.
-3. Let Firefox enter the configured idle state.
-4. Return to activity and verify the extension opens or refocuses the large shell window.
-5. Use **Open pane now** to test the shell directly.
-6. In the shell, play through the Storage → Grill → Board → Counter loop and confirm a burger can be served.
-7. Close and reopen the shell during a run to confirm the host/runtime checkpoint restores the local burger session.
-8. Use **Reset** to clear host runtime state and confirm the burger session restarts cleanly.
+### Current host shell
 
-### Release / package commands
-
-- `npm run package:firefox` — local unsigned XPI for manual installs
-- `npm run package:source-bundle` — source archive for release/review workflows
-- `npm run package:release` — full release artifact build
-- `npm run validate:release-artifacts` — checks packaged outputs
-
-### Command reference
-
-| Command | Purpose |
-| --- | --- |
-| `npm run dev` | Run the WXT Firefox development loop |
-| `npm run preview` | Serve a preview build locally |
-| `npm run lint` | Run ESLint across the extension code |
-| `npm test` | Run the Vitest suite |
-| `npm run build` | Produce the Firefox MV3 extension bundle |
-| `npm run package:firefox` | Build and zip an unsigned Firefox XPI |
-| `npm run package:source-bundle` | Create the source archive used for review/release |
-| `npm run package:release` | Build release artifacts end-to-end |
-| `npm run validate:release-artifacts` | Verify packaged outputs and metadata |
-| `npm run icons:generate` | Regenerate the extension icon assets |
-
-## Firefox UI reality
-
-Firefox action popups are ephemeral. The shipped UX still needs to feel like an extension popup/pane application, so the implementation should prefer a side-panel-style or similarly extension-owned constrained UI surface, with popup lifecycle-safe pause/resume behavior when persistence is needed.
-
-## Phase plan
-
-### Phase 1 — repository analysis
-
-Produce:
-
-- architecture breakdown for client, server, and protocol
-- network flow mapping
-- dependency graph
-- list of networking entry points
-- list of gameplay systems dependent on server state
-- identification of gameplay/network coupling points
-
-Phase 1 output lives in [`docs/pivot-analysis.md`](./docs/pivot-analysis.md).
-
-### Phase 2 — transformation design
-
-Design a migration that:
-
-- removes server authority completely
-- converts the client into a self-contained simulation
-- replaces multiplayer synchronization with local state management
-- accounts for browser extension popup/side-panel lifecycle limits
-
-### Phase 3 — networking removal
-
-Implement or stage:
-
-- full disablement of server connections
-- removal or stubbing of networking layers
-- replacement of remote game state with local authoritative state
-
-### Phase 4 — bot system
-
-Implement bot players to replace all remote players.
-
-Bots must:
-
-- behave like real players through the input/command system
-- support movement
-- support object interaction
-- participate in the cooking loop
-- start with rule-based logic
-- remain extensible for smarter future AI
-
-### Phase 5 — browser + extension compatibility
-
-Prepare for:
-
-- Godot WebAssembly export
-- embedding inside a browser extension popup or side panel
-- fixed or resizable small viewports
-- rapid open/close lifecycle events
-- deterministic startup from scratch when needed
-- lightweight initialization with no native dependencies
-
-## Current codebase starting point
-
-Current extension files that will be repurposed:
-
-- `extension/src/core/background.ts` — idle lifecycle and trigger orchestration
-- `extension/src/core/state.ts` — `browser.storage.local` state persistence
-- `extension/src/core/messages.ts` — popup/background command contract
-- `extension/src/features/popup/app.ts` — current toolbar popup controls
-- `extension/src/features/runtime-host/*` — current extension-owned host shell and runtime boundary
-- `extension/src/features/runtime-frame/*` — current local burger-session child runtime behind that boundary
-- `extension/wxt.config.ts` — manifest/action wiring
-
-Upstream `hurrycurry` areas that matter most:
-
-- `client/` — Godot client
-- `server/` — Rust server and simulation reference
-- `test-client/` — TypeScript protocol reference
-- `protocol.md` — network contract
-
-## Licensing direction
-
-The upstream `hurrycurry` repo is AGPL-3.0-only. Since the pivoted product is intended to vendor and modify that code locally, this repo is being prepared for AGPL-3.0-only distribution as the safest license baseline. See [`LICENSE`](./LICENSE) and [`THIRD_PARTY_NOTICES.md`](./THIRD_PARTY_NOTICES.md).
+1. Load the temporary add-on in Firefox
+2. Open the toolbar popup and click **Arm idle trigger**
+3. Let Firefox enter the configured idle state
+4. Return to activity and confirm the popup-window host opens or refocuses
+5. Use **Open current surface** to verify the active surface can be launched directly
+6. From the popup-window host, use **Move to full tab** and confirm the run transfers
+7. Close and reopen the active surface to confirm checkpoint resume still works
+8. Use **Clear state** to confirm both trigger state and runtime-host state reset cleanly
 
 ## Contributor guidance
 
-- Keep changes aligned with the single-player, local-only, extension-hosted direction.
-- Do not reintroduce multiplayer or server runtime dependencies.
-- Prefer incremental changes that preserve the current extension shell while the game layer is being added.
-- Keep browser lifecycle, persistence, and constrained viewport behavior in mind for every UI change.
-- Update this README when the pivot status changes materially.
+- keep changes aligned with the extension-hosted, single-player, local-only direction
+- do not reintroduce server or multiplayer runtime requirements
+- preserve the host/runtime seam while replacing the child runtime
+- prefer small, verifiable slices
+- update docs when the product direction or current migration state changes materially
 
-## Near-term implementation checklist
+## Licensing direction
 
-- expand the current burger runtime into a repeatable burger shift
-- vendor `hurrycurry` locally
-- remove live networking and server dependence
-- map upstream gameplay systems behind the current host/runtime boundary
-- replace remote players with local bots
-- add local persistence and fast resume behavior
-- harden the burger-level-only experience for the first shipped build
-- keep art/theme swaps isolated for a later pass
+The upstream `hurrycurry` repo is AGPL-3.0-only. Since this project is intended to vendor and modify that code for local distribution inside the extension, this repo is being prepared for AGPL-3.0-only distribution as the safest baseline.

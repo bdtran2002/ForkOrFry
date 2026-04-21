@@ -2,7 +2,14 @@
 
 ## What the extension does
 
-ForkOrFry is a Firefox-only local parody extension. When armed, Firefox idle detection can open a local takeover page that runs a fake onboarding sequence.
+ForkOrFry is a Firefox extension that hosts a local game runtime inside extension-owned pages.
+
+Today the extension can:
+
+- detect Firefox idle state and reopen the local game host on renewed activity
+- run the current child runtime inside an extension-owned host shell
+- keep the playable session local to the extension
+- support both a popup-window host and a full-tab host for the same local session
 
 ## What it does not do
 
@@ -10,8 +17,8 @@ ForkOrFry is a Firefox-only local parody extension. When armed, Firefox idle det
 - no remote code
 - no content scripts
 - no host permissions
-- no real form submission
 - no interaction with third-party sites
+- no server dependency for the shipped direction
 
 ## Source layout
 

@@ -4,6 +4,16 @@ Updated: 2026-04-21
 Base on main: `origin/main` @ `567e5b8`  
 Current HEAD: `42b2ffa` on local branch `pivot/upstream-client-adapter`
 
+## Follow-up note after this log
+
+This log still captures the runtime-host branch history accurately, but the branch direction after that checkpoint is now:
+
+- keep the host/runtime seam
+- keep the host-owned checkpoint model
+- support both a popup-window host and a full-tab host for the same run
+- stop expanding the custom burger runtime except where it directly helps the upstream path
+- replace the child runtime with an upstream-derived local adapter next
+
 ## Scope of this log
 
 This log covers **everything added after `origin/main`** and before starting the new upstream-integration slice.

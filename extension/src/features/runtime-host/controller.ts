@@ -30,6 +30,7 @@ interface RuntimeHostControllerOptions {
 
 export interface RuntimeHostController {
   start: () => Promise<void>
+  requestCheckpoint: (reason: string) => Promise<void>
   pause: (reason: string) => Promise<void>
   resume: () => Promise<void>
   reset: () => Promise<void>
@@ -44,6 +45,11 @@ export function createRuntimeHostController(options: RuntimeHostControllerOption
   let mount: RuntimeMount | null = null
   let disposed = false
   let messageQueue = Promise.resolve()
+  let pendingCheckpointRequest: {
+    resolve: () => void
+    reject: (error: Error) => void
+    timeoutId: number
+  } | null = null
 
   const emit = (next: RuntimeHostSession) => {
     session = next
@@ -53,6 +59,20 @@ export function createRuntimeHostController(options: RuntimeHostControllerOption
   const postToRuntime = (message: HostToRuntimeMessage) => {
     if (!mount) return
     mount.runtimeWindow.postMessage(message, targetOrigin)
+  }
+
+  const clearPendingCheckpointRequest = () => {
+    if (!pendingCheckpointRequest) return
+    window.clearTimeout(pendingCheckpointRequest.timeoutId)
+    pendingCheckpointRequest = null
+  }
+
+  const rejectPendingCheckpointRequest = (detail: string) => {
+    if (!pendingCheckpointRequest) return
+
+    const pending = pendingCheckpointRequest
+    clearPendingCheckpointRequest()
+    pending.reject(new Error(detail))
   }
 
   const processRuntimeMessage = async (message: RuntimeToHostMessage) => {
@@ -86,9 +106,15 @@ export function createRuntimeHostController(options: RuntimeHostControllerOption
 
           const next = await saveRuntimeCheckpoint(options.runtimeId, message.checkpoint)
           emit(next)
+          if (pendingCheckpointRequest) {
+            const pending = pendingCheckpointRequest
+            clearPendingCheckpointRequest()
+            pending.resolve()
+          }
           return
         }
         case 'runtime:fatal': {
+          rejectPendingCheckpointRequest(message.message)
           const next = await updateRuntimeHostSession(options.runtimeId, {
             status: 'error',
             detail: message.message,
@@ -177,6 +203,27 @@ export function createRuntimeHostController(options: RuntimeHostControllerOption
     async start() {
       await boot(false)
     },
+    async requestCheckpoint(reason: string) {
+      if (disposed) throw new Error('Cannot checkpoint a disposed runtime host.')
+      if (!mount) throw new Error('Cannot checkpoint before the runtime is mounted.')
+      if (pendingCheckpointRequest) throw new Error('A checkpoint request is already in flight.')
+
+      return new Promise<void>((resolve, reject) => {
+        pendingCheckpointRequest = {
+          resolve,
+          reject,
+          timeoutId: window.setTimeout(() => {
+            rejectPendingCheckpointRequest('Timed out waiting for the runtime checkpoint.')
+          }, 1500),
+        }
+
+        postToRuntime({
+          type: 'host:checkpoint',
+          runtimeId: options.runtimeId,
+          reason,
+        })
+      })
+    },
     async pause(reason: string) {
       const next = await markRuntimeHostHidden(options.runtimeId, reason)
       emit(next)
@@ -197,6 +244,7 @@ export function createRuntimeHostController(options: RuntimeHostControllerOption
     async shutdown() {
       if (disposed) return
       disposed = true
+      rejectPendingCheckpointRequest('Runtime host shut down before the checkpoint request finished.')
       postToRuntime({ type: 'host:shutdown', runtimeId: options.runtimeId })
       window.removeEventListener('message', onWindowMessage)
     },
@@ -222,6 +270,7 @@ export function createRuntimeHostController(options: RuntimeHostControllerOption
           console.error('Failed to persist runtime host pagehide state.', error)
         })
 
+      rejectPendingCheckpointRequest('Runtime host pagehide interrupted the checkpoint request.')
       postToRuntime({ type: 'host:pause', runtimeId: options.runtimeId, reason })
       postToRuntime({ type: 'host:shutdown', runtimeId: options.runtimeId })
     },

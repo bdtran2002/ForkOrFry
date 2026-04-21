@@ -138,6 +138,31 @@ describe('runtime host', () => {
       expect(session.status).toBe('ready')
     })
 
+    const checkpointRequest = controller.requestCheckpoint('Preparing full-tab handoff.')
+    expect(runtimeWindow.postMessage).toHaveBeenCalledWith(
+      { type: 'host:checkpoint', runtimeId: 'burger-runtime', reason: 'Preparing full-tab handoff.' },
+      window.location.origin,
+    )
+
+    window.dispatchEvent(
+      new MessageEvent('message', {
+        source: runtimeWindow as MessageEventSource,
+        origin: window.location.origin,
+        data: {
+          type: 'runtime:checkpoint',
+          runtimeId: 'burger-runtime',
+          checkpoint: {
+            version: 1,
+            runtimeId: 'burger-runtime',
+            updatedAt: 654,
+            state: { saveVersion: 1, levelId: 'burger', tick: 3, phase: 'paused' },
+          },
+        },
+      }),
+    )
+
+    await checkpointRequest
+
     await controller.pause('Host window hidden.')
     expect(runtimeWindow.postMessage).toHaveBeenCalledWith(
       { type: 'host:pause', runtimeId: 'burger-runtime', reason: 'Host window hidden.' },

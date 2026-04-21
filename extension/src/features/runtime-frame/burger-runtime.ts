@@ -313,6 +313,9 @@ function handleHostMessage(message: HostToRuntimeMessage) {
       postCheckpoint()
       return
     }
+    case 'host:checkpoint':
+      postCheckpoint()
+      return
     case 'host:shutdown':
       postCheckpoint()
   }

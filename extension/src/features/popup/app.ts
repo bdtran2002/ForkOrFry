@@ -29,6 +29,7 @@ app.innerHTML = `
   <div class="actions">
     <button type="button" class="primary" id="arm">${popupCopy.buttons.arm}</button>
     <button type="button" class="secondary" id="demo">${popupCopy.buttons.demo}</button>
+    <button type="button" class="secondary" id="full-tab">${popupCopy.buttons.fullTab}</button>
     <button type="button" class="secondary" id="disarm">${popupCopy.buttons.disarm}</button>
     <button type="button" class="secondary" id="reset">${popupCopy.buttons.reset}</button>
   </div>
@@ -55,8 +56,14 @@ const runtimeCheckpointValue = app.querySelector<HTMLElement>('#runtime-checkpoi
 const buttons = {
   arm: app.querySelector<HTMLButtonElement>('#arm')!,
   demo: app.querySelector<HTMLButtonElement>('#demo')!,
+  fullTab: app.querySelector<HTMLButtonElement>('#full-tab')!,
   disarm: app.querySelector<HTMLButtonElement>('#disarm')!,
   reset: app.querySelector<HTMLButtonElement>('#reset')!,
+}
+
+function surfaceLabel(activeSurface: Awaited<ReturnType<typeof getState>>['activeSurface']) {
+  if (activeSurface === 'full-tab') return popupCopy.fullTab
+  return popupCopy.popupWindow
 }
 
 function formatLastTrigger(lastIdleAt: number | null) {
@@ -85,17 +92,18 @@ async function refresh() {
   ])
   const surfaceOpen = state.surfaceOpen
   const waitingForActivity = state.waitingForActivity
+  const preferredSurface = surfaceLabel(state.activeSurface)
 
   idleIntervalSelect.value = String(state.idleIntervalSeconds)
   status.textContent = !state.armed
     ? popupCopy.status.disarmed
     : surfaceOpen
-      ? popupCopy.status.surfaceOpen
+      ? popupCopy.status.surfaceOpen(preferredSurface)
       : waitingForActivity
-        ? popupCopy.status.waitingForActivity
+        ? popupCopy.status.waitingForActivity(preferredSurface)
         : popupCopy.status.armedReady
   modeValue.textContent = state.armed ? popupCopy.armed : popupCopy.disarmed
-  paneValue.textContent = surfaceOpen ? popupCopy.open : popupCopy.closed
+  paneValue.textContent = surfaceOpen ? preferredSurface : popupCopy.closed
   awaitingActivityValue.textContent = waitingForActivity ? popupCopy.yes : popupCopy.no
   lastTriggerValue.textContent = formatLastTrigger(state.lastTriggerAt)
   runtimeStatusValue.textContent = runtimeSession.lastOpenedAt
@@ -106,6 +114,7 @@ async function refresh() {
   runtimeResumeValue.textContent = String(runtimeSession.resumeCount)
   runtimeCheckpointValue.textContent = formatLastTrigger(runtimeSession.lastCheckpointAt)
   buttons.arm.disabled = state.armed
+  buttons.fullTab.disabled = surfaceOpen && state.activeSurface === 'popup-window'
   buttons.disarm.disabled = !state.armed
   buttons.reset.disabled = !hasStoredActivityState(state) && !hasStoredRuntimeState(runtimeSession) && !state.armed
 }
@@ -127,6 +136,11 @@ buttons.arm.addEventListener('click', async () => {
 
 buttons.demo.addEventListener('click', async () => {
   await browser.runtime.sendMessage({ type: 'demo-now' } satisfies BackgroundMessage)
+  await refresh()
+})
+
+buttons.fullTab.addEventListener('click', async () => {
+  await browser.runtime.sendMessage({ type: 'open-full-tab' } satisfies BackgroundMessage)
   await refresh()
 })
 
