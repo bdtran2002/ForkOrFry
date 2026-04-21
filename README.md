@@ -1,41 +1,90 @@
-# ForkOrFry
-
 [![CI](https://github.com/bdtran2002/ForkOrFry/actions/workflows/ci.yml/badge.svg)](https://github.com/bdtran2002/ForkOrFry/actions/workflows/ci.yml)
 ![Firefox only](https://img.shields.io/badge/firefox-MV3-orange?logo=firefoxbrowser&logoColor=white)
 ![Node](https://img.shields.io/badge/node-20.19%2B-339933?logo=node.js&logoColor=white)
 ![WXT](https://img.shields.io/badge/WXT-0.20-8b5cf6)
 [![License: MIT](https://img.shields.io/badge/license-MIT-green.svg)](./LICENSE)
 
-Firefox-only idle-triggered parody extension that opens a local takeover page when the browser goes idle.
+# ForkOrFry
 
-## What it is
+ForkOrFry is pivoting from a fake takeover prank extension into a local-only Firefox game extension.
 
-ForkOrFry is a local-only Firefox Manifest V3 extension built with WXT:
+## Pivot target
 
-- background service worker watches `browser.idle`
-- popup arms/disarms the extension, clears stored state, triggers a demo, and shows live status details
-- popup includes configurable idle timing presets for faster demos or slower prank pacing
-- takeover page runs a staged fake onboarding sequence with progress, activity logs, and a simulated cursor
-- state lives in `browser.storage.local`
-- generated Firefox toolbar/extension icons are included in the build output
-- no content scripts, host permissions, or network requests are used
+The new product direction is:
 
-## Current feature set
+1. Detect inactivity.
+2. When the user becomes active again via mouse activity, open a large persistent extension-owned game pane/window.
+3. Launch a bundled local fork of [`hurrycurry`](https://codeberg.org/hurrycurry/hurrycurry.git) inside that surface.
+4. Ship a custom version of the game that is:
+   - single-player only
+   - completely local
+   - backed by persistent local storage
+   - locked to the burger level only
+5. Later replace the shipped assets with a new aesthetic pass.
 
-- **Arming flow:** arm, disarm, demo, and clear state directly from the popup
-- **Live popup status:** mode, takeover-tab state, and last trigger timestamp are visible from the toolbar UI
-- **Adjustable idle timing:** switch between preset idle intervals without editing code
-- **Theatrical takeover:** fake onboarding steps, progress bar, fake activity log, and local-only completion state
-- **Automated coverage:** Vitest checks core background state transitions and popup command wiring
-- **Firefox packaging:** CI uploads the raw build output and a separate workflow can package an unsigned `.xpi`
-- **Release metadata:** the Firefox manifest version comes from `extension/package.json`, and the Gecko ID can be set per release with `FORKORFRY_GECKO_ID`
-- **Firefox branding assets:** generated PNG icons are wired into the Firefox MV3 manifest, including light/dark toolbar variants
+## Non-negotiable constraints
+
+- No multiplayer.
+- No remote backend.
+- No network dependency for gameplay.
+- Persistence must stay local to the extension.
+- The burger level is the only supported level in the first shipped game build.
+- Asset/theme work comes later; first get the local playable loop working.
+
+## Important Firefox UI note
+
+Firefox action popups are not truly persistent. To match the intended "large pane popup" behavior, this pivot will use a persistent extension-owned surface such as a dedicated extension window/panel-style page rather than the small ephemeral toolbar popup.
+
+## Current implementation plan
+
+### Phase 1 — repoint the extension flow
+
+- replace the current idle → fake takeover flow
+- change the trigger to inactivity followed by renewed mouse activity
+- keep the extension local-only
+
+### Phase 2 — build the persistent game surface
+
+- replace the current takeover page behavior with a persistent large extension-owned UI surface
+- keep reuse/focus behavior so repeated triggers reopen the same surface instead of spawning duplicates
+- preserve simple debug controls during development
+
+### Phase 3 — bundle and adapt hurrycurry
+
+- vendor the game locally into the extension project
+- remove all multiplayer/networked behavior
+- hard-lock the game to single-player burger-level play
+- keep the game launchable entirely from packaged extension assets
+
+### Phase 4 — persistence
+
+- store progression/session data locally
+- keep save/load behavior deterministic and offline
+- expose reset hooks for development and QA
+
+### Phase 5 — art direction pass
+
+- replace borrowed placeholder assets later
+- keep art swaps isolated from trigger logic and save logic
+
+## Current codebase starting point
+
+The existing repo still contains the pre-pivot prank/takeover implementation. The main files that will be repurposed are:
+
+- `extension/src/core/background.ts` — idle lifecycle and trigger orchestration
+- `extension/src/core/takeover.ts` — current open/reuse logic for the existing extension page
+- `extension/src/core/state.ts` — `browser.storage.local` state persistence
+- `extension/src/core/messages.ts` — popup/background command contract
+- `extension/src/features/popup/app.ts` — current toolbar popup controls
+- `extension/src/features/takeover/app.ts` — current fake takeover UI
+- `extension/src/entrypoints/takeover/*` — existing extension page entrypoint that can be replaced or repurposed
+- `extension/wxt.config.ts` — manifest wiring and extension surface configuration
 
 ## Project layout
 
-- repo root: repository docs and GitHub Actions
-- `extension/`: the actual Firefox extension package
-- `docs/amo/`: reviewer notes, permissions notes, QA checklist, and AMO submission scaffolding
+- repo root: project docs and GitHub Actions
+- `extension/`: the Firefox extension package
+- `docs/amo/`: legacy AMO/reviewer prep docs from the pre-pivot version
 
 ## Develop locally
 
@@ -69,78 +118,13 @@ npm test
 npm run build
 ```
 
-`npm run build` is the main full verification check for the Firefox extension.
+## Near-term development checklist
 
-## CI
-
-GitHub Actions runs from the repo root but builds the dedicated `extension/` package. Each CI run:
-
-- installs dependencies from `extension/package-lock.json`
-- runs `npm run lint`
-- runs `npm test`
-- runs `npm run build`
-- uploads the built Firefox extension files from `extension/dist/firefox-mv3/` as an artifact
-
-There is also a manual/tag packaging workflow that runs `npm run package:release`, validates the release artifacts, and uploads both artifacts.
-
-## Packaging
-
-```bash
-cd extension
-npm run package:firefox
-npm run package:source-bundle
-npm run package:release
-```
-
-This writes:
-
-```text
-extension/dist/forkorfry-firefox-mv3.xpi
-```
-
-and:
-
-```text
-extension/dist/forkorfry-source-bundle.zip
-```
-
-That package is useful for CI artifacts and debug/testing flows. Public Firefox distribution still needs signing through AMO or another Firefox signing flow.
-
-For release builds, set `FORKORFRY_GECKO_ID` to the real AMO/Firefox add-on ID before running `npm run package:firefox` or `npm run package:release`. If unset, local/dev builds keep using the safe placeholder ID.
-
-The GitHub packaging workflow expects that value either as the manual dispatch `gecko_id` input or as a repository variable/secret named `FORKORFRY_GECKO_ID`.
-
-If you want to regenerate the committed Firefox icons:
-
-```bash
-cd extension
-npm run icons:generate
-```
-
-## AMO-ready repo structure
-
-This repo now keeps Firefox Add-on submission prep in dedicated locations:
-
-- `extension/` contains the installable extension source, tests, icons, and packaging scripts
-- `extension/src/core/` contains shared state, message, and browser orchestration logic
-- `extension/src/features/` contains popup and takeover UI modules
-- `extension/src/entrypoints/` stays thin so WXT entrypoints remain easy to audit
-- `docs/amo/reviewer-notes.md` explains what the extension does for future reviewer context
-- `docs/amo/permissions.md` records why the current permissions are needed
-- `docs/amo/qa-checklist.md` tracks the manual checks to run before submission
-- `docs/amo/listing-assets/` is reserved for future screenshots, promo art, and store assets
-
-## Notes
-
-- Use the popup to arm/disarm or run the demo.
-- The popup also shows the current mode, takeover-tab status, last trigger time, and selected idle interval.
-- **Clear state** removes the stored idle timestamp and closes any open takeover tab.
-- Changing the idle interval updates Firefox idle detection immediately when the extension is armed.
-- Firefox toolbar icons now include theme-aware light/dark variants for better contrast.
-- The takeover page is fake-only and does not control the real cursor.
-- Permissions stay minimal: `idle`, `storage`, `tabs`.
-
-## Developer TODO
-
-- Do a focused manual Firefox QA pass on idle timing, takeover tab reuse, and dismiss/reset flows.
-- Review copy/branding for AMO-safe parody language before any public submission.
+- replace the old prank copy with pivot-safe game language
+- implement idle → activity triggering instead of immediate idle trigger
+- switch from the old takeover page flow to a persistent game surface
+- bundle a local fork of `hurrycurry`
+- strip multiplayer completely
+- add local persistent save state
+- lock the shipped game to the burger level
+- leave clear seams for the later asset/theme replacement
