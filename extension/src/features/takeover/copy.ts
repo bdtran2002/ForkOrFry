@@ -9,6 +9,11 @@ export const takeoverCopy = {
   stepPill: (step: number) => `Phase ${step} of 4`,
   stepLabels: ['Local only', 'Single player', 'Persistent save', 'Burger level'],
   logTitle: 'Shell notes',
+  lifecycleTitle: 'Lifecycle checkpoint',
+  lifecycleLabels: {
+    resumeCount: 'Resume count',
+    lastCheckpoint: 'Last checkpoint',
+  },
   completionTitle: 'Ready for integration',
   completionBody:
     'The final game surface will host the local simulation, then hand off to hurrycurry content without reintroducing networking.',
@@ -18,6 +23,7 @@ export const takeoverCopy = {
     dismiss: 'Close pane',
   },
   note: 'Placeholder only: local, offline, and aligned to the future game shell.',
+  restored: (count: number) => `Resumed local checkpoint ${count}.`,
   fields: [
     { label: 'Mode', value: 'single-player' },
     { label: 'Connectivity', value: 'offline' },
