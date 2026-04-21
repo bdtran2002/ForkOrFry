@@ -1,90 +1,142 @@
-[![CI](https://github.com/bdtran2002/ForkOrFry/actions/workflows/ci.yml/badge.svg)](https://github.com/bdtran2002/ForkOrFry/actions/workflows/ci.yml)
-![Firefox only](https://img.shields.io/badge/firefox-MV3-orange?logo=firefoxbrowser&logoColor=white)
-![Node](https://img.shields.io/badge/node-20.19%2B-339933?logo=node.js&logoColor=white)
-![WXT](https://img.shields.io/badge/WXT-0.20-8b5cf6)
-[![License: MIT](https://img.shields.io/badge/license-MIT-green.svg)](./LICENSE)
-
 # ForkOrFry
 
-ForkOrFry is pivoting from a fake takeover prank extension into a local-only Firefox game extension.
+[![CI](https://github.com/bdtran2002/ForkOrFry/actions/workflows/ci.yml/badge.svg)](https://github.com/bdtran2002/ForkOrFry/actions/workflows/ci.yml)
+![Status](https://img.shields.io/badge/status-pivot--in--progress-8b5cf6)
+![Version](https://img.shields.io/badge/version-0.0.0-blue)
+![Firefox only](https://img.shields.io/badge/firefox-MV3-orange?logo=firefoxbrowser&logoColor=white)
+![UI target](https://img.shields.io/badge/ui-popup%20or%20side%20panel-7c3aed)
+![Godot](https://img.shields.io/badge/Godot-4.6-478cbf?logo=godotengine&logoColor=white)
+![Rust](https://img.shields.io/badge/Rust-1.93.1-000000?logo=rust)
+![Node](https://img.shields.io/badge/node-20.19%2B-339933?logo=node.js&logoColor=white)
+![WXT](https://img.shields.io/badge/WXT-0.20-8b5cf6)
+![Game mode](https://img.shields.io/badge/game-single--player%20offline-green)
+[![License: AGPL-3.0-only](https://img.shields.io/badge/license-AGPL%203.0--only-green.svg)](./LICENSE)
 
-## Pivot target
+ForkOrFry is pivoting from a fake takeover prank extension into a browser-extension-hosted local game build based on [`hurrycurry`](https://codeberg.org/hurrycurry/hurrycurry.git).
 
-The new product direction is:
+## Objective
 
-1. Detect inactivity.
-2. When the user becomes active again via mouse activity, open a large persistent extension-owned game pane/window.
-3. Launch a bundled local fork of [`hurrycurry`](https://codeberg.org/hurrycurry/hurrycurry.git) inside that surface.
-4. Ship a custom version of the game that is:
-   - single-player only
-   - completely local
-   - backed by persistent local storage
-   - locked to the burger level only
-5. Later replace the shipped assets with a new aesthetic pass.
+Convert the project into:
 
-## Non-negotiable constraints
+- single player only
+- no server dependency
+- bots replacing all remote players
+- a browser-hosted lightweight extension application running inside a popup or side-panel-style container
 
-- No multiplayer.
-- No remote backend.
-- No network dependency for gameplay.
-- Persistence must stay local to the extension.
-- The burger level is the only supported level in the first shipped game build.
-- Asset/theme work comes later; first get the local playable loop working.
+The final runtime must live inside a browser extension UI context, not a full-tab application.
 
-## Important Firefox UI note
+## Hard constraints
 
-Firefox action popups are not truly persistent. To match the intended "large pane popup" behavior, this pivot will use a persistent extension-owned surface such as a dedicated extension window/panel-style page rather than the small ephemeral toolbar popup.
+- Do not use Docker.
+- Do not build or deploy the Rust server.
+- Do not preserve multiplayer networking as a runtime feature.
+- Treat server code as reference only.
+- The client must fully own game state.
+- Target environment:
+  - Godot WebAssembly export
+  - embedded inside a browser extension popup or side-panel-style UI
+  - compatible with constrained viewport sizing and frequent open/close lifecycle events
 
-## Current implementation plan
+## Product rules
 
-### Phase 1 — repoint the extension flow
+- Trigger on inactivity first, then on renewed mouse activity.
+- Open the game inside an extension-owned popup/pane surface rather than a full browser tab.
+- Bundle a local fork of `hurrycurry` directly in the extension repo.
+- Ship a single-player-only build.
+- Keep gameplay completely local and offline.
+- Persist save/progress locally.
+- Lock the first shipped experience to the burger level only.
+- Leave asset/theme replacement for a later phase.
 
-- replace the current idle → fake takeover flow
-- change the trigger to inactivity followed by renewed mouse activity
-- keep the extension local-only
+## Firefox UI reality
 
-### Phase 2 — build the persistent game surface
+Firefox action popups are ephemeral. The shipped UX still needs to feel like an extension popup/pane application, so the implementation should prefer a side-panel-style or similarly extension-owned constrained UI surface, with popup lifecycle-safe pause/resume behavior when persistence is needed.
 
-- replace the current takeover page behavior with a persistent large extension-owned UI surface
-- keep reuse/focus behavior so repeated triggers reopen the same surface instead of spawning duplicates
-- preserve simple debug controls during development
+## Phase plan
 
-### Phase 3 — bundle and adapt hurrycurry
+### Phase 1 — repository analysis
 
-- vendor the game locally into the extension project
-- remove all multiplayer/networked behavior
-- hard-lock the game to single-player burger-level play
-- keep the game launchable entirely from packaged extension assets
+Produce:
 
-### Phase 4 — persistence
+- architecture breakdown for client, server, and protocol
+- network flow mapping
+- dependency graph
+- list of networking entry points
+- list of gameplay systems dependent on server state
+- identification of gameplay/network coupling points
 
-- store progression/session data locally
-- keep save/load behavior deterministic and offline
-- expose reset hooks for development and QA
+Phase 1 output lives in [`docs/pivot-analysis.md`](./docs/pivot-analysis.md).
 
-### Phase 5 — art direction pass
+### Phase 2 — transformation design
 
-- replace borrowed placeholder assets later
-- keep art swaps isolated from trigger logic and save logic
+Design a migration that:
+
+- removes server authority completely
+- converts the client into a self-contained simulation
+- replaces multiplayer synchronization with local state management
+- accounts for browser extension popup/side-panel lifecycle limits
+
+### Phase 3 — networking removal
+
+Implement or stage:
+
+- full disablement of server connections
+- removal or stubbing of networking layers
+- replacement of remote game state with local authoritative state
+
+### Phase 4 — bot system
+
+Implement bot players to replace all remote players.
+
+Bots must:
+
+- behave like real players through the input/command system
+- support movement
+- support object interaction
+- participate in the cooking loop
+- start with rule-based logic
+- remain extensible for smarter future AI
+
+### Phase 5 — browser + extension compatibility
+
+Prepare for:
+
+- Godot WebAssembly export
+- embedding inside a browser extension popup or side panel
+- fixed or resizable small viewports
+- rapid open/close lifecycle events
+- deterministic startup from scratch when needed
+- lightweight initialization with no native dependencies
 
 ## Current codebase starting point
 
-The existing repo still contains the pre-pivot prank/takeover implementation. The main files that will be repurposed are:
+Current extension files that will be repurposed:
 
 - `extension/src/core/background.ts` — idle lifecycle and trigger orchestration
-- `extension/src/core/takeover.ts` — current open/reuse logic for the existing extension page
+- `extension/src/core/takeover.ts` — current extension-page open/reuse logic
 - `extension/src/core/state.ts` — `browser.storage.local` state persistence
 - `extension/src/core/messages.ts` — popup/background command contract
 - `extension/src/features/popup/app.ts` — current toolbar popup controls
 - `extension/src/features/takeover/app.ts` — current fake takeover UI
-- `extension/src/entrypoints/takeover/*` — existing extension page entrypoint that can be replaced or repurposed
-- `extension/wxt.config.ts` — manifest wiring and extension surface configuration
+- `extension/src/entrypoints/takeover/*` — existing extension page entrypoint
+- `extension/wxt.config.ts` — manifest/action wiring
+
+Upstream `hurrycurry` areas that matter most:
+
+- `client/` — Godot client
+- `server/` — Rust server and simulation reference
+- `test-client/` — TypeScript protocol reference
+- `protocol.md` — network contract
+
+## Licensing direction
+
+The upstream `hurrycurry` repo is AGPL-3.0-only. Since the pivoted product is intended to vendor and modify that code locally, this repo is being prepared for AGPL-3.0-only distribution as the safest license baseline. See [`LICENSE`](./LICENSE) and [`THIRD_PARTY_NOTICES.md`](./THIRD_PARTY_NOTICES.md).
 
 ## Project layout
 
 - repo root: project docs and GitHub Actions
 - `extension/`: the Firefox extension package
-- `docs/amo/`: legacy AMO/reviewer prep docs from the pre-pivot version
+- `docs/`: pivot analysis and legacy AMO/reviewer notes
 
 ## Develop locally
 
@@ -118,13 +170,13 @@ npm test
 npm run build
 ```
 
-## Near-term development checklist
+## Near-term implementation checklist
 
-- replace the old prank copy with pivot-safe game language
-- implement idle → activity triggering instead of immediate idle trigger
-- switch from the old takeover page flow to a persistent game surface
-- bundle a local fork of `hurrycurry`
-- strip multiplayer completely
-- add local persistent save state
-- lock the shipped game to the burger level
-- leave clear seams for the later asset/theme replacement
+- replace the prank/takeover flow with inactivity → renewed activity behavior
+- move the runtime surface into an extension popup/pane-style game UI
+- vendor `hurrycurry` locally
+- remove live networking and server dependence
+- replace remote players with local bots
+- add local persistence and fast resume behavior
+- lock the first shipped build to the burger level
+- keep art/theme swaps isolated for a later pass
