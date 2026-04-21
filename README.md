@@ -1,23 +1,11 @@
 # ForkOrFry
 
 [![CI](https://github.com/bdtran2002/ForkOrFry/actions/workflows/ci.yml/badge.svg)](https://github.com/bdtran2002/ForkOrFry/actions/workflows/ci.yml)
-[![PR Preview](https://github.com/bdtran2002/ForkOrFry/actions/workflows/pr-preview.yml/badge.svg)](https://github.com/bdtran2002/ForkOrFry/actions/workflows/pr-preview.yml)
-[![Package Firefox](https://github.com/bdtran2002/ForkOrFry/actions/workflows/package-firefox.yml/badge.svg)](https://github.com/bdtran2002/ForkOrFry/actions/workflows/package-firefox.yml)
-![Pivot](https://img.shields.io/badge/pivot-extension--game--shell-8b5cf6)
-![Status](https://img.shields.io/badge/status-in%20progress-f59e0b)
-![Mode](https://img.shields.io/badge/mode-single--player%20local-green)
-![Target](https://img.shields.io/badge/target-Firefox%20MV3-orange?logo=firefoxbrowser&logoColor=white)
-![UI](https://img.shields.io/badge/ui-popup%20%2F%20side%20panel-7c3aed)
-![Runtime](https://img.shields.io/badge/runtime-extension%20owned-blue)
-![Godot](https://img.shields.io/badge/Godot-4.x-478cbf?logo=godotengine&logoColor=white)
-![Rust](https://img.shields.io/badge/Rust-reference%20only-000000?logo=rust)
-![Node](https://img.shields.io/badge/node-20.19%2B-339933?logo=node.js&logoColor=white)
-![WXT](https://img.shields.io/badge/WXT-0.20-8b5cf6)
 [![License: AGPL-3.0-only](https://img.shields.io/badge/license-AGPL%203.0--only-green.svg)](./LICENSE)
 
 ForkOrFry is pivoting from a fake takeover prank extension into a browser-extension-hosted local game shell based on [`hurrycurry`](https://codeberg.org/hurrycurry/hurrycurry.git).
 
-This repo is currently in the “extension game shell” phase: the end goal is a single-player, fully local game running inside an extension-owned UI surface. Godot integration is **not done yet**.
+This branch now has a runtime host boundary and a reducer-driven local burger-session runtime inside the extension-owned UI surface. The old takeover/demo placeholder is gone; Godot integration is **not done yet**.
 
 ## Current implementation status
 
@@ -27,10 +15,12 @@ This repo is currently in the “extension game shell” phase: the end goal is 
 - ✅ Firefox packaging workflow exists
 - ✅ Idle → renewed-activity shell trigger is implemented in the extension background flow
 - ✅ Extension-owned reusable large popup shell window is implemented as the current runtime surface
-- ✅ Local checkpoint/resume placeholder state exists for shell window lifecycle resets
-- ⏳ Local hurrycurry client integration is still to be implemented
+- ✅ Runtime host boundary exists between the shell and the local burger-session runtime
+- ✅ Reducer-driven local burger-session runtime exists
+- ✅ Reset clears host runtime state cleanly
+- ⏳ Local hurrycurry client vendoring/integration is still to be implemented
 - ⏳ Multiplayer/server removal is still in progress as a repo pivot
-- ⏳ Bot players, production save/resume, and burger-level locking are still to be implemented
+- ⏳ Bot players, production persistence hardening, and burger-level locking are still to be implemented
 - ⏳ Godot WebAssembly embed is still future work
 
 ## Roadmap / TODO
@@ -43,19 +33,20 @@ This repo is currently in the “extension game shell” phase: the end goal is 
 - [x] Preserve the extension repo as the implementation home
 - [x] Replace prank/takeover behavior with inactivity → renewed activity flow
 - [x] Move runtime UI into a reusable popup-window shell
+- [x] Add a runtime host boundary between the extension shell and the embedded runtime
+- [x] Replace the old placeholder flow with a minimal local-authoritative burger-session runtime
 
 ### In progress
 
 - [ ] Vendor or otherwise localize the `hurrycurry` client build
 - [ ] Remove runtime dependency on any game server
-- [ ] Convert game state to local authoritative ownership
-- [ ] Turn the current shell checkpoint placeholder into production local persistence and fast resume
+- [ ] Expand the burger runtime from a single-order loop into a fuller local burger shift
+- [ ] Turn local persistence and resume into production-hardened behavior
 
 ### Pending
 
 - [ ] Implement rule-based bots to replace remote players
 - [ ] Lock the shipped experience to burger level only
-- [ ] Add save/load checkpointing for constrained extension lifecycle
 - [ ] Prepare the Godot WebAssembly export path
 - [ ] Separate asset/theme swaps from core gameplay logic
 
@@ -236,7 +227,9 @@ npm run validate:release-artifacts
 3. Let Firefox enter the configured idle state.
 4. Return to activity and verify the extension opens or refocuses the large shell window.
 5. Use **Open pane now** to test the shell directly.
-6. Close and reopen the shell to verify the placeholder checkpoint/resume status is preserved.
+6. In the shell, play through the Storage → Grill → Board → Counter loop and confirm a burger can be served.
+7. Close and reopen the shell during a run to confirm the host/runtime checkpoint restores the local burger session.
+8. Use **Reset** to clear host runtime state and confirm the burger session restarts cleanly.
 
 ### Release / package commands
 
@@ -325,13 +318,11 @@ Prepare for:
 Current extension files that will be repurposed:
 
 - `extension/src/core/background.ts` — idle lifecycle and trigger orchestration
-- `extension/src/core/takeover.ts` — current extension-page open/reuse logic
 - `extension/src/core/state.ts` — `browser.storage.local` state persistence
 - `extension/src/core/messages.ts` — popup/background command contract
 - `extension/src/features/popup/app.ts` — current toolbar popup controls
 - `extension/src/features/runtime-host/*` — current extension-owned host shell and runtime boundary
 - `extension/src/features/runtime-frame/*` — current local burger-session child runtime behind that boundary
-- `extension/src/entrypoints/takeover/*` — existing extension page entrypoint
 - `extension/wxt.config.ts` — manifest/action wiring
 
 Upstream `hurrycurry` areas that matter most:
@@ -355,11 +346,11 @@ The upstream `hurrycurry` repo is AGPL-3.0-only. Since the pivoted product is in
 
 ## Near-term implementation checklist
 
-- replace the prank/takeover flow with inactivity → renewed activity behavior
-- move the runtime surface into an extension popup/pane-style game UI
+- expand the current burger runtime into a repeatable burger shift
 - vendor `hurrycurry` locally
 - remove live networking and server dependence
+- map upstream gameplay systems behind the current host/runtime boundary
 - replace remote players with local bots
 - add local persistence and fast resume behavior
-- lock the first shipped build to the burger level
+- harden the burger-level-only experience for the first shipped build
 - keep art/theme swaps isolated for a later pass
