@@ -2,7 +2,7 @@ export const runtimeFrameCopy = {
   eyebrow: 'Burger session runtime',
   title: 'Local burger-level session',
   lede:
-    'This child runtime now owns a local burger kitchen with explicit crates, walkable tiles, and checkpointable single-player state inside the extension host.',
+    'This child runtime now owns a local burger kitchen with explicit crates, walkable tiles, and action-timed single-player state inside the extension host.',
   sessionStatus: 'Runtime state',
   booting: 'Waiting for host boot…',
   phasePrefix: 'Phase',
@@ -52,10 +52,10 @@ export const runtimeFrameCopy = {
   emptyValue: 'empty',
   buttons: {
     interact: 'Interact',
-    tick: 'Advance tick',
+    tick: 'Wait',
     reset: 'Reset session',
   },
-  movementHint: 'Use the arrow buttons or keyboard arrows to move through the kitchen.',
+  movementHint: 'Use the arrow buttons or keyboard arrows to move. Every move, interact, or wait action spends one kitchen tick.',
   phaseLabels: {
     booting: 'Booting the burger session…',
     running: 'Burger shift running locally.',
