@@ -62,6 +62,10 @@ function syncBurgerShiftPhase(state: BurgerSessionState): BurgerSessionState {
   return state.phase === 'completed' ? { ...state, phase: 'running' } : state
 }
 
+function hasLiveMatchingOrder(state: BurgerSessionState, recipeId: BurgerSessionState['player']['heldItem']) {
+  return !!recipeId && isBurgerRecipeId(recipeId) && state.activeOrders.some((order) => order.recipeId === recipeId)
+}
+
 function promoteEligibleOrders(state: BurgerSessionState) {
   if (state.upcomingOrders.length === 0 || state.activeOrders.length >= BURGER_LEVEL.activeOrderLimit) {
     return syncBurgerShiftPhase(state)
@@ -154,10 +158,10 @@ function advanceKitchenTick(state: BurgerSessionState) {
 function resolveInteract(state: BurgerSessionState) {
   if (state.phase !== 'running') return state
 
-  if (state.activeOrders.length === 0) {
+  if (state.activeOrders.length === 0 && state.upcomingOrders.length === 0) {
     return appendLog(
       state,
-      state.upcomingOrders.length > 0 ? 'No live tickets right now. Hold for the next rush.' : 'The burger shift is already finished.',
+      'The burger shift is already finished.',
     )
   }
 
@@ -300,13 +304,36 @@ function resolveInteract(state: BurgerSessionState) {
         break
       }
 
-      if (heldItem && isBurgerRecipeId(heldItem) && state.activeOrders.length > 0) {
+      if (heldItem && isBurgerRecipeId(heldItem)) {
+        if (!hasLiveMatchingOrder(state, heldItem) && state.stations.counter.finishedBurger === null) {
+          nextState = appendLog(
+            {
+              ...state,
+              player: { ...state.player, heldItem: null },
+              stations: { ...state.stations, counter: { finishedBurger: heldItem } },
+            },
+            `Staged ${getBurgerRecipe(heldItem).label} on the counter.`,
+          )
+          break
+        }
+
+        nextState = appendLog(
+          state,
+          state.activeOrders.length > 0
+            ? `Counter rejected ${getBurgerRecipe(heldItem).label}. Need ${getBurgerRecipe(state.activeOrders[0].recipeId).label}.`
+            : `No live ticket matches ${getBurgerRecipe(heldItem).label} right now.`,
+        )
+        break
+      }
+
+      if (!heldItem && state.stations.counter.finishedBurger) {
         nextState = appendLog(
           {
             ...state,
-            player: { ...state.player, heldItem: null },
+            player: { ...state.player, heldItem: state.stations.counter.finishedBurger },
+            stations: { ...state.stations, counter: { finishedBurger: null } },
           },
-          `Counter rejected ${getBurgerRecipe(heldItem).label}. Need ${getBurgerRecipe(state.activeOrders[0].recipeId).label}.`,
+          `Picked up ${getBurgerRecipe(state.stations.counter.finishedBurger).label} from the counter.`,
         )
         break
       }

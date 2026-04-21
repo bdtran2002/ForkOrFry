@@ -41,6 +41,8 @@ function isBurgerSessionState(value: unknown): value is BurgerSessionState {
     typeof value.stations.grill.progressTicks === 'number' &&
     isRecord(value.stations.board) &&
     Array.isArray(value.stations.board.items) &&
+    isRecord(value.stations.counter) &&
+    (value.stations.counter.finishedBurger === null || value.stations.counter.finishedBurger === 'plain-burger' || value.stations.counter.finishedBurger === 'cheeseburger') &&
     Array.isArray(upcomingOrders) &&
     upcomingOrders.every((order) => isRecord(order)
       && typeof order.id === 'string'
