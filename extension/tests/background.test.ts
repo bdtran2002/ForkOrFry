@@ -27,7 +27,12 @@ const state = vi.hoisted(() => ({
   takeoverUrl: vi.fn(() => 'moz-extension://test/takeover.html'),
 }))
 
+const runtimeHost = vi.hoisted(() => ({
+  clearRuntimeHostSession: vi.fn(),
+}))
+
 vi.mock('../src/core/state', () => state)
+vi.mock('../src/features/runtime-host/checkpoint-store', () => runtimeHost)
 
 function createBrowserMock() {
   const listeners: Record<string, Array<Listener>> = {
@@ -65,6 +70,7 @@ describe('background', () => {
     Object.assign(globalThis, { browser: mock.browser as BrowserMock })
     state.getState.mockResolvedValue({ armed: false, surfaceOpen: false, takeoverWindowId: null, waitingForActivity: false, lastIdleAt: null, lastTriggerAt: null, lastOpenAt: null, idleIntervalSeconds: 120 })
     state.setState.mockResolvedValue(undefined)
+    runtimeHost.clearRuntimeHostSession.mockResolvedValue(undefined)
     state.resetState.mockImplementation(async (nextState: { idleIntervalSeconds: number }) => {
       await state.setState({ armed: false, surfaceOpen: false, takeoverWindowId: null, waitingForActivity: false, lastIdleAt: null, lastTriggerAt: null, lastOpenAt: null, idleIntervalSeconds: nextState.idleIntervalSeconds })
     })
@@ -82,6 +88,10 @@ describe('background', () => {
     await mock.listeners.message[0]({ type: 'disarm' } satisfies BackgroundMessage)
     expect(mock.browser.windows.remove).toHaveBeenCalledWith(7)
     expect(state.setState).toHaveBeenCalledWith({ armed: false, surfaceOpen: false, takeoverWindowId: null, waitingForActivity: false, lastIdleAt: null, lastTriggerAt: null, lastOpenAt: null, idleIntervalSeconds: 120 })
+
+    state.getState.mockResolvedValueOnce({ armed: true, surfaceOpen: true, takeoverWindowId: 7, waitingForActivity: false, lastIdleAt: 1, lastTriggerAt: 2, lastOpenAt: 2, idleIntervalSeconds: 120 })
+    await mock.listeners.message[0]({ type: 'reset' } satisfies BackgroundMessage)
+    expect(runtimeHost.clearRuntimeHostSession).toHaveBeenCalledTimes(1)
   })
 
   it('opens takeover tabs and clears state when tabs close', async () => {
@@ -89,6 +99,7 @@ describe('background', () => {
     Object.assign(globalThis, { browser: mock.browser as BrowserMock })
     state.getState.mockResolvedValueOnce({ armed: true, surfaceOpen: false, takeoverWindowId: null, waitingForActivity: false, lastIdleAt: null, lastTriggerAt: null, lastOpenAt: null, idleIntervalSeconds: 60 })
     state.setState.mockResolvedValue(undefined)
+    runtimeHost.clearRuntimeHostSession.mockResolvedValue(undefined)
     state.resetState.mockImplementation(async (nextState: { idleIntervalSeconds: number }) => {
       await state.setState({ armed: false, surfaceOpen: false, takeoverWindowId: null, waitingForActivity: false, lastIdleAt: null, lastTriggerAt: null, lastOpenAt: null, idleIntervalSeconds: nextState.idleIntervalSeconds })
     })

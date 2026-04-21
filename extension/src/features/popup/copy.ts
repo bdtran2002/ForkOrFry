@@ -34,7 +34,7 @@ export const popupCopy = {
     disarm: 'Pause trigger',
     reset: 'Clear state',
   },
-  helper: 'Clear state closes any open game pane and removes the stored idle/activity checkpoint.',
+  helper: 'Clear state closes any open game pane and removes both the idle trigger checkpoint and the saved runtime host session.',
   notYet: 'Not yet',
   armed: 'Armed',
   disarmed: 'Paused',
