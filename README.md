@@ -115,6 +115,9 @@ extension/src/
 
 ```text
 extension/src/features/runtime-frame/
+├── upstream-runtime.ts            # current runtime-frame adapter shell for bundled web export
+├── upstream-export.ts             # export manifest parsing + entry resolution
+├── upstream-checkpoint.ts         # adapter-shell checkpoint serializer
 ├── burger-runtime.ts              # current scaffold, not final direction
 ├── burger-session-reducer.ts      # scaffold only
 ├── burger-session-state.ts        # scaffold only
@@ -207,8 +210,17 @@ npm run dev
 npm run build
 npm test
 npm run lint
+npm run sync:godot-web-export -- /absolute/path/to/godot-web-export
 npm run package:firefox
 ```
+
+The runtime adapter expects copied web export files under:
+
+```text
+extension/public/upstream/hurrycurry-web/
+```
+
+The sync script writes a `manifest.json` there so `runtime-frame.html` can load the bundled export offline from inside the extension package.
 
 ### Temporary loading in Firefox
 

@@ -1,1 +1,1 @@
-import '../../features/runtime-frame/burger-runtime'
+import '../../features/runtime-frame/upstream-runtime'
