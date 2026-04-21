@@ -34,6 +34,7 @@ export interface RuntimeHostController {
   resume: () => Promise<void>
   reset: () => Promise<void>
   shutdown: () => Promise<void>
+  flushForPageHide: (reason: string) => void
   getSession: () => RuntimeHostSession | null
 }
 
@@ -42,6 +43,7 @@ export function createRuntimeHostController(options: RuntimeHostControllerOption
   let session: RuntimeHostSession | null = null
   let mount: RuntimeMount | null = null
   let disposed = false
+  let messageQueue = Promise.resolve()
 
   const emit = (next: RuntimeHostSession) => {
     session = next
@@ -53,10 +55,10 @@ export function createRuntimeHostController(options: RuntimeHostControllerOption
     mount.runtimeWindow.postMessage(message, targetOrigin)
   }
 
-  const handleRuntimeMessage = (message: RuntimeToHostMessage) => {
-    void (async () => {
-      if (disposed) return
+  const processRuntimeMessage = async (message: RuntimeToHostMessage) => {
+    if (disposed) return
 
+    try {
       switch (message.type) {
         case 'runtime:ready': {
           const next = await updateRuntimeHostSession(options.runtimeId, {
@@ -77,6 +79,11 @@ export function createRuntimeHostController(options: RuntimeHostControllerOption
           return
         }
         case 'runtime:checkpoint': {
+          if (message.checkpoint.runtimeId !== options.runtimeId) {
+            console.warn('Ignoring checkpoint from the wrong runtime.', message.checkpoint.runtimeId)
+            return
+          }
+
           const next = await saveRuntimeCheckpoint(options.runtimeId, message.checkpoint)
           emit(next)
           return
@@ -90,7 +97,28 @@ export function createRuntimeHostController(options: RuntimeHostControllerOption
           emit(next)
         }
       }
-    })()
+    } catch (error) {
+      console.error('Failed to process runtime message.', error)
+
+      if (disposed) return
+
+      const detail = error instanceof Error ? error.message : String(error)
+
+      try {
+        const next = await updateRuntimeHostSession(options.runtimeId, {
+          status: 'error',
+          detail: `Host message processing failed: ${detail}`,
+          lastError: detail,
+        })
+        emit(next)
+      } catch (persistError) {
+        console.error('Failed to persist runtime host error state.', persistError)
+      }
+    }
+  }
+
+  const handleRuntimeMessage = (message: RuntimeToHostMessage) => {
+    messageQueue = messageQueue.then(() => processRuntimeMessage(message), () => processRuntimeMessage(message))
   }
 
   const onWindowMessage = (event: MessageEvent<unknown>) => {
@@ -103,7 +131,18 @@ export function createRuntimeHostController(options: RuntimeHostControllerOption
 
   const boot = async (reset: boolean) => {
     if (reset) {
-      await clearRuntimeHostSession()
+      if (mount) {
+        const previousMount = mount
+        mount = null
+
+        try {
+          previousMount.frame.src = 'about:blank'
+        } catch {
+          // Best effort only; the old runtime window is already detached from host message handling.
+        }
+      }
+
+      await clearRuntimeHostSession(options.runtimeId)
     }
 
     const opened = await openRuntimeHostSession(options.runtimeId)
@@ -111,9 +150,20 @@ export function createRuntimeHostController(options: RuntimeHostControllerOption
       status: 'booting',
       detail: 'Booting child runtime inside the extension host.',
     })
-
-    mount = await options.mountRuntime({ reset })
     emit(booting)
+
+    try {
+      mount = await options.mountRuntime({ reset })
+    } catch (error) {
+      const detail = error instanceof Error ? error.message : String(error)
+      const failed = await updateRuntimeHostSession(options.runtimeId, {
+        status: 'error',
+        detail: `Boot failed: ${detail}`,
+        lastError: detail,
+      })
+      emit(failed)
+      throw error
+    }
 
     postToRuntime({
       type: 'host:boot',
@@ -149,6 +199,31 @@ export function createRuntimeHostController(options: RuntimeHostControllerOption
       disposed = true
       postToRuntime({ type: 'host:shutdown', runtimeId: options.runtimeId })
       window.removeEventListener('message', onWindowMessage)
+    },
+    flushForPageHide(reason: string) {
+      if (disposed) return
+
+      const hiddenAt = Date.now()
+
+      if (session) {
+        emit({
+          ...session,
+          status: 'paused',
+          detail: reason,
+          lastHiddenAt: hiddenAt,
+        })
+      }
+
+      void markRuntimeHostHidden(options.runtimeId, reason)
+        .then((next) => {
+          emit(next)
+        })
+        .catch((error) => {
+          console.error('Failed to persist runtime host pagehide state.', error)
+        })
+
+      postToRuntime({ type: 'host:pause', runtimeId: options.runtimeId, reason })
+      postToRuntime({ type: 'host:shutdown', runtimeId: options.runtimeId })
     },
     getSession() {
       return session

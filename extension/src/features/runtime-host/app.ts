@@ -140,8 +140,7 @@ document.addEventListener('visibilitychange', () => {
 
 window.addEventListener('pagehide', () => {
   if (closing) return
-  void controller.pause('Host page unloading.')
-  void controller.shutdown()
+  controller.flushForPageHide('Host page unloading.')
 })
 
 void controller.start()

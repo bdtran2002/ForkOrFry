@@ -34,11 +34,13 @@ describe('popup app', () => {
     await import('../src/features/popup/app')
     await Promise.resolve()
 
+    expect(runtimeHost.getRuntimeHostSession).toHaveBeenCalledWith('burger-runtime')
     expect(document.querySelector('#mode-value')?.textContent).toBe('Paused')
     expect(document.querySelector('#pane-value')?.textContent).toBe('Closed')
     expect(document.querySelector('#awaiting-activity-value')?.textContent).toBe('No')
     expect(document.querySelector('#status')?.textContent).toContain('Idle triggers are paused')
     expect(document.querySelector('#runtime-status-value')?.textContent).toBe('No host session yet')
+    expect(document.querySelector<HTMLButtonElement>('#reset')?.disabled).toBe(true)
 
     const arm = document.querySelector<HTMLButtonElement>('#arm')!
     arm.click()
@@ -57,6 +59,7 @@ describe('popup app', () => {
     await import('../src/features/popup/app')
     await Promise.resolve()
 
+    expect(runtimeHost.getRuntimeHostSession).toHaveBeenCalledWith('burger-runtime')
     expect(document.querySelector('#status')?.textContent).toContain('local game pane is open')
     expect(document.querySelector('#last-trigger-value')?.textContent).not.toBe('Not yet')
     expect(document.querySelector<HTMLButtonElement>('#disarm')?.disabled).toBe(false)
@@ -67,5 +70,17 @@ describe('popup app', () => {
 
     document.querySelector<HTMLButtonElement>('#reset')!.click()
     expect(browser.runtime.sendMessage).toHaveBeenCalledWith({ type: 'reset' } satisfies BackgroundMessage)
+  })
+
+  it('enables reset when only the runtime host has a stored checkpoint', async () => {
+    state.getState.mockResolvedValue({ armed: false, surfaceOpen: false, waitingForActivity: false, lastIdleAt: null, lastTriggerAt: null, lastOpenAt: null, takeoverWindowId: null, idleIntervalSeconds: 60 })
+    runtimeHost.getRuntimeHostSession.mockResolvedValue({ runtimeId: 'burger-runtime', status: 'paused', detail: 'Host window hidden.', resumeCount: 0, lastOpenedAt: 1710000000000, lastCheckpointAt: 1710000000000, checkpoint: { version: 1, runtimeId: 'burger-runtime', updatedAt: 1710000000000, state: { tick: 3 } } })
+
+    await import('../src/features/popup/app')
+    await Promise.resolve()
+
+    expect(runtimeHost.getRuntimeHostSession).toHaveBeenCalledWith('burger-runtime')
+    expect(document.querySelector('#runtime-checkpoint-value')?.textContent).not.toBe('Not yet')
+    expect(document.querySelector<HTMLButtonElement>('#reset')?.disabled).toBe(false)
   })
 })

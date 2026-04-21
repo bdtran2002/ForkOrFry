@@ -8,7 +8,7 @@ import {
 } from '../runtime-host/contract'
 import { createBurgerSessionCheckpoint, restoreBurgerSessionCheckpoint } from './checkpoint'
 import { runtimeFrameCopy } from './copy'
-import { type BurgerStationId } from './burger-level'
+import { BURGER_LEVEL, type BurgerStationId } from './burger-level'
 import { reduceBurgerSession } from './burger-session-reducer'
 import { createInitialBurgerSessionState, type BurgerSessionState } from './burger-session-state'
 
@@ -35,7 +35,7 @@ app.innerHTML = `
     </div>
     <div class="progress-track" aria-hidden="true"><div class="progress-fill" id="progress-fill"></div></div>
     <div class="stepper" id="location-stepper">
-      ${runtimeFrameCopy.locations.map((label) => `<span>${label}</span>`).join('')}
+      ${runtimeFrameCopy.locationItems.map(({ label }) => `<span>${label}</span>`).join('')}
     </div>
     <div class="shell-grid" id="state-grid">
       <div class="field"><label>${runtimeFrameCopy.labels.tick}</label><div class="input" id="tick-value"></div></div>
@@ -48,7 +48,7 @@ app.innerHTML = `
       <div class="field"><label>${runtimeFrameCopy.labels.pantry}</label><div class="input" id="pantry-value"></div></div>
     </div>
     <div class="actions runtime-controls" id="move-actions">
-      ${runtimeFrameCopy.locations.map((label, index) => `<button type="button" class="secondary" data-move="${runtimeFrameCopy.locationIds[index]}">${label}</button>`).join('')}
+      ${runtimeFrameCopy.locationItems.map(({ id, label }) => `<button type="button" class="secondary" data-move="${id}">${label}</button>`).join('')}
     </div>
     <div class="actions runtime-controls">
       <button type="button" class="primary" id="interact">${runtimeFrameCopy.buttons.interact}</button>
@@ -88,6 +88,7 @@ const completionBody = app.querySelector<HTMLElement>('#completion-body')!
 
 let sessionId = ''
 let state: BurgerSessionState = createInitialBurgerSessionState()
+const locationLabels = Object.fromEntries(runtimeFrameCopy.locationItems.map(({ id, label }) => [id, label])) as Record<BurgerStationId, string>
 
 function postToHost(message: RuntimeToHostMessage) {
   window.parent.postMessage(message, window.location.origin)
@@ -110,20 +111,27 @@ function postCheckpoint() {
   })
 }
 
+function currentPhase() {
+  return state.phase === 'completed' ? 'ready' : state.phase
+}
+
+function currentPhaseDetail() {
+  if (state.phase === 'completed') {
+    return state.activeOrder.status === 'served'
+      ? runtimeFrameCopy.readyServed
+      : runtimeFrameCopy.readyFailed
+  }
+
+  return runtimeFrameCopy.phaseLabels[state.phase]
+}
+
 function dispatch(action: Parameters<typeof reduceBurgerSession>[1], options?: { post?: boolean }) {
   state = reduceBurgerSession(state, action)
   render()
 
   if (options?.post === false) return
 
-  postStatus(
-    state.phase === 'completed' ? 'ready' : state.phase,
-    state.phase === 'completed'
-      ? state.activeOrder.status === 'served'
-        ? runtimeFrameCopy.readyServed
-        : runtimeFrameCopy.readyFailed
-      : runtimeFrameCopy.phaseLabels[state.phase],
-  )
+  postStatus(currentPhase(), currentPhaseDetail())
   postCheckpoint()
 }
 
@@ -137,10 +145,10 @@ function render() {
   progressFill.style.width = `${orderProgressPercent()}%`
   tickValue.textContent = String(state.tick)
   scoreValue.textContent = String(state.score)
-  locationValue.textContent = state.player.location
+  locationValue.textContent = locationLabels[state.player.location]
   heldItemValue.textContent = state.player.heldItem ?? runtimeFrameCopy.emptyValue
   orderValue.textContent = `${state.activeOrder.status} · ${state.activeOrder.remainingTicks} ticks left`
-  grillValue.textContent = `${state.stations.grill.patty} · ${state.stations.grill.progressTicks}/${3}`
+  grillValue.textContent = `${state.stations.grill.patty} · ${state.stations.grill.progressTicks}/${BURGER_LEVEL.grillCookTicks}`
   boardValue.textContent = [
     state.stations.board.bun ? 'bun' : null,
     state.stations.board.patty ? 'patty' : null,
@@ -151,7 +159,7 @@ function render() {
   pantryValue.textContent = `bun ${state.inventory.bun} · patty ${state.inventory.patty} · cheese ${state.inventory.cheese}`
 
   locationStepper.querySelectorAll('span').forEach((item, index) => {
-    item.classList.toggle('is-active', runtimeFrameCopy.locationIds[index] === state.player.location)
+    item.classList.toggle('is-active', runtimeFrameCopy.locationItems[index]?.id === state.player.location)
   })
 
   const controlsDisabled = state.phase === 'paused' || state.phase === 'completed'
@@ -195,14 +203,15 @@ function handleHostMessage(message: HostToRuntimeMessage) {
       boot(message.checkpoint, message.sessionId)
       return
     case 'host:pause':
-      dispatch({ type: 'pause' })
-      postStatus('paused', message.reason)
+      dispatch({ type: 'pause' }, { post: false })
+      postStatus(state.phase === 'paused' ? 'paused' : currentPhase(), state.phase === 'paused' ? message.reason : currentPhaseDetail())
+      postCheckpoint()
       return
     case 'host:resume': {
       const restored = restoreBurgerSessionCheckpoint(RUNTIME_ID, message.checkpoint)
       state = reduceBurgerSession(restored, { type: 'resume' })
       render()
-      postStatus('running', 'Resumed from the latest burger-session checkpoint.')
+      postStatus(state.phase === 'running' ? 'running' : currentPhase(), state.phase === 'running' ? 'Resumed from the latest burger-session checkpoint.' : currentPhaseDetail())
       postCheckpoint()
       return
     }

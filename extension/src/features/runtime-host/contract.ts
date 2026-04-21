@@ -31,6 +31,8 @@ export type HostToRuntimeMessage =
 
 export type RuntimeStatusPhase = 'booting' | 'running' | 'paused' | 'ready'
 
+const RUNTIME_STATUS_PHASES: RuntimeStatusPhase[] = ['booting', 'running', 'paused', 'ready']
+
 export type RuntimeToHostMessage =
   | {
       type: 'runtime:ready'
@@ -68,6 +70,10 @@ function isCheckpointEnvelope(value: unknown): value is RuntimeCheckpointEnvelop
   )
 }
 
+function isRuntimeStatusPhase(value: unknown): value is RuntimeStatusPhase {
+  return typeof value === 'string' && RUNTIME_STATUS_PHASES.includes(value as RuntimeStatusPhase)
+}
+
 export function isHostToRuntimeMessage(value: unknown): value is HostToRuntimeMessage {
   if (!isRecord(value) || typeof value.type !== 'string') return false
 
@@ -98,7 +104,7 @@ export function isRuntimeToHostMessage(value: unknown): value is RuntimeToHostMe
     case 'runtime:ready':
       return Array.isArray(value.capabilities) && value.capabilities.every((entry) => typeof entry === 'string')
     case 'runtime:status':
-      return typeof value.phase === 'string' && typeof value.detail === 'string'
+      return isRuntimeStatusPhase(value.phase) && typeof value.detail === 'string'
     case 'runtime:checkpoint':
       return isCheckpointEnvelope(value.checkpoint)
     case 'runtime:fatal':

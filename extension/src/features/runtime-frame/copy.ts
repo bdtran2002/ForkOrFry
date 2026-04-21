@@ -6,8 +6,12 @@ export const runtimeFrameCopy = {
   sessionStatus: 'Runtime state',
   booting: 'Waiting for host boot…',
   phasePrefix: 'Phase',
-  locations: ['Storage', 'Grill', 'Board', 'Counter'],
-  locationIds: ['storage', 'grill', 'board', 'counter'],
+  locationItems: [
+    { id: 'storage', label: 'Storage' },
+    { id: 'grill', label: 'Grill' },
+    { id: 'board', label: 'Board' },
+    { id: 'counter', label: 'Counter' },
+  ],
   labels: {
     tick: 'Kitchen tick',
     score: 'Score',

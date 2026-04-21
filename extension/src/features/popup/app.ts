@@ -74,6 +74,10 @@ function hasStoredActivityState(state: Awaited<ReturnType<typeof getState>>) {
   return state.lastIdleAt !== null || state.lastTriggerAt !== null || state.surfaceOpen || state.waitingForActivity
 }
 
+function hasStoredRuntimeState(runtimeSession: Awaited<ReturnType<typeof getRuntimeHostSession>>) {
+  return runtimeSession.lastCheckpointAt != null || runtimeSession.resumeCount > 0 || runtimeSession.checkpoint != null
+}
+
 async function refresh() {
   const [state, runtimeSession] = await Promise.all([
     getState(),
@@ -103,7 +107,7 @@ async function refresh() {
   runtimeCheckpointValue.textContent = formatLastTrigger(runtimeSession.lastCheckpointAt)
   buttons.arm.disabled = state.armed
   buttons.disarm.disabled = !state.armed
-  buttons.reset.disabled = !hasStoredActivityState(state) && !state.armed
+  buttons.reset.disabled = !hasStoredActivityState(state) && !hasStoredRuntimeState(runtimeSession) && !state.armed
 }
 
 idleIntervalSelect.addEventListener('change', async () => {

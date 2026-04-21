@@ -10,6 +10,14 @@ export type BurgerSessionAction =
   | { type: 'resume' }
   | { type: 'reset' }
 
+function cloneSessionState(state: BurgerSessionState) {
+  if (typeof globalThis.structuredClone === 'function') {
+    return globalThis.structuredClone(state)
+  }
+
+  return JSON.parse(JSON.stringify(state)) as BurgerSessionState
+}
+
 function appendLog(state: BurgerSessionState, message: string) {
   return {
     ...state,
@@ -214,7 +222,7 @@ function resolveTick(state: BurgerSessionState) {
 export function reduceBurgerSession(state: BurgerSessionState, action: BurgerSessionAction): BurgerSessionState {
   switch (action.type) {
     case 'boot': {
-      const booted = action.checkpoint ? { ...action.checkpoint } : createInitialBurgerSessionState()
+      const booted = action.checkpoint ? cloneSessionState(action.checkpoint) : createInitialBurgerSessionState()
       return {
         ...booted,
         phase: booted.phase === 'completed' ? 'completed' : 'running',
@@ -229,9 +237,9 @@ export function reduceBurgerSession(state: BurgerSessionState, action: BurgerSes
     case 'interact':
       return resolveInteract(state)
     case 'pause':
-      return state.phase === 'completed' ? state : { ...state, phase: 'paused' }
+      return state.phase === 'completed' || state.phase === 'booting' ? state : { ...state, phase: 'paused' }
     case 'resume':
-      return state.phase === 'completed' ? state : { ...state, phase: 'running' }
+      return state.phase === 'completed' || state.phase === 'booting' ? state : { ...state, phase: 'running' }
     case 'reset': {
       const reset = createInitialBurgerSessionState()
       return { ...reset, phase: 'running', log: ['Reset the local burger session.'] }

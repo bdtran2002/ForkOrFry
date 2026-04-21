@@ -1,5 +1,6 @@
 import { type BackgroundMessage } from './messages'
 import { clearRuntimeHostSession } from '../features/runtime-host/checkpoint-store'
+import { DEFAULT_RUNTIME_DEFINITION } from '../features/runtime-host/runtime-definition'
 import { DEFAULT_STATE, IDLE_INTERVAL_SECONDS, getState, resetState, setState } from './state'
 import { armForActivity, triggerTakeover } from './takeover'
 
@@ -82,7 +83,11 @@ browser.runtime.onMessage.addListener(async (message: BackgroundMessage) => {
     return serializeStateTask(async () => {
       const state = await getState()
       await closeTakeoverWindow(state.takeoverWindowId)
-      await clearRuntimeHostSession()
+      try {
+        await clearRuntimeHostSession(DEFAULT_RUNTIME_DEFINITION.id)
+      } catch (error) {
+        console.warn('Failed to clear runtime host session during reset.', error)
+      }
       await resetState(state)
     })
   }

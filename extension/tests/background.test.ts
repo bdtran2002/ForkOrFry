@@ -92,6 +92,25 @@ describe('background', () => {
     state.getState.mockResolvedValueOnce({ armed: true, surfaceOpen: true, takeoverWindowId: 7, waitingForActivity: false, lastIdleAt: 1, lastTriggerAt: 2, lastOpenAt: 2, idleIntervalSeconds: 120 })
     await mock.listeners.message[0]({ type: 'reset' } satisfies BackgroundMessage)
     expect(runtimeHost.clearRuntimeHostSession).toHaveBeenCalledTimes(1)
+    expect(runtimeHost.clearRuntimeHostSession).toHaveBeenCalledWith('burger-runtime')
+  })
+
+  it('still resets extension state when clearing runtime host state fails', async () => {
+    const mock = createBrowserMock()
+    Object.assign(globalThis, { browser: mock.browser as BrowserMock })
+    state.getState.mockResolvedValue({ armed: true, surfaceOpen: true, takeoverWindowId: 7, waitingForActivity: false, lastIdleAt: 1, lastTriggerAt: 2, lastOpenAt: 2, idleIntervalSeconds: 120 })
+    state.setState.mockResolvedValue(undefined)
+    runtimeHost.clearRuntimeHostSession.mockRejectedValue(new Error('boom'))
+    state.resetState.mockImplementation(async (nextState: { idleIntervalSeconds: number }) => {
+      await state.setState({ armed: false, surfaceOpen: false, takeoverWindowId: null, waitingForActivity: false, lastIdleAt: null, lastTriggerAt: null, lastOpenAt: null, idleIntervalSeconds: nextState.idleIntervalSeconds })
+    })
+
+    await import('../src/core/background')
+
+    await mock.listeners.message[0]({ type: 'reset' } satisfies BackgroundMessage)
+
+    expect(runtimeHost.clearRuntimeHostSession).toHaveBeenCalledWith('burger-runtime')
+    expect(state.setState).toHaveBeenCalledWith({ armed: false, surfaceOpen: false, takeoverWindowId: null, waitingForActivity: false, lastIdleAt: null, lastTriggerAt: null, lastOpenAt: null, idleIntervalSeconds: 120 })
   })
 
   it('opens takeover tabs and clears state when tabs close', async () => {
