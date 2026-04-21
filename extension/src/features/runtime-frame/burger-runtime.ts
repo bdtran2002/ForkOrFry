@@ -56,6 +56,7 @@ app.innerHTML = `
       <div class="field"><label>${runtimeFrameCopy.labels.grill}</label><div class="input" id="grill-value"></div></div>
       <div class="field"><label>${runtimeFrameCopy.labels.grillPressure}</label><div class="input" id="grill-pressure-value"></div></div>
       <div class="field"><label>${runtimeFrameCopy.labels.board}</label><div class="input" id="board-value"></div></div>
+      <div class="field"><label>${runtimeFrameCopy.labels.counter}</label><div class="input" id="counter-value"></div></div>
       <div class="field"><label>${runtimeFrameCopy.labels.pantry}</label><div class="input" id="pantry-value"></div></div>
     </div>
     <p class="helper runtime-helper">${runtimeFrameCopy.movementHint}</p>
@@ -95,6 +96,7 @@ const activeTileValue = app.querySelector<HTMLElement>('#active-tile-value')!
 const grillValue = app.querySelector<HTMLElement>('#grill-value')!
 const grillPressureValue = app.querySelector<HTMLElement>('#grill-pressure-value')!
 const boardValue = app.querySelector<HTMLElement>('#board-value')!
+const counterValue = app.querySelector<HTMLElement>('#counter-value')!
 const pantryValue = app.querySelector<HTMLElement>('#pantry-value')!
 const moveActions = [...app.querySelectorAll<HTMLButtonElement>('[data-direction]')]
 const interactButton = app.querySelector<HTMLButtonElement>('#interact')!
@@ -254,6 +256,9 @@ function render() {
   grillValue.textContent = `${runtimeFrameCopy.grillStates[state.stations.grill.patty]} · ${state.stations.grill.progressTicks}/${BURGER_LEVEL.grillBurnTicks}`
   grillPressureValue.textContent = grillPressureText()
   boardValue.textContent = state.stations.board.items.join(', ') || runtimeFrameCopy.emptyValue
+  counterValue.textContent = state.stations.counter.finishedBurger
+    ? getBurgerRecipe(state.stations.counter.finishedBurger).label
+    : runtimeFrameCopy.noCounterItem
   pantryValue.textContent = `bun ${state.inventory.bun} · patty ${state.inventory.patty} · cheese ${state.inventory.cheese}`
   renderKitchenMap()
 

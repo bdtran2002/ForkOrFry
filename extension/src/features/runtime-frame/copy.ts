@@ -32,6 +32,7 @@ export const runtimeFrameCopy = {
     upcomingOrders: 'Queued tickets',
     grill: 'Grill state',
     board: 'Assembly board',
+    counter: 'Counter pass',
     pantry: 'Pantry stock',
     activeTile: 'Facing tile',
     kitchen: 'Kitchen layout',
@@ -52,6 +53,7 @@ export const runtimeFrameCopy = {
   noUpcomingOrders: 'No more tickets queued',
   noNextTicket: 'No incoming tickets scheduled',
   noActiveTile: 'No station in reach',
+  noCounterItem: 'No staged burger',
   emptyValue: 'empty',
   grillStates: {
     empty: 'empty',
@@ -66,7 +68,7 @@ export const runtimeFrameCopy = {
     tick: 'Wait',
     reset: 'Reset session',
   },
-  movementHint: 'Use the arrow buttons or keyboard arrows to move. Every move, interact, or wait action spends one kitchen tick, so watch the grill and the next scheduled rush.',
+  movementHint: 'Use the arrow buttons or keyboard arrows to move. Every move, interact, or wait action spends one kitchen tick, so watch the grill, prep during lulls, and use the counter pass for staged burgers.',
   phaseLabels: {
     booting: 'Booting the burger session…',
     running: 'Burger shift running locally.',
