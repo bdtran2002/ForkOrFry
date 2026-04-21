@@ -103,7 +103,7 @@ describe('background', () => {
     state.getState.mockResolvedValueOnce({ armed: true, surfaceOpen: false, takeoverWindowId: null, waitingForActivity: true, lastIdleAt: 1, lastTriggerAt: null, lastOpenAt: null, idleIntervalSeconds: 60 })
     mock.listeners.idle[0]('active')
     await vi.waitFor(() => expect(mock.browser.windows.create).toHaveBeenCalled())
-    expect(mock.browser.windows.create).toHaveBeenCalledWith({ url: 'moz-extension://test/takeover.html', focused: true, type: 'popup' })
+    expect(mock.browser.windows.create).toHaveBeenCalledWith({ url: 'moz-extension://test/takeover.html', focused: true, type: 'popup', width: 1100, height: 820 })
     expect(state.setState).toHaveBeenCalledWith({ armed: true, surfaceOpen: true, takeoverWindowId: 42, waitingForActivity: false, lastIdleAt: expect.any(Number), lastTriggerAt: expect.any(Number), lastOpenAt: expect.any(Number), idleIntervalSeconds: 60 })
 
     state.getState.mockResolvedValueOnce({ armed: true, surfaceOpen: true, takeoverWindowId: 42, waitingForActivity: false, lastIdleAt: null, lastTriggerAt: 1, lastOpenAt: 1, idleIntervalSeconds: 60 })
