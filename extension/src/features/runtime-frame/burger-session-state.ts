@@ -8,7 +8,7 @@ import {
   type BurgerPosition,
 } from './burger-level'
 
-export const BURGER_SESSION_SAVE_VERSION = 5 as const
+export const BURGER_SESSION_SAVE_VERSION = 6 as const
 
 export type BurgerSessionPhase = 'booting' | 'running' | 'paused' | 'completed'
 
@@ -60,9 +60,24 @@ export function createBurgerActiveOrder(order: BurgerShiftOrderDefinition): Burg
   }
 }
 
+export function seedBurgerShiftOrders(tick: number) {
+  const activeOrders: BurgerActiveOrder[] = []
+  const upcomingOrders: BurgerShiftOrderDefinition[] = []
+
+  for (const order of BURGER_LEVEL.orders) {
+    if (order.releaseTick <= tick && activeOrders.length < BURGER_LEVEL.activeOrderLimit) {
+      activeOrders.push(createBurgerActiveOrder(order))
+      continue
+    }
+
+    upcomingOrders.push(order)
+  }
+
+  return { activeOrders, upcomingOrders }
+}
+
 export function createInitialBurgerSessionState(): BurgerSessionState {
-  const activeOrders = BURGER_LEVEL.orders.slice(0, BURGER_LEVEL.activeOrderLimit).map(createBurgerActiveOrder)
-  const upcomingOrders = BURGER_LEVEL.orders.slice(BURGER_LEVEL.activeOrderLimit)
+  const { activeOrders, upcomingOrders } = seedBurgerShiftOrders(0)
 
   return {
     saveVersion: BURGER_SESSION_SAVE_VERSION,

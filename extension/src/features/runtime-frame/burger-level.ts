@@ -55,13 +55,18 @@ export const BURGER_LEVEL = {
   grillBurnTicks: 6,
   activeOrderLimit: 2,
   orders: [
-    { id: 'burger-order-1', recipeId: 'cheeseburger', durationTicks: 36 },
-    { id: 'burger-order-2', recipeId: 'plain-burger', durationTicks: 32 },
-    { id: 'burger-order-3', recipeId: 'cheeseburger', durationTicks: 36 },
+    { id: 'burger-order-1', recipeId: 'cheeseburger', durationTicks: 36, releaseTick: 0 },
+    { id: 'burger-order-2', recipeId: 'plain-burger', durationTicks: 32, releaseTick: 4 },
+    { id: 'burger-order-3', recipeId: 'cheeseburger', durationTicks: 36, releaseTick: 12 },
   ] as const,
 } as const
 
-export type BurgerShiftOrderDefinition = (typeof BURGER_LEVEL.orders)[number]
+export type BurgerShiftOrderDefinition = {
+  id: string
+  recipeId: BurgerRecipeId
+  durationTicks: number
+  releaseTick: number
+}
 
 export function getBurgerTile(position: BurgerPosition) {
   return BURGER_LEVEL.tiles.find((tile) => tile.x === position.x && tile.y === position.y) ?? null

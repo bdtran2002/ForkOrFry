@@ -14,6 +14,8 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 
 function isBurgerSessionState(value: unknown): value is BurgerSessionState {
   const position = isRecord(value) && isRecord(value.player) && isRecord(value.player.position) ? value.player.position : null
+  const activeOrders = isRecord(value) && Array.isArray(value.activeOrders) ? value.activeOrders : null
+  const upcomingOrders = isRecord(value) && Array.isArray(value.upcomingOrders) ? value.upcomingOrders : null
 
   return (
     isRecord(value) &&
@@ -27,14 +29,24 @@ function isBurgerSessionState(value: unknown): value is BurgerSessionState {
     typeof value.shift.servedCount === 'number' &&
     typeof value.shift.failedCount === 'number' &&
     Array.isArray(value.shift.completedOrders) &&
-    Array.isArray(value.activeOrders) &&
+    Array.isArray(activeOrders) &&
+    activeOrders.every((order) => isRecord(order)
+      && typeof order.id === 'string'
+      && (order.recipeId === 'plain-burger' || order.recipeId === 'cheeseburger')
+      && typeof order.remainingTicks === 'number'
+      && typeof order.durationTicks === 'number') &&
     isRecord(value.stations) &&
     isRecord(value.stations.grill) &&
     (value.stations.grill.patty === 'empty' || value.stations.grill.patty === 'cooking' || value.stations.grill.patty === 'cooked' || value.stations.grill.patty === 'burnt') &&
     typeof value.stations.grill.progressTicks === 'number' &&
     isRecord(value.stations.board) &&
     Array.isArray(value.stations.board.items) &&
-    Array.isArray(value.upcomingOrders) &&
+    Array.isArray(upcomingOrders) &&
+    upcomingOrders.every((order) => isRecord(order)
+      && typeof order.id === 'string'
+      && (order.recipeId === 'plain-burger' || order.recipeId === 'cheeseburger')
+      && typeof order.durationTicks === 'number'
+      && typeof order.releaseTick === 'number') &&
     isRecord(value.player) &&
     isRecord(position) &&
     typeof position.x === 'number' &&

@@ -11,6 +11,7 @@ import {
 import {
   createBurgerActiveOrder,
   createInitialBurgerSessionState,
+  seedBurgerShiftOrders,
   type BurgerSessionState,
 } from './burger-session-state'
 
@@ -53,6 +54,38 @@ function getInteractableIngredient(kind: BurgerInteractableKind): 'bun' | 'patty
   }
 }
 
+function syncBurgerShiftPhase(state: BurgerSessionState): BurgerSessionState {
+  if (state.activeOrders.length === 0 && state.upcomingOrders.length === 0) {
+    return state.phase === 'completed' ? state : { ...state, phase: 'completed' }
+  }
+
+  return state.phase === 'completed' ? { ...state, phase: 'running' } : state
+}
+
+function promoteEligibleOrders(state: BurgerSessionState) {
+  if (state.upcomingOrders.length === 0 || state.activeOrders.length >= BURGER_LEVEL.activeOrderLimit) {
+    return syncBurgerShiftPhase(state)
+  }
+
+  const activeOrders = [...state.activeOrders]
+  const upcomingOrders = [...state.upcomingOrders]
+  const promotedIds: string[] = []
+
+  while (upcomingOrders.length > 0 && activeOrders.length < BURGER_LEVEL.activeOrderLimit) {
+    const nextOrderDefinition = upcomingOrders[0]
+    if (nextOrderDefinition.releaseTick > state.tick) break
+
+    upcomingOrders.shift()
+    activeOrders.push(createBurgerActiveOrder(nextOrderDefinition))
+    promotedIds.push(nextOrderDefinition.id)
+  }
+
+  const nextState = syncBurgerShiftPhase({ ...state, activeOrders, upcomingOrders })
+  return promotedIds.length > 0
+    ? appendLog(nextState, `${promotedIds.join(', ')} ${promotedIds.length === 1 ? 'is' : 'are'} now live.`)
+    : nextState
+}
+
 function advanceKitchenTick(state: BurgerSessionState) {
   if (state.phase !== 'running') return state
 
@@ -84,6 +117,8 @@ function advanceKitchenTick(state: BurgerSessionState) {
     )
   }
 
+  next = promoteEligibleOrders(next)
+
   if (next.activeOrders.length === 0) return next
 
   const decremented = next.activeOrders.map((order) => ({ ...order, remainingTicks: Math.max(order.remainingTicks - 1, 0) }))
@@ -96,36 +131,34 @@ function advanceKitchenTick(state: BurgerSessionState) {
 
   let finalState: BurgerSessionState = { ...next, activeOrders: liveOrders }
   for (const expiredOrder of expiredOrders) {
-    const [nextOrderDefinition, ...restUpcoming] = finalState.upcomingOrders
-    const nextOrder = nextOrderDefinition ? createBurgerActiveOrder(nextOrderDefinition) : null
     finalState = {
       ...finalState,
-      score: finalState.score,
       shift: {
         ...finalState.shift,
         failedCount: finalState.shift.failedCount + 1,
         completedOrders: [...finalState.shift.completedOrders, expiredOrder.id],
       },
-      activeOrders: nextOrder ? [...finalState.activeOrders, nextOrder] : finalState.activeOrders,
-      upcomingOrders: restUpcoming,
-      phase: finalState.activeOrders.length + (nextOrder ? 1 : 0) > 0 || restUpcoming.length > 0 ? 'running' : 'completed',
     }
+    finalState = promoteEligibleOrders(finalState)
     finalState = appendLog(
       finalState,
-      nextOrder
-        ? `${expiredOrder.id} timed out. ${nextOrder.id} is now live.`
-        : `${expiredOrder.id} timed out. Burger shift complete.`,
+      finalState.phase === 'completed'
+        ? `${expiredOrder.id} timed out. Burger shift complete.`
+        : `${expiredOrder.id} timed out.`,
     )
   }
 
-  return finalState
+  return syncBurgerShiftPhase(finalState)
 }
 
 function resolveInteract(state: BurgerSessionState) {
   if (state.phase !== 'running') return state
 
   if (state.activeOrders.length === 0) {
-    return appendLog(state, 'The burger shift is already finished.')
+    return appendLog(
+      state,
+      state.upcomingOrders.length > 0 ? 'No live tickets right now. Hold for the next rush.' : 'The burger shift is already finished.',
+    )
   }
 
   const heldItem = state.player.heldItem
@@ -248,10 +281,8 @@ function resolveInteract(state: BurgerSessionState) {
       if (heldItem && isBurgerRecipeId(heldItem) && matchingOrderIndex >= 0) {
         const completedOrder = state.activeOrders[matchingOrderIndex]
         const remainingActiveOrders = state.activeOrders.filter((_, index) => index !== matchingOrderIndex)
-        const [nextOrderDefinition, ...upcomingOrders] = state.upcomingOrders
-        const nextOrder = nextOrderDefinition ? createBurgerActiveOrder(nextOrderDefinition) : null
         nextState = appendLog(
-          {
+          promoteEligibleOrders({
             ...state,
             score: state.score + 1,
             shift: {
@@ -259,14 +290,12 @@ function resolveInteract(state: BurgerSessionState) {
               servedCount: state.shift.servedCount + 1,
               completedOrders: [...state.shift.completedOrders, completedOrder.id],
             },
-            activeOrders: nextOrder ? [...remainingActiveOrders, nextOrder] : remainingActiveOrders,
-            upcomingOrders,
+            activeOrders: remainingActiveOrders,
             player: { ...state.player, heldItem: null },
-            phase: remainingActiveOrders.length > 0 || upcomingOrders.length > 0 || nextOrder ? 'running' : 'completed',
-          },
-          nextOrder
-            ? `Served ${completedOrder.id}. ${nextOrder.id} is now live.`
-            : `Served ${completedOrder.id}. Burger shift complete.`,
+          }),
+          remainingActiveOrders.length === 0 && state.upcomingOrders.length === 0
+            ? `Served ${completedOrder.id}. Burger shift complete.`
+            : `Served ${completedOrder.id}.`,
         )
         break
       }
@@ -296,10 +325,10 @@ export function reduceBurgerSession(state: BurgerSessionState, action: BurgerSes
   switch (action.type) {
     case 'boot': {
       const booted = action.checkpoint ? cloneSessionState(action.checkpoint) : createInitialBurgerSessionState()
-      return {
+      return syncBurgerShiftPhase({
         ...booted,
-        phase: booted.phase === 'completed' || booted.activeOrders.length === 0 ? 'completed' : 'running',
-      }
+        phase: 'running',
+      })
     }
     case 'tick':
       return advanceKitchenTick(state)
@@ -320,7 +349,8 @@ export function reduceBurgerSession(state: BurgerSessionState, action: BurgerSes
       return state.phase === 'completed' || state.phase === 'booting' ? state : { ...state, phase: 'running' }
     case 'reset': {
       const reset = createInitialBurgerSessionState()
-      return { ...reset, phase: 'running', log: ['Reset the local burger shift.'] }
+      const seeded = seedBurgerShiftOrders(0)
+      return { ...reset, ...seeded, phase: 'running', log: ['Reset the local burger shift.'] }
     }
   }
 }
