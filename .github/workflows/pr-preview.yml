@@ -1,0 +1,62 @@
+name: Extension PR Preview
+
+on:
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: pr-preview-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  preview:
+    runs-on: ubuntu-latest
+    name: Build preview artifacts
+    defaults:
+      run:
+        working-directory: extension
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20.19.0
+          cache: npm
+          cache-dependency-path: extension/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Test
+        run: npm test
+
+      - name: Build Firefox extension
+        run: npm run package:firefox
+
+      - name: Build source bundle
+        run: npm run package:source-bundle
+
+      - name: Validate packaged artifacts
+        run: npm run validate:release-artifacts
+
+      - name: Upload Firefox extension XPI
+        uses: actions/upload-artifact@v4
+        with:
+          name: forkorfry-firefox-xpi-preview
+          path: extension/dist/forkorfry-firefox-mv3.xpi
+          if-no-files-found: error
+
+      - name: Upload source bundle
+        uses: actions/upload-artifact@v4
+        with:
+          name: forkorfry-source-bundle-preview
+          path: extension/dist/forkorfry-source-bundle.zip
+          if-no-files-found: error

@@ -1,8 +1,12 @@
-name: CI
+name: Extension CI
 
 on:
-  push:
   pull_request:
+  push:
+    branches:
+      - main
+      - 'release/**'
+  workflow_dispatch:
 
 concurrency:
   group: ci-${{ github.workflow }}-${{ github.ref }}
@@ -14,6 +18,7 @@ permissions:
 jobs:
   build:
     runs-on: ubuntu-latest
+    name: Lint, test, and build
     defaults:
       run:
         working-directory: extension
