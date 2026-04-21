@@ -1,19 +1,20 @@
 import {
   BURGER_LEVEL,
   type BurgerCarryItem,
+  type BurgerCarryIngredient,
   type BurgerIngredient,
-  type BurgerOrderRecipe,
+  type BurgerRecipeId,
   type BurgerShiftOrderDefinition,
   type BurgerStationId,
 } from './burger-level'
 
-export const BURGER_SESSION_SAVE_VERSION = 1 as const
+export const BURGER_SESSION_SAVE_VERSION = 2 as const
 
 export type BurgerSessionPhase = 'booting' | 'running' | 'paused' | 'completed'
 
 export interface BurgerActiveOrder {
   id: string
-  recipe: BurgerOrderRecipe
+  recipeId: BurgerRecipeId
   remainingTicks: number
   durationTicks: number
 }
@@ -31,9 +32,7 @@ export interface BurgerSessionState {
       progressTicks: number
     }
     board: {
-      bun: boolean
-      patty: boolean
-      cheese: boolean
+      items: BurgerCarryIngredient[]
     }
   }
   shift: {
@@ -54,7 +53,7 @@ export interface BurgerSessionState {
 export function createBurgerActiveOrder(order: BurgerShiftOrderDefinition): BurgerActiveOrder {
   return {
     id: order.id,
-    recipe: order.recipe,
+    recipeId: order.recipeId,
     remainingTicks: order.durationTicks,
     durationTicks: order.durationTicks,
   }
@@ -76,9 +75,7 @@ export function createInitialBurgerSessionState(): BurgerSessionState {
         progressTicks: 0,
       },
       board: {
-        bun: false,
-        patty: false,
-        cheese: false,
+        items: [],
       },
     },
     shift: {

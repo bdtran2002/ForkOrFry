@@ -18,7 +18,7 @@ export const runtimeFrameCopy = {
     shift: 'Shift progress',
     location: 'Player station',
     heldItem: 'Held item',
-    order: 'Current order',
+    order: 'Current order recipe',
     upcomingOrders: 'Upcoming orders',
     grill: 'Grill state',
     board: 'Assembly board',

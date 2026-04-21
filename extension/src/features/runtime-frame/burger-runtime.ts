@@ -8,7 +8,7 @@ import {
 } from '../runtime-host/contract'
 import { createBurgerSessionCheckpoint, restoreBurgerSessionCheckpoint } from './checkpoint'
 import { runtimeFrameCopy } from './copy'
-import { BURGER_LEVEL, type BurgerStationId } from './burger-level'
+import { BURGER_LEVEL, getBurgerRecipe, type BurgerStationId } from './burger-level'
 import { reduceBurgerSession } from './burger-session-reducer'
 import { createInitialBurgerSessionState, type BurgerSessionState } from './burger-session-state'
 
@@ -156,19 +156,13 @@ function render() {
   locationValue.textContent = locationLabels[state.player.location]
   heldItemValue.textContent = state.player.heldItem ?? runtimeFrameCopy.emptyValue
   orderValue.textContent = state.currentOrder
-    ? `${state.currentOrder.id} · ${state.currentOrder.remainingTicks}/${state.currentOrder.durationTicks} ticks left`
+    ? `${getBurgerRecipe(state.currentOrder.recipeId).label} · ${state.currentOrder.remainingTicks}/${state.currentOrder.durationTicks} ticks left`
     : runtimeFrameCopy.noCurrentOrder
   upcomingOrdersValue.textContent = state.upcomingOrders.length > 0
-    ? state.upcomingOrders.map((order) => order.id).join(', ')
+    ? state.upcomingOrders.map((order) => getBurgerRecipe(order.recipeId).label).join(', ')
     : runtimeFrameCopy.noUpcomingOrders
   grillValue.textContent = `${state.stations.grill.patty} · ${state.stations.grill.progressTicks}/${BURGER_LEVEL.grillCookTicks}`
-  boardValue.textContent = [
-    state.stations.board.bun ? 'bun' : null,
-    state.stations.board.patty ? 'patty' : null,
-    state.stations.board.cheese ? 'cheese' : null,
-  ]
-    .filter(Boolean)
-    .join(', ') || runtimeFrameCopy.emptyValue
+  boardValue.textContent = state.stations.board.items.join(', ') || runtimeFrameCopy.emptyValue
   pantryValue.textContent = `bun ${state.inventory.bun} · patty ${state.inventory.patty} · cheese ${state.inventory.cheese}`
 
   locationStepper.querySelectorAll('span').forEach((item, index) => {

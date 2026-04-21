@@ -25,6 +25,9 @@ function isBurgerSessionState(value: unknown): value is BurgerSessionState {
     typeof value.shift.servedCount === 'number' &&
     typeof value.shift.failedCount === 'number' &&
     Array.isArray(value.shift.completedOrders) &&
+    isRecord(value.stations) &&
+    isRecord(value.stations.board) &&
+    Array.isArray(value.stations.board.items) &&
     Array.isArray(value.upcomingOrders) &&
     ('currentOrder' in value ? value.currentOrder === null || isRecord(value.currentOrder) : false)
   )

@@ -1,4 +1,11 @@
-import { BURGER_LEVEL, type BurgerCarryItem, type BurgerStationId } from './burger-level'
+import {
+  BURGER_LEVEL,
+  getBurgerRecipe,
+  isBurgerRecipeId,
+  resolveBurgerRecipe,
+  type BurgerCarryItem,
+  type BurgerStationId,
+} from './burger-level'
 import {
   createBurgerActiveOrder,
   createInitialBurgerSessionState,
@@ -30,11 +37,18 @@ function appendLog(state: BurgerSessionState, message: string) {
 }
 
 function chooseStorageItem(state: BurgerSessionState): BurgerCarryItem | null {
-  if (state.inventory.patty > 0 && state.stations.grill.patty === 'empty' && !state.stations.board.patty) return 'patty'
-  if (state.inventory.bun > 0 && !state.stations.board.bun) return 'bun'
-  if (state.inventory.cheese > 0 && !state.stations.board.cheese) return 'cheese'
+  const recipe = state.currentOrder ? getBurgerRecipe(state.currentOrder.recipeId) : null
+  const boardItems = new Set(state.stations.board.items)
 
-  const fallback = (['patty', 'bun', 'cheese'] as const).find((item) => state.inventory[item] > 0)
+  if (state.inventory.patty > 0 && state.stations.grill.patty === 'empty' && !boardItems.has('cooked-patty')) return 'patty'
+
+  const nextRequiredIngredient = recipe?.ingredients.find(
+    (ingredient) => ingredient !== 'cooked-patty' && !boardItems.has(ingredient) && state.inventory[ingredient] > 0,
+  )
+
+  if (nextRequiredIngredient) return nextRequiredIngredient
+
+  const fallback = (['cheese', 'bun', 'patty'] as const).find((item) => state.inventory[item] > 0)
   return fallback ?? null
 }
 
@@ -43,7 +57,7 @@ function resetStationsAndPlayer(state: BurgerSessionState) {
     ...state,
     stations: {
       grill: { patty: 'empty' as const, progressTicks: 0 },
-      board: { bun: false, patty: false, cheese: false },
+      board: { items: [] },
     },
     player: {
       location: 'storage' as const,
@@ -101,7 +115,7 @@ function resolveInteract(state: BurgerSessionState) {
     case 'storage': {
       if (heldItem) return appendLog(state, 'Hands are full. Move to a station before taking more ingredients.')
       const nextItem = chooseStorageItem(state)
-      if (!nextItem || nextItem === 'cooked-patty' || nextItem === 'burger') {
+      if (!nextItem || nextItem === 'cooked-patty' || isBurgerRecipeId(nextItem)) {
         return appendLog(state, 'The pantry is empty for this order.')
       }
 
@@ -146,67 +160,58 @@ function resolveInteract(state: BurgerSessionState) {
       return appendLog(state, heldItem ? 'The grill cannot use that item right now.' : 'Nothing is ready on the grill yet.')
     }
     case 'board': {
-      if (heldItem === 'bun' && !state.stations.board.bun) {
+      if (heldItem && !isBurgerRecipeId(heldItem) && !state.stations.board.items.includes(heldItem)) {
         return appendLog(
           {
             ...state,
             player: { ...state.player, heldItem: null },
             stations: {
               ...state.stations,
-              board: { ...state.stations.board, bun: true },
+              board: { items: [...state.stations.board.items, heldItem] },
             },
           },
-          'Placed the bun on the board.',
+          `Placed ${heldItem} on the board.`,
         )
       }
 
-      if (heldItem === 'cooked-patty' && !state.stations.board.patty) {
+      if (heldItem && !isBurgerRecipeId(heldItem) && state.stations.board.items.includes(heldItem)) {
+        return appendLog(state, `${heldItem} is already on the board.`)
+      }
+
+      if (heldItem && isBurgerRecipeId(heldItem)) {
+        return appendLog(state, 'The board only accepts loose ingredients.')
+      }
+
+      const assembledRecipe = resolveBurgerRecipe(state.stations.board.items)
+      if (!heldItem && assembledRecipe) {
         return appendLog(
           {
             ...state,
-            player: { ...state.player, heldItem: null },
+            player: { ...state.player, heldItem: assembledRecipe },
             stations: {
               ...state.stations,
-              board: { ...state.stations.board, patty: true },
+              board: { items: [] },
             },
           },
-          'Placed the cooked patty on the bun.',
+          `Assembled ${getBurgerRecipe(assembledRecipe).label}.`,
         )
       }
 
-      if (heldItem === 'cheese' && !state.stations.board.cheese) {
-        return appendLog(
-          {
-            ...state,
-            player: { ...state.player, heldItem: null },
-            stations: {
-              ...state.stations,
-              board: { ...state.stations.board, cheese: true },
-            },
-          },
-          'Added cheese to the burger stack.',
-        )
-      }
-
-      if (!heldItem && state.stations.board.bun && state.stations.board.patty && state.stations.board.cheese) {
-        return appendLog(
-          {
-            ...state,
-            player: { ...state.player, heldItem: 'burger' },
-            stations: {
-              ...state.stations,
-              board: { bun: false, patty: false, cheese: false },
-            },
-          },
-          'Assembled the finished burger.',
-        )
-      }
-
-      return appendLog(state, heldItem ? 'That item does not belong on the board yet.' : 'The board is waiting for more ingredients.')
+      return appendLog(state, heldItem ? 'That item does not belong on the board yet.' : 'The board recipe is incomplete or mismatched.')
     }
     case 'counter': {
-      if (heldItem === 'burger') {
+      if (heldItem && isBurgerRecipeId(heldItem) && state.currentOrder && heldItem === state.currentOrder.recipeId) {
         return completeCurrentOrder(state, 'served')
+      }
+
+      if (heldItem && isBurgerRecipeId(heldItem) && state.currentOrder) {
+        return appendLog(
+          {
+            ...state,
+            player: { ...state.player, heldItem: null },
+          },
+          `Counter rejected ${getBurgerRecipe(heldItem).label}. Need ${getBurgerRecipe(state.currentOrder.recipeId).label}.`,
+        )
       }
 
       return appendLog(state, 'The counter needs a finished burger.')
