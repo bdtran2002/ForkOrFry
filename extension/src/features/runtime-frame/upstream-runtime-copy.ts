@@ -8,6 +8,7 @@ export const upstreamRuntimeCopy = {
   phasePrefix: 'Phase',
   labels: {
     exportState: 'Export status',
+    bridgeState: 'Bootstrap bridge',
     session: 'Session',
     exportPath: 'Export entry',
     checkpoint: 'Checkpoint',
@@ -29,10 +30,18 @@ export const upstreamRuntimeCopy = {
     loaded: 'Bundled export loaded in the embedded frame.',
     error: 'Bundled export manifest could not be used.',
   },
+  bridgeStates: {
+    idle: 'Waiting for a session boot.',
+    waiting: 'Bootstrap payload prepared for the embedded runtime.',
+    sent: 'Bootstrap payload sent to the embedded runtime.',
+    acknowledged: 'Embedded runtime acknowledged the bootstrap payload.',
+    error: 'Embedded runtime bridge reported an error.',
+  },
   notes: [
     'The extension keeps the host shell and checkpoint boundary while the child runtime switches over to the real upstream game path.',
     'Use `npm run sync:godot-web-export -- /absolute/path/to/web-export` in `extension/` after producing a Godot web export.',
     'The sync script copies export files into `extension/public/upstream/hurrycurry-web/` so the shipped extension can run offline.',
+    'The adapter now prepares packet-shaped local bootstrap data and posts it into the bundled runtime iframe once the embedded page is ready.',
   ],
   missingSummary:
     'No local Godot web export is bundled yet. The adapter shell is ready, but the actual upstream game files still need to be copied into the extension.',

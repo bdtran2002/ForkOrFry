@@ -1,5 +1,10 @@
 import { describe, expect, it } from 'vitest'
 
+import {
+  createBridgeBootstrapMessage,
+  createLocalBootstrapPayload,
+  isUpstreamEmbeddedToParentMessage,
+} from '../src/features/runtime-frame/upstream-bridge'
 import { createUpstreamRuntimeCheckpoint, restoreUpstreamRuntimeCheckpoint } from '../src/features/runtime-frame/upstream-checkpoint'
 import { normalizeUpstreamExportManifest, resolveUpstreamExportUrl } from '../src/features/runtime-frame/upstream-export'
 import { createInitialUpstreamRuntimeState } from '../src/features/runtime-frame/upstream-runtime-state'
@@ -57,5 +62,60 @@ describe('upstream runtime helpers', () => {
     })
 
     expect(url).toBe('/upstream/hurrycurry-web/index.html')
+  })
+
+  it('creates a local bootstrap payload for the single-player upstream bridge', () => {
+    const payload = createLocalBootstrapPayload('session-123')
+
+    expect(payload.sessionId).toBe('session-123')
+    expect(payload.map).toBe('burgers_inc')
+    expect(payload.playerId).toBe(1)
+    expect(payload.packets.map((packet) => packet.type)).toEqual([
+      'version',
+      'server_data',
+      'game_data',
+      'update_map',
+      'score',
+      'set_ingame',
+      'joined',
+      'add_player',
+    ])
+  })
+
+  it('wraps bootstrap payloads in a parent-to-iframe bridge message', () => {
+    const payload = createLocalBootstrapPayload('session-123')
+
+    expect(createBridgeBootstrapMessage(payload)).toEqual({
+      type: 'forkorfry:bridge-bootstrap',
+      version: 1,
+      payload,
+    })
+  })
+
+  it('validates embedded-runtime bridge messages', () => {
+    expect(isUpstreamEmbeddedToParentMessage({
+      type: 'forkorfry:bridge-ready',
+      version: 1,
+    })).toBe(true)
+
+    expect(isUpstreamEmbeddedToParentMessage({
+      type: 'forkorfry:bridge-bootstrap-ack',
+      version: 1,
+      sessionId: 'session-123',
+      packetCount: 8,
+    })).toBe(true)
+
+    expect(isUpstreamEmbeddedToParentMessage({
+      type: 'forkorfry:bridge-error',
+      version: 1,
+      detail: 'bad bridge',
+    })).toBe(true)
+
+    expect(isUpstreamEmbeddedToParentMessage({
+      type: 'forkorfry:bridge-bootstrap-ack',
+      version: 1,
+      sessionId: 42,
+      packetCount: 8,
+    })).toBe(false)
   })
 })

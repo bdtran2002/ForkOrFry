@@ -1,5 +1,7 @@
 export const UPSTREAM_RUNTIME_SAVE_VERSION = 1 as const
 
+import type { UpstreamBridgeState } from './upstream-bridge'
+
 export type UpstreamRuntimeExportState = 'unknown' | 'missing' | 'ready' | 'loaded' | 'error'
 
 export interface UpstreamRuntimeState {
@@ -7,9 +9,11 @@ export interface UpstreamRuntimeState {
   sessionId: string
   phase: 'booting' | 'running' | 'paused' | 'ready'
   exportState: UpstreamRuntimeExportState
+  bridgeState: UpstreamBridgeState
   detail: string
   exportUrl: string | null
   lastCheckpointReason: string | null
+  bootstrapPacketCount: number
 }
 
 export function createInitialUpstreamRuntimeState(): UpstreamRuntimeState {
@@ -18,8 +22,10 @@ export function createInitialUpstreamRuntimeState(): UpstreamRuntimeState {
     sessionId: '',
     phase: 'booting',
     exportState: 'unknown',
+    bridgeState: 'idle',
     detail: 'Waiting for host boot…',
     exportUrl: null,
     lastCheckpointReason: null,
+    bootstrapPacketCount: 0,
   }
 }

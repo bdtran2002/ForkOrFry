@@ -19,9 +19,11 @@ function isUpstreamRuntimeState(value: unknown): value is UpstreamRuntimeState {
     && typeof value.sessionId === 'string'
     && (value.phase === 'booting' || value.phase === 'running' || value.phase === 'paused' || value.phase === 'ready')
     && (value.exportState === 'unknown' || value.exportState === 'missing' || value.exportState === 'ready' || value.exportState === 'loaded' || value.exportState === 'error')
+    && (value.bridgeState === 'idle' || value.bridgeState === 'waiting' || value.bridgeState === 'sent' || value.bridgeState === 'acknowledged' || value.bridgeState === 'error')
     && typeof value.detail === 'string'
     && (value.exportUrl === null || typeof value.exportUrl === 'string')
     && (value.lastCheckpointReason === null || typeof value.lastCheckpointReason === 'string')
+    && typeof value.bootstrapPacketCount === 'number'
   )
 }
 

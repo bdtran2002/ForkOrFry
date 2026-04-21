@@ -6,6 +6,14 @@ import {
   type RuntimeStatusPhase,
   type RuntimeToHostMessage,
 } from '../runtime-host/contract'
+import {
+  createBridgeBootstrapMessage,
+  createBridgePauseMessage,
+  createBridgeResumeMessage,
+  createLocalBootstrapPayload,
+  isUpstreamEmbeddedToParentMessage,
+  type UpstreamBootstrapPayload,
+} from './upstream-bridge'
 import { createUpstreamRuntimeCheckpoint, restoreUpstreamRuntimeCheckpoint } from './upstream-checkpoint'
 import { upstreamRuntimeCopy } from './upstream-runtime-copy'
 import { normalizeUpstreamExportManifest, resolveUpstreamExportUrl } from './upstream-export'
@@ -35,6 +43,7 @@ app.innerHTML = `
     </div>
     <div class="shell-grid">
       <div class="field"><label>${upstreamRuntimeCopy.labels.exportState}</label><div class="input" id="export-state-value"></div></div>
+      <div class="field"><label>${upstreamRuntimeCopy.labels.bridgeState}</label><div class="input" id="bridge-state-value"></div></div>
       <div class="field"><label>${upstreamRuntimeCopy.labels.session}</label><div class="input" id="session-value"></div></div>
       <div class="field"><label>${upstreamRuntimeCopy.labels.exportPath}</label><div class="input" id="export-path-value"></div></div>
       <div class="field"><label>${upstreamRuntimeCopy.labels.checkpoint}</label><div class="input" id="checkpoint-value"></div></div>
@@ -57,6 +66,7 @@ app.innerHTML = `
 const statusText = app.querySelector<HTMLElement>('#status-text')!
 const stagePill = app.querySelector<HTMLElement>('#stage-pill')!
 const exportStateValue = app.querySelector<HTMLElement>('#export-state-value')!
+const bridgeStateValue = app.querySelector<HTMLElement>('#bridge-state-value')!
 const sessionValue = app.querySelector<HTMLElement>('#session-value')!
 const exportPathValue = app.querySelector<HTMLElement>('#export-path-value')!
 const checkpointValue = app.querySelector<HTMLElement>('#checkpoint-value')!
@@ -67,6 +77,7 @@ const runtimeEmbedFrame = app.querySelector<HTMLIFrameElement>('#runtime-embed-f
 const runtimeEmbedOverlay = app.querySelector<HTMLElement>('#runtime-embed-overlay')!
 
 let state: UpstreamRuntimeState = createInitialUpstreamRuntimeState()
+let activeBootstrapPayload: UpstreamBootstrapPayload | null = null
 
 function postToHost(message: RuntimeToHostMessage) {
   window.parent.postMessage(message, window.location.origin)
@@ -137,11 +148,32 @@ function render() {
   statusText.textContent = upstreamRuntimeCopy.phaseLabels[state.phase]
   stagePill.textContent = `${upstreamRuntimeCopy.phasePrefix} ${state.phase}`
   exportStateValue.textContent = upstreamRuntimeCopy.exportStates[state.exportState as UpstreamRuntimeExportState]
+  bridgeStateValue.textContent = upstreamRuntimeCopy.bridgeStates[state.bridgeState]
   sessionValue.textContent = state.sessionId ? state.sessionId.slice(0, 12) : 'No session yet'
   exportPathValue.textContent = state.exportUrl ?? EXPORT_MANIFEST_PATH
   checkpointValue.textContent = upstreamRuntimeCopy.checkpointSummary(state.lastCheckpointReason)
   renderMessage()
   renderEmbed()
+}
+
+function postToEmbeddedRuntime(message: unknown) {
+  runtimeEmbedFrame.contentWindow?.postMessage(message, window.location.origin)
+}
+
+function sendBootstrapToEmbeddedRuntime(messageType: 'bootstrap' | 'resume') {
+  if (!activeBootstrapPayload || !runtimeEmbedFrame.contentWindow) return
+
+  postToEmbeddedRuntime(
+    messageType === 'resume'
+      ? createBridgeResumeMessage(activeBootstrapPayload)
+      : createBridgeBootstrapMessage(activeBootstrapPayload),
+  )
+
+  setState({
+    bridgeState: 'sent',
+    detail: `Sent ${activeBootstrapPayload.packets.length} local bootstrap packets to the embedded runtime.`,
+  })
+  postStatus(state.phase, currentPhaseDetail())
 }
 
 async function loadBundledExport() {
@@ -175,6 +207,7 @@ async function loadBundledExport() {
     const exportUrl = resolveUpstreamExportUrl(manifest)
     setState({
       exportState: 'ready',
+      bridgeState: activeBootstrapPayload ? 'waiting' : state.bridgeState,
       phase: state.phase === 'paused' ? 'paused' : 'running',
       exportUrl,
       detail: upstreamRuntimeCopy.readySummary(exportUrl),
@@ -194,10 +227,13 @@ async function loadBundledExport() {
 
 function boot(checkpoint: RuntimeCheckpointEnvelope | null, nextSessionId: string) {
   const restored = restoreUpstreamRuntimeCheckpoint(RUNTIME_ID, checkpoint)
+  activeBootstrapPayload = createLocalBootstrapPayload(nextSessionId)
   state = {
     ...restored,
     sessionId: nextSessionId,
     phase: 'booting',
+    bridgeState: 'waiting',
+    bootstrapPacketCount: activeBootstrapPayload.packets.length,
     detail: `Boot accepted for ${nextSessionId.slice(0, 8)}.`,
   }
   render()
@@ -217,6 +253,7 @@ function handleHostMessage(message: HostToRuntimeMessage) {
       boot(message.checkpoint, message.sessionId)
       return
     case 'host:pause':
+      postToEmbeddedRuntime(createBridgePauseMessage(message.reason))
       setState({ phase: 'paused', detail: message.reason })
       postStatus('paused', currentPhaseDetail())
       postCheckpoint(message.reason)
@@ -227,9 +264,11 @@ function handleHostMessage(message: HostToRuntimeMessage) {
         ...restored,
         sessionId: state.sessionId,
         phase: restored.exportUrl ? 'running' : 'ready',
+        bridgeState: restored.exportUrl ? 'waiting' : restored.bridgeState,
         detail: restored.exportUrl ? upstreamRuntimeCopy.phaseLabels.running : upstreamRuntimeCopy.phaseLabels.ready,
       }
       render()
+      sendBootstrapToEmbeddedRuntime('resume')
       postStatus(state.phase, currentPhaseDetail())
       postCheckpoint('Resumed upstream runtime adapter shell.')
       return
@@ -249,15 +288,40 @@ refreshButton.addEventListener('click', () => {
 runtimeEmbedFrame.addEventListener('load', () => {
   if (!state.exportUrl || state.phase === 'paused') return
   setState({ exportState: 'loaded', phase: 'running', detail: upstreamRuntimeCopy.loadedSummary })
+  sendBootstrapToEmbeddedRuntime('bootstrap')
   postStatus('running', currentPhaseDetail())
   postCheckpoint('Bundled export iframe loaded.')
 })
 
 window.addEventListener('message', (event) => {
-  if (event.source !== window.parent || event.origin !== window.location.origin) return
-  if (!isHostToRuntimeMessage(event.data)) return
-  if ('runtimeId' in event.data && event.data.runtimeId !== RUNTIME_ID) return
-  handleHostMessage(event.data)
+  if (event.origin !== window.location.origin) return
+
+  if (event.source === window.parent) {
+    if (!isHostToRuntimeMessage(event.data)) return
+    if ('runtimeId' in event.data && event.data.runtimeId !== RUNTIME_ID) return
+    handleHostMessage(event.data)
+    return
+  }
+
+  if (event.source === runtimeEmbedFrame.contentWindow && isUpstreamEmbeddedToParentMessage(event.data)) {
+    switch (event.data.type) {
+      case 'forkorfry:bridge-ready':
+        setState({ bridgeState: 'waiting', detail: 'Embedded runtime bridge is ready for bootstrap data.' })
+        sendBootstrapToEmbeddedRuntime('bootstrap')
+        return
+      case 'forkorfry:bridge-bootstrap-ack':
+        setState({
+          bridgeState: 'acknowledged',
+          detail: `Embedded runtime acknowledged ${event.data.packetCount} bootstrap packets.`,
+        })
+        postStatus(state.phase, currentPhaseDetail())
+        postCheckpoint('Embedded runtime acknowledged bootstrap payload.')
+        return
+      case 'forkorfry:bridge-error':
+        setState({ bridgeState: 'error', detail: event.data.detail })
+        postStatus(state.phase, currentPhaseDetail())
+    }
+  }
 })
 
 document.addEventListener('visibilitychange', () => {
