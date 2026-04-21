@@ -8,7 +8,7 @@ import {
   type BurgerPosition,
 } from './burger-level'
 
-export const BURGER_SESSION_SAVE_VERSION = 3 as const
+export const BURGER_SESSION_SAVE_VERSION = 4 as const
 
 export type BurgerSessionPhase = 'booting' | 'running' | 'paused' | 'completed'
 
@@ -28,7 +28,7 @@ export interface BurgerSessionState {
   inventory: Record<BurgerIngredient, number>
   stations: {
     grill: {
-      patty: 'empty' | 'cooking' | 'cooked'
+      patty: 'empty' | 'cooking' | 'cooked' | 'burnt'
       progressTicks: number
     }
     board: {

@@ -28,6 +28,9 @@ function isBurgerSessionState(value: unknown): value is BurgerSessionState {
     typeof value.shift.failedCount === 'number' &&
     Array.isArray(value.shift.completedOrders) &&
     isRecord(value.stations) &&
+    isRecord(value.stations.grill) &&
+    (value.stations.grill.patty === 'empty' || value.stations.grill.patty === 'cooking' || value.stations.grill.patty === 'cooked' || value.stations.grill.patty === 'burnt') &&
+    typeof value.stations.grill.progressTicks === 'number' &&
     isRecord(value.stations.board) &&
     Array.isArray(value.stations.board.items) &&
     Array.isArray(value.upcomingOrders) &&

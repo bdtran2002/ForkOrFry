@@ -31,6 +31,15 @@ function runCheeseburgerFlow(state: ReturnType<typeof bootBurger>) {
   return state
 }
 
+function cookPatty(state: ReturnType<typeof bootBurger>) {
+  state = move(state, 'left')
+  state = reduceBurgerSession(state, { type: 'interact' })
+  state = move(state, 'right')
+  state = move(state, 'up')
+  state = reduceBurgerSession(state, { type: 'interact' })
+  return state
+}
+
 function startBurger(state: ReturnType<typeof bootBurger>) {
   state = move(state, 'left')
   state = reduceBurgerSession(state, { type: 'interact' }) // patty crate
@@ -132,6 +141,45 @@ describe('burger session reducer', () => {
     expect(state.currentOrder).toBeNull()
   })
 
+  it('burns cooked patties if they are left on the grill', () => {
+    let state = bootBurger()
+
+    state = cookPatty(state)
+    state = reduceBurgerSession(state, { type: 'tick' })
+    state = reduceBurgerSession(state, { type: 'tick' })
+    expect(state.stations.grill.patty).toBe('cooked')
+
+    state = reduceBurgerSession(state, { type: 'tick' })
+    state = reduceBurgerSession(state, { type: 'tick' })
+    state = reduceBurgerSession(state, { type: 'tick' })
+    state = reduceBurgerSession(state, { type: 'tick' })
+    state = reduceBurgerSession(state, { type: 'tick' })
+    expect(state.stations.grill.patty).toBe('burnt')
+    expect(state.log.at(-1)).toContain('burned on the grill.')
+  })
+
+  it('clears a burnt grill with an empty-hand interact and recovers', () => {
+    let state = bootBurger()
+
+    state = cookPatty(state)
+    state = reduceBurgerSession(state, { type: 'tick' })
+    state = reduceBurgerSession(state, { type: 'tick' })
+    state = reduceBurgerSession(state, { type: 'tick' })
+    state = reduceBurgerSession(state, { type: 'tick' })
+    state = reduceBurgerSession(state, { type: 'tick' })
+    expect(state.stations.grill.patty).toBe('burnt')
+
+    state = reduceBurgerSession(state, { type: 'interact' })
+    expect(state.stations.grill.patty).toBe('empty')
+    expect(state.log.at(-1)).toContain('Cleared the burnt patty')
+
+    state = move(state, 'left')
+    state = move(state, 'down')
+    state = reduceBurgerSession(state, { type: 'interact' })
+    expect(state.player.heldItem).toBe('patty')
+    expect(state.tick).toBeGreaterThan(0)
+  })
+
   it('fails an order and continues with the next one', () => {
     let state = bootBurger()
 
@@ -192,5 +240,22 @@ describe('burger session reducer', () => {
     expect(restored.player.facing).toBe('up')
     expect(restored.player.heldItem).toBe('bun')
     expect(restored.stations.grill.patty).toBe('empty')
+  })
+
+  it('rejects an old checkpoint version and restores the fresh session instead', () => {
+    const checkpoint = createBurgerSessionCheckpoint('burger-runtime', {
+      ...createInitialBurgerSessionState(),
+      saveVersion: 3 as never,
+      stations: {
+        grill: { patty: 'burnt', progressTicks: 99 },
+        board: { items: ['bun'] },
+      },
+    })
+
+    const restored = restoreBurgerSessionCheckpoint('burger-runtime', checkpoint)
+
+    expect(restored.saveVersion).toBe(4)
+    expect(restored.stations.grill.patty).toBe('empty')
+    expect(restored.stations.board.items).toEqual([])
   })
 })

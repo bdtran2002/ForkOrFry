@@ -112,21 +112,26 @@ function advanceKitchenTick(state: BurgerSessionState, timedOrderId: string | nu
     tick: state.tick + 1,
   }
 
-  if (next.stations.grill.patty === 'cooking') {
+  if (next.stations.grill.patty === 'cooking' || next.stations.grill.patty === 'cooked') {
     const progressTicks = next.stations.grill.progressTicks + 1
     const cooked = progressTicks >= BURGER_LEVEL.grillCookTicks
+    const burnt = progressTicks >= BURGER_LEVEL.grillBurnTicks
     next = appendLog(
       {
         ...next,
         stations: {
           ...next.stations,
           grill: {
-            patty: cooked ? 'cooked' : 'cooking',
+            patty: burnt ? 'burnt' : cooked ? 'cooked' : 'cooking',
             progressTicks,
           },
         },
       },
-      cooked ? 'The patty finished cooking.' : `The grill advanced to tick ${progressTicks}.`,
+      burnt
+        ? 'The patty burned on the grill.'
+        : cooked
+          ? 'The patty finished cooking.'
+          : `The grill advanced to tick ${progressTicks}.`,
     )
   }
 
@@ -203,6 +208,20 @@ function resolveInteract(state: BurgerSessionState) {
             },
           },
           'Picked up the cooked patty.',
+        )
+        break
+      }
+
+      if (!heldItem && state.stations.grill.patty === 'burnt') {
+        nextState = appendLog(
+          {
+            ...state,
+            stations: {
+              ...state.stations,
+              grill: { patty: 'empty', progressTicks: 0 },
+            },
+          },
+          'Cleared the burnt patty from the grill.',
         )
         break
       }
