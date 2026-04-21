@@ -21,6 +21,13 @@ export const popupCopy = {
     awaitingActivity: 'Awaiting activity',
     lastTrigger: 'Last trigger / open',
   },
+  runtime: {
+    title: 'Runtime host',
+    statusLabel: 'Runtime status',
+    resumeLabel: 'Resume count',
+    checkpointLabel: 'Last checkpoint',
+    unavailable: 'No host session yet',
+  },
   buttons: {
     arm: 'Arm idle trigger',
     demo: 'Open pane now',

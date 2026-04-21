@@ -1,6 +1,8 @@
 import '../../style.css'
 import { type BackgroundMessage } from '../../core/messages'
 import { getState } from '../../core/state'
+import { getRuntimeHostSession } from '../runtime-host/checkpoint-store'
+import { DEFAULT_RUNTIME_DEFINITION } from '../runtime-host/runtime-definition'
 import { popupCopy } from './copy'
 
 const app = document.querySelector<HTMLDivElement>('#app')
@@ -30,6 +32,14 @@ app.innerHTML = `
     <button type="button" class="secondary" id="disarm">${popupCopy.buttons.disarm}</button>
     <button type="button" class="secondary" id="reset">${popupCopy.buttons.reset}</button>
   </div>
+  <section class="checkpoint-card popup-runtime-card" aria-label="Runtime host details">
+    <div class="log-title">${popupCopy.runtime.title}</div>
+    <div class="checkpoint-grid">
+      <div class="checkpoint-item"><span class="checkpoint-label">${popupCopy.runtime.statusLabel}</span><strong id="runtime-status-value"></strong></div>
+      <div class="checkpoint-item"><span class="checkpoint-label">${popupCopy.runtime.resumeLabel}</span><strong id="runtime-resume-value"></strong></div>
+      <div class="checkpoint-item"><span class="checkpoint-label">${popupCopy.runtime.checkpointLabel}</span><strong id="runtime-checkpoint-value"></strong></div>
+    </div>
+  </section>
   <p class="helper">${popupCopy.helper}</p>
 </main>`
 
@@ -39,6 +49,9 @@ const modeValue = app.querySelector<HTMLElement>('#mode-value')!
 const paneValue = app.querySelector<HTMLElement>('#pane-value')!
 const awaitingActivityValue = app.querySelector<HTMLElement>('#awaiting-activity-value')!
 const lastTriggerValue = app.querySelector<HTMLElement>('#last-trigger-value')!
+const runtimeStatusValue = app.querySelector<HTMLElement>('#runtime-status-value')!
+const runtimeResumeValue = app.querySelector<HTMLElement>('#runtime-resume-value')!
+const runtimeCheckpointValue = app.querySelector<HTMLElement>('#runtime-checkpoint-value')!
 const buttons = {
   arm: app.querySelector<HTMLButtonElement>('#arm')!,
   demo: app.querySelector<HTMLButtonElement>('#demo')!,
@@ -62,7 +75,10 @@ function hasStoredActivityState(state: Awaited<ReturnType<typeof getState>>) {
 }
 
 async function refresh() {
-  const state = await getState()
+  const [state, runtimeSession] = await Promise.all([
+    getState(),
+    getRuntimeHostSession(DEFAULT_RUNTIME_DEFINITION.id),
+  ])
   const surfaceOpen = state.surfaceOpen
   const waitingForActivity = state.waitingForActivity
 
@@ -78,6 +94,13 @@ async function refresh() {
   paneValue.textContent = surfaceOpen ? popupCopy.open : popupCopy.closed
   awaitingActivityValue.textContent = waitingForActivity ? popupCopy.yes : popupCopy.no
   lastTriggerValue.textContent = formatLastTrigger(state.lastTriggerAt)
+  runtimeStatusValue.textContent = runtimeSession.lastOpenedAt
+    ? runtimeSession.detail
+      ? `${runtimeSession.status} — ${runtimeSession.detail}`
+      : runtimeSession.status
+    : popupCopy.runtime.unavailable
+  runtimeResumeValue.textContent = String(runtimeSession.resumeCount)
+  runtimeCheckpointValue.textContent = formatLastTrigger(runtimeSession.lastCheckpointAt)
   buttons.arm.disabled = state.armed
   buttons.disarm.disabled = !state.armed
   buttons.reset.disabled = !hasStoredActivityState(state) && !state.armed

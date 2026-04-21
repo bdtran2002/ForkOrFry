@@ -3,8 +3,8 @@ import { type BackgroundMessage } from '../../core/messages'
 import { createRuntimeHostController, type RuntimeMountRequest } from './controller'
 import { runtimeHostCopy } from './copy'
 import { type RuntimeHostSession } from './checkpoint-store'
+import { DEFAULT_RUNTIME_DEFINITION } from './runtime-definition'
 
-const RUNTIME_ID = 'demo-runtime'
 const app = document.querySelector<HTMLDivElement>('#app')
 
 if (!app) throw new Error('Missing takeover root')
@@ -56,7 +56,7 @@ const runtimeFrame = app.querySelector<HTMLIFrameElement>('#runtime-frame')!
 const resetButton = app.querySelector<HTMLButtonElement>('#reset')
 const dismissButton = app.querySelector<HTMLButtonElement>('#dismiss')
 
-const runtimeUrl = browser.runtime.getURL('runtime-frame.html')
+const runtimeUrl = browser.runtime.getURL(DEFAULT_RUNTIME_DEFINITION.entrypoint)
 
 function formatTimestamp(value: number | null) {
   if (!value) return runtimeHostCopy.emptyCheckpoint
@@ -100,7 +100,7 @@ async function mountRuntime({ reset }: RuntimeMountRequest) {
 }
 
 const controller = createRuntimeHostController({
-  runtimeId: RUNTIME_ID,
+  runtimeId: DEFAULT_RUNTIME_DEFINITION.id,
   mountRuntime,
   onSessionChange: renderSession,
 })

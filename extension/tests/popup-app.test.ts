@@ -11,18 +11,25 @@ const state = vi.hoisted(() => ({
   getState: vi.fn(),
 }))
 
+const runtimeHost = vi.hoisted(() => ({
+  getRuntimeHostSession: vi.fn(),
+}))
+
 vi.mock('../src/core/state', () => state)
+vi.mock('../src/features/runtime-host/checkpoint-store', () => runtimeHost)
 
 describe('popup app', () => {
   beforeEach(() => {
     vi.resetModules()
     document.body.innerHTML = '<div id="app"></div>'
     state.getState.mockReset()
+    runtimeHost.getRuntimeHostSession.mockReset()
     Object.assign(globalThis, { browser: { runtime: { sendMessage: vi.fn() } } as BrowserMock })
   })
 
   it('renders state and sends popup commands', async () => {
     state.getState.mockResolvedValue({ armed: false, surfaceOpen: false, waitingForActivity: false, lastIdleAt: null, lastTriggerAt: null, lastOpenAt: null, takeoverWindowId: null, idleIntervalSeconds: 300 })
+    runtimeHost.getRuntimeHostSession.mockResolvedValue({ runtimeId: 'demo-runtime', status: 'idle', detail: null, resumeCount: 0, lastOpenedAt: null, lastCheckpointAt: null })
 
     await import('../src/features/popup/app')
     await Promise.resolve()
@@ -31,6 +38,7 @@ describe('popup app', () => {
     expect(document.querySelector('#pane-value')?.textContent).toBe('Closed')
     expect(document.querySelector('#awaiting-activity-value')?.textContent).toBe('No')
     expect(document.querySelector('#status')?.textContent).toContain('Idle triggers are paused')
+    expect(document.querySelector('#runtime-status-value')?.textContent).toBe('No host session yet')
 
     const arm = document.querySelector<HTMLButtonElement>('#arm')!
     arm.click()
@@ -44,6 +52,7 @@ describe('popup app', () => {
 
   it('updates controls for armed state and reset/disarm actions', async () => {
     state.getState.mockResolvedValue({ armed: true, surfaceOpen: true, waitingForActivity: false, lastIdleAt: 1710000000000, lastTriggerAt: 1710000000000, lastOpenAt: 1710000000000, takeoverWindowId: 11, idleIntervalSeconds: 60 })
+    runtimeHost.getRuntimeHostSession.mockResolvedValue({ runtimeId: 'demo-runtime', status: 'ready', detail: 'Ready: checkpoint, pause, resume', resumeCount: 2, lastOpenedAt: 1710000000000, lastCheckpointAt: 1710000000000 })
 
     await import('../src/features/popup/app')
     await Promise.resolve()
@@ -53,6 +62,8 @@ describe('popup app', () => {
     expect(document.querySelector<HTMLButtonElement>('#disarm')?.disabled).toBe(false)
     expect(document.querySelector('#pane-value')?.textContent).toBe('Open')
     expect(document.querySelector('#awaiting-activity-value')?.textContent).toBe('No')
+    expect(document.querySelector('#runtime-status-value')?.textContent).toContain('ready')
+    expect(document.querySelector('#runtime-resume-value')?.textContent).toBe('2')
 
     document.querySelector<HTMLButtonElement>('#reset')!.click()
     expect(browser.runtime.sendMessage).toHaveBeenCalledWith({ type: 'reset' } satisfies BackgroundMessage)
