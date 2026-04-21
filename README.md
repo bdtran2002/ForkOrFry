@@ -330,7 +330,7 @@ Current extension files that will be repurposed:
 - `extension/src/core/messages.ts` — popup/background command contract
 - `extension/src/features/popup/app.ts` — current toolbar popup controls
 - `extension/src/features/runtime-host/*` — current extension-owned host shell and runtime boundary
-- `extension/src/features/runtime-frame/*` — current demo child runtime adapter behind that boundary
+- `extension/src/features/runtime-frame/*` — current local burger-session child runtime behind that boundary
 - `extension/src/entrypoints/takeover/*` — existing extension page entrypoint
 - `extension/wxt.config.ts` — manifest/action wiring
 

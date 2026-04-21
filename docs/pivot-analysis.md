@@ -33,7 +33,7 @@ Hard constraints:
 - `extension/src/core/state.ts` stores extension state in `browser.storage.local`.
 - `extension/src/features/popup/app.ts` is the current toolbar popup UI.
 - `extension/src/features/runtime-host/app.ts` is the current extension-owned runtime host shell.
-- `extension/src/features/runtime-frame/demo-runtime.ts` is the current demo child runtime adapter behind that host boundary.
+- `extension/src/features/runtime-frame/burger-runtime.ts` is the current local burger-session child runtime behind that host boundary.
 
 #### Upstream hurrycurry
 

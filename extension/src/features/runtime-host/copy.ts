@@ -3,7 +3,7 @@ export const runtimeHostCopy = {
   banner: 'EXTENSION-OWNED HOST · LOCAL SESSION · READY FOR GODOT WASM',
   title: 'Runtime host boundary',
   lede:
-    'This window now boots a child runtime inside an extension-owned host shell. The child is still a demo adapter, but checkpointing and resume now flow through a reusable host contract.',
+    'This window now boots a child runtime inside an extension-owned host shell. The child is a real local burger-session runtime, and checkpointing plus resume flow through a reusable host contract.',
   labels: {
     status: 'Host status',
     runtime: 'Runtime',
@@ -13,12 +13,12 @@ export const runtimeHostCopy = {
   },
   runtimeCardTitle: 'Embedded runtime',
   runtimeCardBody:
-    'The iframe below is the future handoff point for the local hurrycurry build. Today it runs a demo adapter behind the same boot/checkpoint/pause/resume boundary.',
+    'The iframe below is the current burger-level runtime and the future handoff point for the local hurrycurry build. It already runs behind the same boot/checkpoint/pause/resume boundary.',
   notesTitle: 'What changed in this slice',
   notes: [
     'The host shell owns checkpoint storage instead of the child runtime page.',
     'The child runtime boots through a typed contract instead of direct page logic.',
-    'Swapping the demo runtime for Godot WASM is now localized to the embedded child surface.',
+    'Swapping the current burger runtime for Godot WASM is now localized to the embedded child surface.',
   ],
   buttons: {
     reset: 'Reset runtime',
