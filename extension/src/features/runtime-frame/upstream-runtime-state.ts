@@ -1,6 +1,6 @@
 export const UPSTREAM_RUNTIME_SAVE_VERSION = 1 as const
 
-import type { UpstreamBridgeState } from './upstream-bridge'
+import type { UpstreamBridgeSnapshot, UpstreamBridgeState } from './upstream-bridge'
 
 export type UpstreamRuntimeExportState = 'unknown' | 'missing' | 'ready' | 'loaded' | 'error'
 
@@ -14,6 +14,7 @@ export interface UpstreamRuntimeState {
   exportUrl: string | null
   lastCheckpointReason: string | null
   bootstrapPacketCount: number
+  bridgeSnapshot: UpstreamBridgeSnapshot
 }
 
 export function createInitialUpstreamRuntimeState(): UpstreamRuntimeState {
@@ -27,5 +28,11 @@ export function createInitialUpstreamRuntimeState(): UpstreamRuntimeState {
     exportUrl: null,
     lastCheckpointReason: null,
     bootstrapPacketCount: 0,
+    bridgeSnapshot: {
+      payload: null,
+      acknowledgedSessionId: null,
+      acknowledgedPacketCount: 0,
+      lastError: null,
+    },
   }
 }

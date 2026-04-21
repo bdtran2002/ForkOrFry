@@ -1,0 +1,16 @@
+{
+  "htmlEntry": "index.html",
+  "files": [
+    "index.apple-touch-icon.png",
+    "index.audio.position.worklet.js",
+    "index.audio.worklet.js",
+    "index.html",
+    "index.icon.png",
+    "index.js",
+    "index.pck",
+    "index.png",
+    "index.wasm"
+  ],
+  "generatedAt": "2026-04-21T23:13:41.714Z",
+  "sourceDir": "/tmp/hurrycurry-web-export.g6xkfz"
+}

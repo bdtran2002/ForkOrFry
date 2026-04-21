@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest'
 import {
   createBridgeBootstrapMessage,
   createLocalBootstrapPayload,
+  isUpstreamBootstrapPayload,
   isUpstreamEmbeddedToParentMessage,
 } from '../src/features/runtime-frame/upstream-bridge'
 import { createUpstreamRuntimeCheckpoint, restoreUpstreamRuntimeCheckpoint } from '../src/features/runtime-frame/upstream-checkpoint'
@@ -18,6 +19,13 @@ describe('upstream runtime helpers', () => {
       exportState: 'loaded' as const,
       exportUrl: '/upstream/hurrycurry-web/index.html',
       detail: 'Bundled export iframe loaded.',
+      bridgeSnapshot: {
+        payload: createLocalBootstrapPayload('session-123'),
+        acknowledgedSessionId: 'session-123',
+        acknowledgedPacketCount: 8,
+        lastError: null,
+      },
+      bootstrapPacketCount: 8,
     }
 
     const checkpoint = createUpstreamRuntimeCheckpoint('burger-runtime', state)
@@ -80,6 +88,11 @@ describe('upstream runtime helpers', () => {
       'joined',
       'add_player',
     ])
+  })
+
+  it('validates saved bootstrap payloads', () => {
+    expect(isUpstreamBootstrapPayload(createLocalBootstrapPayload('session-123'))).toBe(true)
+    expect(isUpstreamBootstrapPayload({ type: 'forkorfry:local-bootstrap', version: 1, packets: [] })).toBe(false)
   })
 
   it('wraps bootstrap payloads in a parent-to-iframe bridge message', () => {

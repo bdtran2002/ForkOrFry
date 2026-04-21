@@ -68,6 +68,13 @@ export interface UpstreamBootstrapPayload {
   packets: UpstreamBootstrapPacket[]
 }
 
+export interface UpstreamBridgeSnapshot {
+  payload: UpstreamBootstrapPayload | null
+  acknowledgedSessionId: string | null
+  acknowledgedPacketCount: number
+  lastError: string | null
+}
+
 export type UpstreamParentToEmbeddedMessage =
   | { type: 'forkorfry:bridge-bootstrap', version: typeof UPSTREAM_BRIDGE_PROTOCOL_VERSION, payload: UpstreamBootstrapPayload }
   | { type: 'forkorfry:bridge-pause', version: typeof UPSTREAM_BRIDGE_PROTOCOL_VERSION, reason: string }
@@ -109,6 +116,110 @@ const DEFAULT_SCORE: UpstreamScore = {
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null
+}
+
+function isMapMetadata(value: unknown): value is UpstreamMapMetadata {
+  return (
+    isRecord(value)
+    && typeof value.name === 'string'
+    && typeof value.display_name === 'string'
+    && typeof value.players === 'number'
+    && typeof value.difficulty === 'number'
+    && typeof value.hand_count === 'number'
+    && Array.isArray(value.demand_items)
+    && value.demand_items.every((item) => typeof item === 'string')
+  )
+}
+
+function isCharacter(value: unknown): value is UpstreamCharacter {
+  return (
+    isRecord(value)
+    && typeof value.color === 'number'
+    && typeof value.headwear === 'number'
+    && typeof value.hairstyle === 'number'
+  )
+}
+
+function isBootstrapPacket(value: unknown): value is UpstreamBootstrapPacket {
+  if (!isRecord(value) || typeof value.type !== 'string') return false
+
+  switch (value.type) {
+    case 'version':
+      return typeof value.major === 'number' && typeof value.minor === 'number'
+    case 'server_data':
+      return (
+        typeof value.name === 'string'
+        && Array.isArray(value.maps)
+        && value.maps.every(isMapMetadata)
+        && Array.isArray(value.bot_algos)
+        && value.bot_algos.every((algo) => typeof algo === 'string')
+        && (value.motd === undefined || typeof value.motd === 'string')
+      )
+    case 'game_data':
+      return (
+        isMapMetadata(value.metadata)
+        && Array.isArray(value.item_names)
+        && value.item_names.every((item) => typeof item === 'string')
+        && Array.isArray(value.tile_names)
+        && value.tile_names.every((tile) => typeof tile === 'string')
+        && Array.isArray(value.tile_collide)
+        && value.tile_collide.every((tile) => typeof tile === 'number')
+        && isRecord(value.tile_placeable_items)
+        && Object.values(value.tile_placeable_items).every(
+          (items) => Array.isArray(items) && items.every((item) => typeof item === 'number'),
+        )
+        && Array.isArray(value.tile_placeable_any)
+        && value.tile_placeable_any.every((tile) => typeof tile === 'number')
+        && Array.isArray(value.tile_interactable_empty)
+        && value.tile_interactable_empty.every((tile) => typeof tile === 'number')
+        && typeof value.hand_count === 'number'
+        && typeof value.is_lobby === 'boolean'
+      )
+    case 'update_map':
+      return Array.isArray(value.changes)
+    case 'score':
+      return (
+        typeof value.points === 'number'
+        && typeof value.demands_failed === 'number'
+        && typeof value.demands_completed === 'number'
+        && typeof value.time_remaining === 'number'
+        && typeof value.players === 'number'
+        && typeof value.active_recipes === 'number'
+        && typeof value.passive_recipes === 'number'
+        && typeof value.instant_recipes === 'number'
+        && typeof value.stars === 'number'
+      )
+    case 'set_ingame':
+      return typeof value.state === 'boolean'
+    case 'joined':
+      return typeof value.id === 'number'
+    case 'add_player':
+      return (
+        typeof value.id === 'number'
+        && typeof value.name === 'string'
+        && Array.isArray(value.position)
+        && value.position.length === 2
+        && value.position.every((part) => typeof part === 'number')
+        && isCharacter(value.character)
+        && (value.class === 'chef' || value.class === 'bot' || value.class === 'customer' || value.class === 'tram')
+      )
+    default:
+      return false
+  }
+}
+
+export function isUpstreamBootstrapPayload(value: unknown): value is UpstreamBootstrapPayload {
+  return (
+    isRecord(value)
+    && value.type === 'forkorfry:local-bootstrap'
+    && value.version === UPSTREAM_BRIDGE_PROTOCOL_VERSION
+    && typeof value.sessionId === 'string'
+    && typeof value.map === 'string'
+    && typeof value.playerId === 'number'
+    && typeof value.generatedAt === 'string'
+    && Array.isArray(value.packets)
+    && value.packets.every(isBootstrapPacket)
+  )
 }
 
 export function createLocalBootstrapPayload(sessionId: string): UpstreamBootstrapPayload {

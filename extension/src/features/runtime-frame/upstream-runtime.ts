@@ -77,7 +77,6 @@ const runtimeEmbedFrame = app.querySelector<HTMLIFrameElement>('#runtime-embed-f
 const runtimeEmbedOverlay = app.querySelector<HTMLElement>('#runtime-embed-overlay')!
 
 let state: UpstreamRuntimeState = createInitialUpstreamRuntimeState()
-let activeBootstrapPayload: UpstreamBootstrapPayload | null = null
 
 function postToHost(message: RuntimeToHostMessage) {
   window.parent.postMessage(message, window.location.origin)
@@ -161,17 +160,18 @@ function postToEmbeddedRuntime(message: unknown) {
 }
 
 function sendBootstrapToEmbeddedRuntime(messageType: 'bootstrap' | 'resume') {
-  if (!activeBootstrapPayload || !runtimeEmbedFrame.contentWindow) return
+  const payload = state.bridgeSnapshot.payload
+  if (!payload || !runtimeEmbedFrame.contentWindow) return
 
   postToEmbeddedRuntime(
     messageType === 'resume'
-      ? createBridgeResumeMessage(activeBootstrapPayload)
-      : createBridgeBootstrapMessage(activeBootstrapPayload),
+      ? createBridgeResumeMessage(payload)
+      : createBridgeBootstrapMessage(payload),
   )
 
   setState({
     bridgeState: 'sent',
-    detail: `Sent ${activeBootstrapPayload.packets.length} local bootstrap packets to the embedded runtime.`,
+    detail: `Sent ${payload.packets.length} local bootstrap packets to the embedded runtime.`,
   })
   postStatus(state.phase, currentPhaseDetail())
 }
@@ -207,7 +207,7 @@ async function loadBundledExport() {
     const exportUrl = resolveUpstreamExportUrl(manifest)
     setState({
       exportState: 'ready',
-      bridgeState: activeBootstrapPayload ? 'waiting' : state.bridgeState,
+      bridgeState: state.bridgeSnapshot.payload ? 'waiting' : state.bridgeState,
       phase: state.phase === 'paused' ? 'paused' : 'running',
       exportUrl,
       detail: upstreamRuntimeCopy.readySummary(exportUrl),
@@ -227,13 +227,24 @@ async function loadBundledExport() {
 
 function boot(checkpoint: RuntimeCheckpointEnvelope | null, nextSessionId: string) {
   const restored = restoreUpstreamRuntimeCheckpoint(RUNTIME_ID, checkpoint)
-  activeBootstrapPayload = createLocalBootstrapPayload(nextSessionId)
+  const reusingSnapshot = restored.bridgeSnapshot.payload?.sessionId === nextSessionId
+  const bootstrapPayload: UpstreamBootstrapPayload =
+    reusingSnapshot
+      ? restored.bridgeSnapshot.payload
+      : createLocalBootstrapPayload(nextSessionId)
+
   state = {
     ...restored,
     sessionId: nextSessionId,
     phase: 'booting',
     bridgeState: 'waiting',
-    bootstrapPacketCount: activeBootstrapPayload.packets.length,
+    bootstrapPacketCount: bootstrapPayload.packets.length,
+    bridgeSnapshot: {
+      payload: bootstrapPayload,
+      acknowledgedSessionId: reusingSnapshot ? restored.bridgeSnapshot.acknowledgedSessionId : null,
+      acknowledgedPacketCount: reusingSnapshot ? restored.bridgeSnapshot.acknowledgedPacketCount : 0,
+      lastError: null,
+    },
     detail: `Boot accepted for ${nextSessionId.slice(0, 8)}.`,
   }
   render()
@@ -262,9 +273,10 @@ function handleHostMessage(message: HostToRuntimeMessage) {
       const restored = restoreUpstreamRuntimeCheckpoint(RUNTIME_ID, message.checkpoint)
       state = {
         ...restored,
-        sessionId: state.sessionId,
+        sessionId: restored.sessionId || state.sessionId,
         phase: restored.exportUrl ? 'running' : 'ready',
         bridgeState: restored.exportUrl ? 'waiting' : restored.bridgeState,
+        bootstrapPacketCount: restored.bridgeSnapshot.payload?.packets.length ?? restored.bootstrapPacketCount,
         detail: restored.exportUrl ? upstreamRuntimeCopy.phaseLabels.running : upstreamRuntimeCopy.phaseLabels.ready,
       }
       render()
@@ -312,13 +324,26 @@ window.addEventListener('message', (event) => {
       case 'forkorfry:bridge-bootstrap-ack':
         setState({
           bridgeState: 'acknowledged',
+          bridgeSnapshot: {
+            ...state.bridgeSnapshot,
+            acknowledgedSessionId: event.data.sessionId,
+            acknowledgedPacketCount: event.data.packetCount,
+            lastError: null,
+          },
           detail: `Embedded runtime acknowledged ${event.data.packetCount} bootstrap packets.`,
         })
         postStatus(state.phase, currentPhaseDetail())
         postCheckpoint('Embedded runtime acknowledged bootstrap payload.')
         return
       case 'forkorfry:bridge-error':
-        setState({ bridgeState: 'error', detail: event.data.detail })
+        setState({
+          bridgeState: 'error',
+          bridgeSnapshot: {
+            ...state.bridgeSnapshot,
+            lastError: event.data.detail,
+          },
+          detail: event.data.detail,
+        })
         postStatus(state.phase, currentPhaseDetail())
     }
   }
