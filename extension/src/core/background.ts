@@ -1,6 +1,6 @@
 import { type BackgroundMessage } from './messages'
 import { DEFAULT_STATE, IDLE_INTERVAL_SECONDS, getState, resetState, setState } from './state'
-import { triggerTakeover } from './takeover'
+import { armForActivity, triggerTakeover } from './takeover'
 
 let stateQueue = Promise.resolve()
 
@@ -10,13 +10,13 @@ function serializeStateTask(task: () => Promise<void>) {
   return next
 }
 
-async function closeTakeoverTab(tabId: number | null) {
-  if (tabId === null) return
+async function closeTakeoverWindow(windowId: number | null) {
+  if (windowId === null) return
 
   try {
-    await browser.tabs.remove(tabId)
+    await browser.windows.remove(windowId)
   } catch {
-    // The user may have already closed the takeover tab.
+    // The user may have already closed the takeover window.
   }
 }
 
@@ -35,7 +35,7 @@ async function updateIdleInterval(idleIntervalSeconds: number) {
 
 async function disarm() {
   const state = await getState()
-  await closeTakeoverTab(state.takeoverTabId)
+  await closeTakeoverWindow(state.takeoverWindowId)
   await resetState(state)
 }
 
@@ -44,22 +44,27 @@ browser.runtime.onInstalled.addListener(async () => {
   await setState({ ...DEFAULT_STATE, ...existing })
 })
 
-browser.tabs.onRemoved.addListener((tabId) => {
+browser.windows.onRemoved.addListener((windowId) => {
   void serializeStateTask(async () => {
     const state = await getState()
-    if (state.takeoverTabId !== tabId) return
-    await setState({ ...state, takeoverTabId: null })
+    if (state.takeoverWindowId !== windowId) return
+    await setState({ ...state, surfaceOpen: false, takeoverWindowId: null })
   })
 })
 
 browser.idle.onStateChanged.addListener((idleState) => {
-  if (idleState !== 'idle') return
-
   void serializeStateTask(async () => {
     const state = await getState()
     if (!state.armed) return
 
-    await triggerTakeover(state)
+    if (idleState === 'idle') {
+      await armForActivity(state)
+      return
+    }
+
+    if (idleState === 'active' && state.waitingForActivity) {
+      await triggerTakeover(state)
+    }
   })
 })
 
@@ -75,7 +80,7 @@ browser.runtime.onMessage.addListener(async (message: BackgroundMessage) => {
   if (message.type === 'reset') {
     return serializeStateTask(async () => {
       const state = await getState()
-      await closeTakeoverTab(state.takeoverTabId)
+      await closeTakeoverWindow(state.takeoverWindowId)
       await resetState(state)
     })
   }

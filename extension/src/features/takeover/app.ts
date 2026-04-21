@@ -9,7 +9,6 @@ if (!app) throw new Error('Missing takeover root')
 
 app.innerHTML = `
 <main class="takeover">
-  <div class="cursor" id="cursor"></div>
   <header>
     <p class="eyebrow">${takeoverCopy.eyebrow}</p>
     <div class="safety-banner">${takeoverCopy.banner}</div>
@@ -28,11 +27,11 @@ app.innerHTML = `
     <div class="stepper" id="stepper">
       ${takeoverCopy.stepLabels.map((label) => `<span>${label}</span>`).join('')}
     </div>
+    <div class="shell-grid" id="form-grid"></div>
     <div class="log-panel">
       <div class="log-title">${takeoverCopy.logTitle}</div>
       <ul class="log-list" id="log-list"></ul>
     </div>
-    <div class="form-grid" id="form-grid"></div>
     <div class="completion" id="completion" hidden>
       <div class="completion-badge">${takeoverCopy.completionTitle}</div>
       <p>${takeoverCopy.completionBody}</p>
@@ -44,7 +43,6 @@ app.innerHTML = `
   </div>
 </main>`
 
-const cursor = app.querySelector<HTMLElement>('#cursor')!
 const formGrid = app.querySelector<HTMLElement>('#form-grid')!
 const statusText = app.querySelector<HTMLElement>('#status-text')!
 const stagePill = app.querySelector<HTMLElement>('#stage-pill')!
@@ -66,26 +64,12 @@ const logs = takeoverCopy.logs
 
 const sleep = (ms: number) => new Promise((resolve) => window.setTimeout(resolve, ms))
 
-async function typeLine(el: HTMLElement, value: string) {
-  el.textContent = ''
-  for (const ch of value) {
-    el.textContent += ch
-    await sleep(35)
-  }
-}
-
-async function moveCursorToElement(el: Element) {
-  const rect = el.getBoundingClientRect()
-  cursor.style.transform = `translate(${rect.left + rect.width / 2}px, ${rect.top + rect.height / 2}px)`
-  await sleep(220)
-}
-
 function setStep(index: number) {
-  const step = Math.min(index + 1, 5)
+  const step = Math.min(index + 1, 4)
 
   stagePill.textContent = takeoverCopy.stepPill(step)
   statusText.textContent = takeoverCopy.stepStatuses[index] ?? 'Simulation complete.'
-  progressFill.style.width = `${(step / 5) * 100}%`
+  progressFill.style.width = `${(step / 4) * 100}%`
   stepper.querySelectorAll('span').forEach((item, itemIndex) => {
     item.classList.toggle('is-active', itemIndex === index)
     item.classList.toggle('is-complete', itemIndex < index)
@@ -101,22 +85,18 @@ function pushLog(message: string) {
 async function run() {
   setStep(0)
   pushLog(logs[0])
-  await sleep(500)
-  await moveCursorToElement(formGrid)
+  await sleep(300)
 
   for (const [index, el] of fills.entries()) {
     setStep(Math.min(index + 1, 3))
     pushLog(logs[index + 1] ?? 'Advancing the fake flow.')
-    await moveCursorToElement(el)
-    await typeLine(el, fields[index]?.value ?? 'queued')
-    await sleep(320)
+    el.textContent = fields[index]?.value ?? 'queued'
+    await sleep(180)
   }
 
   setStep(4)
   pushLog(logs[4])
   completion.hidden = false
-  await moveCursorToElement(completion)
-  await sleep(300)
   stagePill.textContent = takeoverCopy.complete
   statusText.textContent = takeoverCopy.completeStatus
 }

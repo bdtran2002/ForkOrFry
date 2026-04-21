@@ -22,13 +22,15 @@ describe('popup app', () => {
   })
 
   it('renders state and sends popup commands', async () => {
-    state.getState.mockResolvedValue({ armed: false, takeoverTabId: null, lastIdleAt: null, idleIntervalSeconds: 300 })
+    state.getState.mockResolvedValue({ armed: false, surfaceOpen: false, waitingForActivity: false, lastIdleAt: null, lastTriggerAt: null, lastOpenAt: null, takeoverWindowId: null, idleIntervalSeconds: 300 })
 
     await import('../src/features/popup/app')
     await Promise.resolve()
 
-    expect(document.querySelector('#mode-value')?.textContent).toBe('Disarmed')
-    expect(document.querySelector('#tab-value')?.textContent).toBe('Closed')
+    expect(document.querySelector('#mode-value')?.textContent).toBe('Paused')
+    expect(document.querySelector('#pane-value')?.textContent).toBe('Closed')
+    expect(document.querySelector('#awaiting-activity-value')?.textContent).toBe('No')
+    expect(document.querySelector('#status')?.textContent).toContain('Idle triggers are paused')
 
     const arm = document.querySelector<HTMLButtonElement>('#arm')!
     arm.click()
@@ -41,14 +43,16 @@ describe('popup app', () => {
   })
 
   it('updates controls for armed state and reset/disarm actions', async () => {
-    state.getState.mockResolvedValue({ armed: true, takeoverTabId: 11, lastIdleAt: 1710000000000, idleIntervalSeconds: 60 })
+    state.getState.mockResolvedValue({ armed: true, surfaceOpen: true, waitingForActivity: false, lastIdleAt: 1710000000000, lastTriggerAt: 1710000000000, lastOpenAt: 1710000000000, takeoverWindowId: 11, idleIntervalSeconds: 60 })
 
     await import('../src/features/popup/app')
     await Promise.resolve()
 
-    expect(document.querySelector('#status')?.textContent).toContain('Armed')
+    expect(document.querySelector('#status')?.textContent).toContain('local game pane is open')
     expect(document.querySelector('#last-trigger-value')?.textContent).not.toBe('Not yet')
     expect(document.querySelector<HTMLButtonElement>('#disarm')?.disabled).toBe(false)
+    expect(document.querySelector('#pane-value')?.textContent).toBe('Open')
+    expect(document.querySelector('#awaiting-activity-value')?.textContent).toBe('No')
 
     document.querySelector<HTMLButtonElement>('#reset')!.click()
     expect(browser.runtime.sendMessage).toHaveBeenCalledWith({ type: 'reset' } satisfies BackgroundMessage)

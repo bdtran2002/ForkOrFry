@@ -20,7 +20,8 @@ app.innerHTML = `
   <div class="status" id="status"></div>
   <section class="status-grid" aria-label="Extension status details">
     <div class="status-tile"><span class="status-label">${popupCopy.labels.mode}</span><strong class="status-value" id="mode-value"></strong></div>
-    <div class="status-tile"><span class="status-label">${popupCopy.labels.takeoverTab}</span><strong class="status-value" id="tab-value"></strong></div>
+    <div class="status-tile"><span class="status-label">${popupCopy.labels.pane}</span><strong class="status-value" id="pane-value"></strong></div>
+    <div class="status-tile"><span class="status-label">${popupCopy.labels.awaitingActivity}</span><strong class="status-value" id="awaiting-activity-value"></strong></div>
     <div class="status-tile"><span class="status-label">${popupCopy.labels.lastTrigger}</span><strong class="status-value" id="last-trigger-value"></strong></div>
   </section>
   <div class="actions">
@@ -35,7 +36,8 @@ app.innerHTML = `
 const status = app.querySelector<HTMLElement>('#status')!
 const idleIntervalSelect = app.querySelector<HTMLSelectElement>('#idle-interval')!
 const modeValue = app.querySelector<HTMLElement>('#mode-value')!
-const tabValue = app.querySelector<HTMLElement>('#tab-value')!
+const paneValue = app.querySelector<HTMLElement>('#pane-value')!
+const awaitingActivityValue = app.querySelector<HTMLElement>('#awaiting-activity-value')!
 const lastTriggerValue = app.querySelector<HTMLElement>('#last-trigger-value')!
 const buttons = {
   arm: app.querySelector<HTMLButtonElement>('#arm')!,
@@ -55,22 +57,30 @@ function formatLastTrigger(lastIdleAt: number | null) {
   }).format(new Date(lastIdleAt))
 }
 
+function hasStoredActivityState(state: Awaited<ReturnType<typeof getState>>) {
+  return state.lastIdleAt !== null || state.lastTriggerAt !== null || state.surfaceOpen || state.waitingForActivity
+}
+
 async function refresh() {
   const state = await getState()
-  const takeoverOpen = state.takeoverTabId !== null
+  const surfaceOpen = state.surfaceOpen
+  const waitingForActivity = state.waitingForActivity
 
   idleIntervalSelect.value = String(state.idleIntervalSeconds)
-  status.textContent = state.armed
-    ? takeoverOpen
-      ? popupCopy.status.armedOpen
-      : popupCopy.status.armedClosed
-    : popupCopy.status.disarmed
+  status.textContent = !state.armed
+    ? popupCopy.status.disarmed
+    : surfaceOpen
+      ? popupCopy.status.surfaceOpen
+      : waitingForActivity
+        ? popupCopy.status.waitingForActivity
+        : popupCopy.status.armedReady
   modeValue.textContent = state.armed ? popupCopy.armed : popupCopy.disarmed
-  tabValue.textContent = takeoverOpen ? popupCopy.open : popupCopy.closed
-  lastTriggerValue.textContent = formatLastTrigger(state.lastIdleAt)
+  paneValue.textContent = surfaceOpen ? popupCopy.open : popupCopy.closed
+  awaitingActivityValue.textContent = waitingForActivity ? popupCopy.yes : popupCopy.no
+  lastTriggerValue.textContent = formatLastTrigger(state.lastTriggerAt)
   buttons.arm.disabled = state.armed
   buttons.disarm.disabled = !state.armed
-  buttons.reset.disabled = !state.armed && !takeoverOpen && state.lastIdleAt === null
+  buttons.reset.disabled = !hasStoredActivityState(state) && !state.armed
 }
 
 idleIntervalSelect.addEventListener('change', async () => {
