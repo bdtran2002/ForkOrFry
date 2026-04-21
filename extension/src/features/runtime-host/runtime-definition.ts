@@ -1,5 +1,5 @@
 export const DEFAULT_RUNTIME_DEFINITION = {
-  id: 'demo-runtime',
-  label: 'Demo runtime adapter',
+  id: 'burger-runtime',
+  label: 'Burger session runtime',
   entrypoint: 'runtime-frame.html',
 } as const

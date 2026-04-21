@@ -49,22 +49,22 @@ describe('runtime host', () => {
       saveRuntimeCheckpoint,
     } = await import('../src/features/runtime-host/checkpoint-store')
 
-    const first = await openRuntimeHostSession('demo-runtime')
+    const first = await openRuntimeHostSession('burger-runtime')
     expect(first.resumeCount).toBe(0)
 
-    await saveRuntimeCheckpoint('demo-runtime', {
+    await saveRuntimeCheckpoint('burger-runtime', {
       version: 1,
-      runtimeId: 'demo-runtime',
+      runtimeId: 'burger-runtime',
       updatedAt: 123,
-      state: { currentStep: 2 },
+      state: { saveVersion: 1, levelId: 'burger', tick: 2 },
     })
 
-    const reopened = await openRuntimeHostSession('demo-runtime')
+    const reopened = await openRuntimeHostSession('burger-runtime')
     expect(reopened.resumeCount).toBe(1)
-    expect(reopened.checkpoint?.state).toEqual({ currentStep: 2 })
+    expect(reopened.checkpoint?.state).toEqual({ saveVersion: 1, levelId: 'burger', tick: 2 })
 
     await clearRuntimeHostSession()
-    const cleared = await getRuntimeHostSession('demo-runtime')
+    const cleared = await getRuntimeHostSession('burger-runtime')
     expect(cleared.checkpoint).toBeNull()
     expect(cleared.resumeCount).toBe(0)
   })
@@ -82,7 +82,7 @@ describe('runtime host', () => {
     const { createRuntimeHostController } = await import('../src/features/runtime-host/controller')
 
     const controller = createRuntimeHostController({
-      runtimeId: 'demo-runtime',
+      runtimeId: 'burger-runtime',
       mountRuntime,
       onSessionChange: (session) => {
         sessionUpdates.push(session.status)
@@ -93,7 +93,7 @@ describe('runtime host', () => {
 
     expect(mountRuntime).toHaveBeenCalledWith({ reset: false })
     expect(runtimeWindow.postMessage).toHaveBeenCalledWith(
-      expect.objectContaining({ type: 'host:boot', runtimeId: 'demo-runtime' }),
+      expect.objectContaining({ type: 'host:boot', runtimeId: 'burger-runtime' }),
       window.location.origin,
     )
 
@@ -103,20 +103,20 @@ describe('runtime host', () => {
         origin: window.location.origin,
         data: {
           type: 'runtime:checkpoint',
-          runtimeId: 'demo-runtime',
+          runtimeId: 'burger-runtime',
           checkpoint: {
             version: 1,
-            runtimeId: 'demo-runtime',
+            runtimeId: 'burger-runtime',
             updatedAt: 321,
-            state: { currentStep: 1, completed: false },
+            state: { saveVersion: 1, levelId: 'burger', tick: 1, phase: 'running' },
           },
         },
       }),
     )
 
     await vi.waitFor(async () => {
-      const session = await getRuntimeHostSession('demo-runtime')
-      expect(session.checkpoint?.state).toEqual({ currentStep: 1, completed: false })
+      const session = await getRuntimeHostSession('burger-runtime')
+      expect(session.checkpoint?.state).toEqual({ saveVersion: 1, levelId: 'burger', tick: 1, phase: 'running' })
     })
 
     window.dispatchEvent(
@@ -125,32 +125,32 @@ describe('runtime host', () => {
         origin: window.location.origin,
         data: {
           type: 'runtime:ready',
-          runtimeId: 'demo-runtime',
-          capabilities: ['checkpoint', 'pause', 'resume'],
+          runtimeId: 'burger-runtime',
+          capabilities: ['checkpoint', 'pause', 'resume', 'local-session'],
         },
       }),
     )
 
     await vi.waitFor(async () => {
-      const session = await getRuntimeHostSession('demo-runtime')
+      const session = await getRuntimeHostSession('burger-runtime')
       expect(session.status).toBe('ready')
     })
 
     await controller.pause('Host window hidden.')
     expect(runtimeWindow.postMessage).toHaveBeenCalledWith(
-      { type: 'host:pause', runtimeId: 'demo-runtime', reason: 'Host window hidden.' },
+      { type: 'host:pause', runtimeId: 'burger-runtime', reason: 'Host window hidden.' },
       window.location.origin,
     )
 
     await controller.resume()
     expect(runtimeWindow.postMessage).toHaveBeenCalledWith(
-      expect.objectContaining({ type: 'host:resume', runtimeId: 'demo-runtime' }),
+      expect.objectContaining({ type: 'host:resume', runtimeId: 'burger-runtime' }),
       window.location.origin,
     )
 
     await controller.shutdown()
     expect(runtimeWindow.postMessage).toHaveBeenCalledWith(
-      { type: 'host:shutdown', runtimeId: 'demo-runtime' },
+      { type: 'host:shutdown', runtimeId: 'burger-runtime' },
       window.location.origin,
     )
     expect(sessionUpdates).toContain('ready')
