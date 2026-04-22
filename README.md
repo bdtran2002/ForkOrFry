@@ -12,7 +12,7 @@ ForkOrFry is a local-first browser-extension fork of Hurry Curry for single-play
 
 It is still very beta. The game is not fully working yet, but the direction is clear: run inside an extension-owned surface, keep progress local, and remove the server dependency from the shipped experience.
 
-**Project links:** [Project site](https://bdtran2002.github.io/ForkOrFry/) · [Contributing](./CONTRIBUTING.md) · [Security](./SECURITY.md) · [Code of Conduct](./CODE_OF_CONDUCT.md) · [Releases](https://github.com/bdtran2002/ForkOrFry/releases)
+**Project links:** [Contributing](./CONTRIBUTING.md) · [Security](./SECURITY.md) · [Code of Conduct](./CODE_OF_CONDUCT.md) · [Releases](https://github.com/bdtran2002/ForkOrFry/releases)
 
 Need to report something? [Open a bug report](https://github.com/bdtran2002/ForkOrFry/issues/new?template=bug_report.md) or [suggest a feature](https://github.com/bdtran2002/ForkOrFry/issues/new?template=feature_request.md).
 
@@ -51,20 +51,9 @@ This repo currently uses **npm** for the extension workflow.
 5. Select `extension/dist/firefox-mv3/manifest.json`.
 6. Open the extension popup and start from the host surface.
 
-## Project site
-
-A simple GitHub Pages landing page scaffold lives in `docs/site/`.
-
-When Pages is enabled, the intended site URL is:
-
-`https://bdtran2002.github.io/ForkOrFry/`
-
-That page links back here for the full README and development details.
-
 ## Repository layout
 
 - `extension/` — extension app, popup UI, runtime host, runtime frame, tests, packaging scripts
-- `docs/site/` — GitHub Pages landing page scaffold
 - `docs/` — AMO and project documentation
 - `.upstream-reference/` — read-only upstream reference copy
 - `LICENSE` / `THIRD_PARTY_NOTICES.md` — licensing and attribution
@@ -78,7 +67,7 @@ flowchart LR
   PU[Extension popup UI] --> BG[Background trigger and launch control]
 
   BG --> PW[Host page in popup window]
-  BG --> FT[Host page in full tab (debug-only)]
+  BG --> FT[Host page in full tab - debug only]
 
   PW --> RH[runtime-host controller]
   FT --> RH
