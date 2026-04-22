@@ -43,7 +43,6 @@ app.innerHTML = `
     <div class="shell-grid">
       <div class="field"><label>${upstreamRuntimeCopy.labels.exportState}</label><div class="input" id="export-state-value"></div></div>
       <div class="field"><label>${upstreamRuntimeCopy.labels.bridgeState}</label><div class="input" id="bridge-state-value"></div></div>
-      <div class="field"><label>${upstreamRuntimeCopy.labels.godotBridge}</label><div class="input" id="godot-bridge-value"></div></div>
       <div class="field"><label>${upstreamRuntimeCopy.labels.session}</label><div class="input" id="session-value"></div></div>
       <div class="field"><label>${upstreamRuntimeCopy.labels.exportPath}</label><div class="input" id="export-path-value"></div></div>
       <div class="field"><label>${upstreamRuntimeCopy.labels.checkpoint}</label><div class="input" id="checkpoint-value"></div></div>
@@ -68,7 +67,6 @@ const statusText = app.querySelector<HTMLElement>('#status-text')!
 const stagePill = app.querySelector<HTMLElement>('#stage-pill')!
 const exportStateValue = app.querySelector<HTMLElement>('#export-state-value')!
 const bridgeStateValue = app.querySelector<HTMLElement>('#bridge-state-value')!
-const godotBridgeValue = app.querySelector<HTMLElement>('#godot-bridge-value')!
 const sessionValue = app.querySelector<HTMLElement>('#session-value')!
 const exportPathValue = app.querySelector<HTMLElement>('#export-path-value')!
 const checkpointValue = app.querySelector<HTMLElement>('#checkpoint-value')!
@@ -82,14 +80,6 @@ const runtimeEmbedOverlay = app.querySelector<HTMLElement>('#runtime-embed-overl
 
 let state: UpstreamRuntimeState = createInitialUpstreamRuntimeState()
 let godotBridgePollHandle: number | null = null
-
-interface RuntimeIframeWindow extends Window {
-  __FORKORFRY_GODOT_BRIDGE__?: {
-    entryState?: unknown
-    updatedAt?: unknown
-  }
-  __FORKORFRY_GODOT_LAST_UPDATE__?: unknown
-}
 
 function postToHost(message: RuntimeToHostMessage) {
   window.parent.postMessage(message, window.location.origin)
@@ -184,10 +174,6 @@ function render() {
   stagePill.textContent = state.phase
   exportStateValue.textContent = upstreamRuntimeCopy.exportStates[state.exportState as UpstreamRuntimeExportState]
   bridgeStateValue.textContent = upstreamRuntimeCopy.bridgeStates[state.bridgeState]
-  godotBridgeValue.textContent = upstreamRuntimeCopy.godotBridgeSummary(
-    state.godotBridgeSnapshot.entryState,
-    state.godotBridgeSnapshot.lastUpdate,
-  )
   sessionValue.textContent = state.sessionId ? state.sessionId.slice(0, 12) : 'No session yet'
   exportPathValue.textContent = state.exportUrl ?? EXPORT_MANIFEST_PATH
   checkpointValue.textContent = upstreamRuntimeCopy.checkpointSummary(state.lastCheckpointReason)
@@ -202,38 +188,6 @@ function clearGodotBridgePoll() {
     window.clearInterval(godotBridgePollHandle)
     godotBridgePollHandle = null
   }
-}
-
-function syncGodotBridgeSnapshotFromIframe() {
-  const iframeWindow = runtimeEmbedFrame.contentWindow as RuntimeIframeWindow | null
-  if (!iframeWindow) return
-
-  const bridge = iframeWindow.__FORKORFRY_GODOT_BRIDGE__
-  const nextSnapshot = {
-    entryState: typeof bridge?.entryState === 'string' ? bridge.entryState : null,
-    lastUpdate: typeof iframeWindow.__FORKORFRY_GODOT_LAST_UPDATE__ === 'string' ? iframeWindow.__FORKORFRY_GODOT_LAST_UPDATE__ : null,
-    updatedAt: typeof bridge?.updatedAt === 'string' ? bridge.updatedAt : null,
-  }
-
-  if (
-    state.godotBridgeSnapshot.entryState === nextSnapshot.entryState
-    && state.godotBridgeSnapshot.lastUpdate === nextSnapshot.lastUpdate
-    && state.godotBridgeSnapshot.updatedAt === nextSnapshot.updatedAt
-  ) {
-    return
-  }
-
-  setState({ godotBridgeSnapshot: nextSnapshot })
-}
-
-function startGodotBridgePoll() {
-  clearGodotBridgePoll()
-  syncGodotBridgeSnapshotFromIframe()
-  godotBridgePollHandle = window.setInterval(syncGodotBridgeSnapshotFromIframe, 500)
-}
-
-function resetGodotBridgeSnapshot() {
-  setState({ godotBridgeSnapshot: createInitialUpstreamRuntimeState().godotBridgeSnapshot })
 }
 
 function postToEmbeddedRuntime(message: unknown) {
@@ -278,7 +232,6 @@ async function loadBundledExport() {
         exportState: 'missing',
         phase: 'ready',
         exportUrl: null,
-        godotBridgeSnapshot: createInitialUpstreamRuntimeState().godotBridgeSnapshot,
         detail: upstreamRuntimeCopy.exportStates.missing,
       })
       postStatus('ready', currentPhaseDetail())
@@ -292,7 +245,6 @@ async function loadBundledExport() {
         exportState: 'error',
         phase: 'ready',
         exportUrl: null,
-        godotBridgeSnapshot: createInitialUpstreamRuntimeState().godotBridgeSnapshot,
         detail: 'manifest.json exists but is not valid for the runtime.',
       })
       postStatus('ready', currentPhaseDetail())
@@ -315,7 +267,6 @@ async function loadBundledExport() {
       exportState: 'error',
       phase: 'ready',
       exportUrl: null,
-      godotBridgeSnapshot: createInitialUpstreamRuntimeState().godotBridgeSnapshot,
       detail,
     })
     postStatus('ready', currentPhaseDetail())
@@ -342,9 +293,6 @@ function boot(checkpoint: RuntimeCheckpointEnvelope | null, nextSessionId: strin
       acknowledgedPacketCount: reusingSnapshot ? restored.bridgeSnapshot.acknowledgedPacketCount : 0,
       lastError: null,
     },
-    godotBridgeSnapshot: reusingSnapshot
-      ? restored.godotBridgeSnapshot
-      : createInitialUpstreamRuntimeState().godotBridgeSnapshot,
     detail: describeUpstreamRuntimeSession(nextSessionId, reusingSnapshot),
   }
   render()
@@ -383,7 +331,6 @@ function handleHostMessage(message: HostToRuntimeMessage) {
           : restored.exportUrl ? upstreamRuntimeCopy.phaseLabels.running : upstreamRuntimeCopy.phaseLabels.ready,
       }
       render()
-      startGodotBridgePoll()
       sendBootstrapToEmbeddedRuntime('resume')
       postStatus(state.phase, currentPhaseDetail())
       postCheckpoint('Resumed runtime shell.')
@@ -394,7 +341,6 @@ function handleHostMessage(message: HostToRuntimeMessage) {
       return
     case 'host:shutdown':
       clearGodotBridgePoll()
-      resetGodotBridgeSnapshot()
       postCheckpoint('Host requested shutdown.')
   }
 }
@@ -406,7 +352,6 @@ refreshButton.addEventListener('click', () => {
 runtimeEmbedFrame.addEventListener('load', () => {
   if (!state.exportUrl || state.phase === 'paused') return
   setState({ exportState: 'loaded', phase: 'running', detail: upstreamRuntimeCopy.loadedSummary })
-  startGodotBridgePoll()
   sendBootstrapToEmbeddedRuntime('bootstrap')
   postStatus('running', currentPhaseDetail())
   postCheckpoint('Bundled export iframe loaded.')

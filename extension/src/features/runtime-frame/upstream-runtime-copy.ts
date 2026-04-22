@@ -2,7 +2,6 @@ export const upstreamRuntimeCopy = {
   labels: {
     exportState: 'Export state',
     bridgeState: 'Bridge state',
-    godotBridge: 'Bridge snapshot',
     session: 'Session',
     exportPath: 'Export path',
     checkpoint: 'Checkpoint',
@@ -47,14 +46,6 @@ export const upstreamRuntimeCopy = {
       `total: ${summary.totalCount}`,
       summary.lastAction ? `last: ${summary.lastAction}` : null,
       counts.length ? `counts: ${counts.join(', ')}` : null,
-    ].filter(Boolean).join(' • ')
-  },
-  godotBridgeSummary: (entryState: string | null, lastUpdate: string | null) => {
-    if (!entryState && !lastUpdate) return 'No bridge data yet.'
-
-    return [
-      entryState ? `entry: ${entryState}` : null,
-      lastUpdate ? `last update: ${lastUpdate}` : null,
     ].filter(Boolean).join(' • ')
   },
 } as const

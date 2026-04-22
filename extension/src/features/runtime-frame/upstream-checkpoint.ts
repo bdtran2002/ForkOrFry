@@ -5,7 +5,6 @@ import {
 import {
   UPSTREAM_RUNTIME_GAMEPLAY_PACKET_HISTORY_LIMIT,
   UPSTREAM_RUNTIME_SAVE_VERSION,
-  createInitialUpstreamGodotBridgeSnapshot,
   createInitialUpstreamRuntimeState,
   type UpstreamRuntimeState,
 } from './upstream-runtime-state'
@@ -13,10 +12,6 @@ import { isUpstreamBootstrapPayload } from './upstream-bridge'
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null
-}
-
-function isNullableString(value: unknown) {
-  return value === null || typeof value === 'string'
 }
 
 function isGameplayPacket(value: unknown): value is UpstreamRuntimeState['gameplayPackets'][number] {
@@ -49,11 +44,6 @@ function trimGameplayPackets(packets: UpstreamRuntimeState['gameplayPackets']) {
   return packets.slice(-UPSTREAM_RUNTIME_GAMEPLAY_PACKET_HISTORY_LIMIT)
 }
 
-function restoreGodotBridgeSnapshot(state: UpstreamRuntimeState) {
-  const snapshot = state.godotBridgeSnapshot
-  return snapshot ?? createInitialUpstreamGodotBridgeSnapshot()
-}
-
 function isUpstreamRuntimeState(value: unknown): value is UpstreamRuntimeState {
   return (
     isRecord(value)
@@ -71,15 +61,6 @@ function isUpstreamRuntimeState(value: unknown): value is UpstreamRuntimeState {
     && (value.bridgeSnapshot.acknowledgedSessionId === null || typeof value.bridgeSnapshot.acknowledgedSessionId === 'string')
     && typeof value.bridgeSnapshot.acknowledgedPacketCount === 'number'
     && (value.bridgeSnapshot.lastError === null || typeof value.bridgeSnapshot.lastError === 'string')
-    && (
-      value.godotBridgeSnapshot === undefined
-      || (
-        isRecord(value.godotBridgeSnapshot)
-        && isNullableString(value.godotBridgeSnapshot.entryState)
-        && isNullableString(value.godotBridgeSnapshot.lastUpdate)
-        && isNullableString(value.godotBridgeSnapshot.updatedAt)
-      )
-    )
     && Array.isArray(value.gameplayPackets)
     && (
       value.gameplayPacketSummary === undefined
@@ -109,7 +90,6 @@ export function restoreUpstreamRuntimeCheckpoint(
     ...initialState,
     ...checkpoint.state,
     lastCheckpointReason: null,
-    godotBridgeSnapshot: restoreGodotBridgeSnapshot(checkpoint.state),
     gameplayPackets,
     gameplayPacketSummary,
   }

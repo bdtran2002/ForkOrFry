@@ -47,11 +47,6 @@ describe('upstream runtime helpers', () => {
         lastAction: 'interact',
         actionCounts: { movement: 1, interact: 1 },
       },
-      godotBridgeSnapshot: {
-        entryState: 'entry-ready',
-        lastUpdate: 'multiplayer',
-        updatedAt: '2026-04-21T00:00:00.000Z',
-      },
       lastCheckpointReason: 'checkpoint:pause',
       bootstrapPacketCount: 8,
     }
@@ -96,56 +91,6 @@ describe('upstream runtime helpers', () => {
       actionCounts: { movement: 1, ready: 1 },
     })
     expect(restored.lastCheckpointReason).toBeNull()
-  })
-
-  it('preserves godot bridge snapshot data on restore without bridge acknowledgement coupling', () => {
-    const restored = restoreUpstreamRuntimeCheckpoint('burger-runtime', {
-      version: 1,
-      runtimeId: 'burger-runtime',
-      updatedAt: Date.now(),
-      state: {
-        ...createInitialUpstreamRuntimeState(),
-        bridgeSnapshot: {
-          payload: createLocalBootstrapPayload('session-123'),
-          acknowledgedSessionId: null,
-          acknowledgedPacketCount: 0,
-          lastError: null,
-        },
-        godotBridgeSnapshot: {
-          entryState: 'live',
-          lastUpdate: 'bridge-update',
-          updatedAt: '2026-04-21T00:00:00.000Z',
-        },
-      },
-    })
-
-    expect(restored.godotBridgeSnapshot).toEqual({
-      entryState: 'live',
-      lastUpdate: 'bridge-update',
-      updatedAt: '2026-04-21T00:00:00.000Z',
-    })
-  })
-
-  it('scrubs missing godot bridge snapshot data on restore', () => {
-    const restored = restoreUpstreamRuntimeCheckpoint('burger-runtime', {
-      version: 1,
-      runtimeId: 'burger-runtime',
-      updatedAt: Date.now(),
-      state: {
-        ...createInitialUpstreamRuntimeState(),
-        godotBridgeSnapshot: undefined as unknown as {
-          entryState: string | null
-          lastUpdate: string | null
-          updatedAt: string | null
-        },
-      },
-    })
-
-    expect(restored.godotBridgeSnapshot).toEqual({
-      entryState: null,
-      lastUpdate: null,
-      updatedAt: null,
-    })
   })
 
   it('caps restored gameplay packet history while preserving the summary window', () => {
