@@ -165,6 +165,10 @@ function postToEmbeddedRuntime(message: unknown) {
   runtimeEmbedFrame.contentWindow?.postMessage(message, window.location.origin)
 }
 
+function createUpstreamBootstrapPayload(sessionId: string) {
+  return createBurgersIncBootstrapPayload(sessionId, 1)
+}
+
 function recordGameplayPacket(action: 'movement' | 'interact' | 'ready' | 'idle', payload: Record<string, unknown>) {
   const packet = { action, payload, receivedAt: new Date().toISOString() }
   const gameplayPackets = trimUpstreamRuntimeGameplayPackets([...state.gameplayPackets, packet])
@@ -177,7 +181,7 @@ function recordGameplayPacket(action: 'movement' | 'interact' | 'ready' | 'idle'
 
 function sendBootstrapToEmbeddedRuntime(messageType: 'bootstrap' | 'resume') {
   if (!state.sessionId || !runtimeEmbedFrame.contentWindow) return
-  const payload = createBurgersIncBootstrapPayload(state.sessionId, 1)
+  const payload = createUpstreamBootstrapPayload(state.sessionId)
 
   postToEmbeddedRuntime(
     messageType === 'resume'
@@ -250,7 +254,7 @@ async function loadBundledExport() {
 
 function boot(checkpoint: RuntimeCheckpointEnvelope | null, nextSessionId: string) {
   const restored = restoreUpstreamRuntimeCheckpoint(RUNTIME_ID, checkpoint)
-  const bootstrapPayload = createBurgersIncBootstrapPayload(nextSessionId, 1)
+  const bootstrapPayload = createUpstreamBootstrapPayload(nextSessionId)
 
   state = createBootUpstreamRuntimeState(restored, nextSessionId, bootstrapPayload.packets.length)
   render()
