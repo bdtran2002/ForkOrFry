@@ -10,7 +10,7 @@ import {
 import { BURGERS_INC_BOOTSTRAP, createBurgersIncBootstrapPayload, createBurgersIncBootstrapTemplate } from '../upstream/generated/burgers-inc-bootstrap'
 import { createUpstreamRuntimeCheckpoint, restoreUpstreamRuntimeCheckpoint } from '../src/features/runtime-frame/upstream-checkpoint'
 import { normalizeUpstreamExportManifest, resolveUpstreamExportUrl } from '../src/features/runtime-frame/upstream-export'
-import { acknowledgeUpstreamBridgeSnapshot, createBootUpstreamRuntimeState, createInitialUpstreamBridgeSnapshot, createInitialUpstreamRuntimeState, createResumeUpstreamRuntimeState, describeUpstreamRuntimeSession, errorUpstreamBridgeSnapshot, restoreUpstreamBridgeSnapshotForSession } from '../src/features/runtime-frame/upstream-runtime-state'
+import { acknowledgeUpstreamBridgeSnapshot, createBootUpstreamRuntimeState, createInitialUpstreamBridgeSnapshot, createInitialUpstreamRuntimeState, createResumeUpstreamRuntimeState, describeUpstreamRuntimeSession, errorUpstreamBridgeSnapshot, resolveUpstreamRuntimeSessionState, restoreUpstreamBridgeSnapshotForSession } from '../src/features/runtime-frame/upstream-runtime-state'
 import { UPSTREAM_RUNTIME_GAMEPLAY_PACKET_HISTORY_LIMIT } from '../src/features/runtime-frame/upstream-runtime-state'
 
 describe('upstream runtime helpers', () => {
@@ -199,6 +199,32 @@ describe('upstream runtime helpers', () => {
       acknowledgedPacketCount: 8,
       lastError: 'stale',
     }, 'session-999')).toEqual(createInitialUpstreamBridgeSnapshot())
+  })
+
+  it('resolves runtime session state from a bridge snapshot in one place', () => {
+    expect(resolveUpstreamRuntimeSessionState({
+      acknowledgedSessionId: 'session-123',
+      acknowledgedPacketCount: 8,
+      lastError: 'stale',
+    }, 'session-123')).toEqual({
+      sessionId: 'session-123',
+      reused: true,
+      bridgeSnapshot: {
+        acknowledgedSessionId: 'session-123',
+        acknowledgedPacketCount: 8,
+        lastError: null,
+      },
+    })
+
+    expect(resolveUpstreamRuntimeSessionState({
+      acknowledgedSessionId: 'session-123',
+      acknowledgedPacketCount: 8,
+      lastError: 'stale',
+    }, 'session-999')).toEqual({
+      sessionId: 'session-999',
+      reused: false,
+      bridgeSnapshot: createInitialUpstreamBridgeSnapshot(),
+    })
   })
 
   it('updates bridge snapshot ack and error state through shared helpers', () => {

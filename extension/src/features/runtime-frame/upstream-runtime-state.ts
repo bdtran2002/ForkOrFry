@@ -73,6 +73,17 @@ export function isUpstreamRuntimeSessionReused(
   return snapshot.acknowledgedSessionId === sessionId
 }
 
+export function resolveUpstreamRuntimeSessionState(
+  snapshot: UpstreamBridgeSnapshot,
+  sessionId: string,
+) {
+  return {
+    sessionId,
+    reused: isUpstreamRuntimeSessionReused(snapshot, sessionId),
+    bridgeSnapshot: restoreUpstreamBridgeSnapshotForSession(snapshot, sessionId),
+  }
+}
+
 export function isUpstreamRuntimeGameplayPacket(value: unknown): value is UpstreamRuntimeState['gameplayPackets'][number] {
   return (
     typeof value === 'object'
@@ -139,31 +150,30 @@ export function createBootUpstreamRuntimeState(
   sessionId: string,
   bootstrapPacketCount: number,
 ): UpstreamRuntimeState {
-  const reused = isUpstreamRuntimeSessionReused(restored.bridgeSnapshot, sessionId)
+  const resolvedSession = resolveUpstreamRuntimeSessionState(restored.bridgeSnapshot, sessionId)
 
   return {
     ...restored,
-    sessionId,
+    sessionId: resolvedSession.sessionId,
     phase: 'booting' as const,
     bridgeState: 'waiting' as const,
     bootstrapPacketCount,
-    bridgeSnapshot: restoreUpstreamBridgeSnapshotForSession(restored.bridgeSnapshot, sessionId),
-    detail: describeUpstreamRuntimeSession(sessionId, reused),
+    bridgeSnapshot: resolvedSession.bridgeSnapshot,
+    detail: describeUpstreamRuntimeSession(resolvedSession.sessionId, resolvedSession.reused),
   }
 }
 
 export function createResumeUpstreamRuntimeState(restored: UpstreamRuntimeState, fallbackSessionId: string): UpstreamRuntimeState {
-  const sessionId = restored.sessionId || fallbackSessionId
-  const reused = isUpstreamRuntimeSessionReused(restored.bridgeSnapshot, sessionId)
+  const resolvedSession = resolveUpstreamRuntimeSessionState(restored.bridgeSnapshot, restored.sessionId || fallbackSessionId)
 
   return {
     ...restored,
-    sessionId,
+    sessionId: resolvedSession.sessionId,
     phase: restored.exportUrl ? 'running' : 'ready',
     bridgeState: (restored.exportUrl ? 'waiting' : restored.bridgeState),
-    bridgeSnapshot: restoreUpstreamBridgeSnapshotForSession(restored.bridgeSnapshot, sessionId),
-    detail: reused
-      ? describeUpstreamRuntimeSession(sessionId, true)
+    bridgeSnapshot: resolvedSession.bridgeSnapshot,
+    detail: resolvedSession.reused
+      ? describeUpstreamRuntimeSession(resolvedSession.sessionId, true)
       : restored.exportUrl ? 'Bundled Godot runtime loaded.' : 'Ready.',
   }
 }
