@@ -1094,6 +1094,115 @@ describe('upstream runtime helpers', () => {
     ])
   })
 
+  it('recovers a burned pan through the trash instant authority path', () => {
+    const burnedPanIndex = BURGERS_INC_BOOTSTRAP.item_names.indexOf('pan:burned')
+    const panIndex = BURGERS_INC_BOOTSTRAP.item_names.indexOf('pan')
+    const trashTile = BURGERS_INC_BOOTSTRAP.changes.find(([_, tileIndexes]) => tileIndexes.some((tileIndex) => BURGERS_INC_BOOTSTRAP.tile_names[tileIndex] === 'trash'))
+    if (burnedPanIndex < 0 || panIndex < 0 || !trashTile) throw new Error('Missing trash recovery fixture')
+
+    const recovered = applyGameplayPacketToAuthority(createLocalAuthoritySession({
+      ...createInitialAuthoritySnapshot(),
+      hands: [burnedPanIndex, null],
+    }), createGameplayPacketMessage('interact', {
+      player: 1,
+      hand: 0,
+      target: { tile: trashTile[0] },
+    }))
+
+    expect(recovered.session.snapshot.hands[0]).toBe(panIndex)
+    expect(recovered.packets).toEqual([
+      {
+        type: 'move_item',
+        from: { player: [1, 0] },
+        to: { tile: trashTile[0] },
+      },
+      {
+        type: 'set_item',
+        location: { tile: trashTile[0] },
+        item: null,
+      },
+      {
+        type: 'set_item',
+        location: { tile: trashTile[0] },
+        item: panIndex,
+      },
+      {
+        type: 'move_item',
+        from: { tile: trashTile[0] },
+        to: { player: [1, 0] },
+      },
+    ])
+  })
+
+  it('trashes a partial plated burger into a dirty plate', () => {
+    const partialPlateIndex = BURGERS_INC_BOOTSTRAP.item_names.indexOf('plate:sliced-bun')
+    const dirtyPlateIndex = BURGERS_INC_BOOTSTRAP.item_names.indexOf('dirty-plate')
+    const trashTile = BURGERS_INC_BOOTSTRAP.changes.find(([_, tileIndexes]) => tileIndexes.some((tileIndex) => BURGERS_INC_BOOTSTRAP.tile_names[tileIndex] === 'trash'))
+    if (partialPlateIndex < 0 || dirtyPlateIndex < 0 || !trashTile) throw new Error('Missing plated trash fixture')
+
+    const trashed = applyGameplayPacketToAuthority(createLocalAuthoritySession({
+      ...createInitialAuthoritySnapshot(),
+      hands: [partialPlateIndex, null],
+    }), createGameplayPacketMessage('interact', {
+      player: 1,
+      hand: 0,
+      target: { tile: trashTile[0] },
+    }))
+
+    expect(trashed.session.snapshot.hands[0]).toBe(dirtyPlateIndex)
+    expect(trashed.packets).toEqual([
+      {
+        type: 'move_item',
+        from: { player: [1, 0] },
+        to: { tile: trashTile[0] },
+      },
+      {
+        type: 'set_item',
+        location: { tile: trashTile[0] },
+        item: null,
+      },
+      {
+        type: 'set_item',
+        location: { tile: trashTile[0] },
+        item: dirtyPlateIndex,
+      },
+      {
+        type: 'move_item',
+        from: { tile: trashTile[0] },
+        to: { player: [1, 0] },
+      },
+    ])
+  })
+
+  it('trashes loose disposable items completely', () => {
+    const slicedCheeseIndex = BURGERS_INC_BOOTSTRAP.item_names.indexOf('sliced-cheese')
+    const trashTile = BURGERS_INC_BOOTSTRAP.changes.find(([_, tileIndexes]) => tileIndexes.some((tileIndex) => BURGERS_INC_BOOTSTRAP.tile_names[tileIndex] === 'trash'))
+    if (slicedCheeseIndex < 0 || !trashTile) throw new Error('Missing loose-item trash fixture')
+
+    const trashed = applyGameplayPacketToAuthority(createLocalAuthoritySession({
+      ...createInitialAuthoritySnapshot(),
+      hands: [slicedCheeseIndex, null],
+    }), createGameplayPacketMessage('interact', {
+      player: 1,
+      hand: 0,
+      target: { tile: trashTile[0] },
+    }))
+
+    expect(trashed.session.snapshot.hands[0]).toBeNull()
+    expect(trashed.packets).toEqual([
+      {
+        type: 'move_item',
+        from: { player: [1, 0] },
+        to: { tile: trashTile[0] },
+      },
+      {
+        type: 'set_item',
+        location: { tile: trashTile[0] },
+        item: null,
+      },
+    ])
+  })
+
   it('serves one cheeseburger to the initial customer and returns a dirty plate', () => {
     const burgerIndex = BURGERS_INC_BOOTSTRAP.item_names.indexOf('plate:seared-patty,sliced-bun,sliced-cheese')
     const dirtyPlateIndex = BURGERS_INC_BOOTSTRAP.item_names.indexOf('dirty-plate')

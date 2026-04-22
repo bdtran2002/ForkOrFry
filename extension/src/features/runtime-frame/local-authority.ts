@@ -69,10 +69,11 @@ interface UpstreamActiveTileRecipe {
 }
 
 interface UpstreamInstantTileRecipe {
-  tileInput: number
-  handInput: number
+  tileInput: number | null
+  handInput: number | null
   tileOutput: number | null
   handOutput: number | null
+  tilePart?: string
 }
 
 interface UpstreamPassiveStoveRecipe {
@@ -147,6 +148,8 @@ const ACTIVE_TILE_RECIPES: UpstreamActiveTileRecipe[] = [
   }),
 ]
 
+const TRASH_RECIPE_TILE_PART = 'trash'
+
 const INSTANT_TILE_RECIPES: UpstreamInstantTileRecipe[] = [
   ['pan', 'patty', 'pan:patty', null],
   ['plate', 'sliced-bun', 'plate:sliced-bun', null],
@@ -161,17 +164,26 @@ const INSTANT_TILE_RECIPES: UpstreamInstantTileRecipe[] = [
   ['plate:sliced-bun,sliced-cheese', 'pan:seared-patty', 'plate:seared-patty,sliced-bun,sliced-cheese', 'pan'],
   ['plate:seared-patty,sliced-bun', 'sliced-cheese', 'plate:seared-patty,sliced-bun,sliced-cheese', null],
   ['plate:seared-patty,sliced-cheese', 'sliced-bun', 'plate:seared-patty,sliced-bun,sliced-cheese', null],
-].flatMap(([tileInputName, handInputName, tileOutputName, handOutputName]) => {
-  const tileInput = getItemIndex(tileInputName)
-  const handInput = getItemIndex(handInputName)
-  const tileOutput = getItemIndex(tileOutputName)
+  ...BURGERS_INC_BOOTSTRAP.item_names.flatMap((itemName) => {
+    if (itemName === 'pan:burned') return [[null, 'pan:burned', null, 'pan', TRASH_RECIPE_TILE_PART] as const]
+    if (itemName.startsWith('plate:')) return [[null, itemName, null, 'dirty-plate', TRASH_RECIPE_TILE_PART] as const]
+    if (itemName === 'dirty-plate' || itemName === 'pan' || itemName === 'foodprocessor' || itemName === 'basket' || itemName === 'glass') {
+      return []
+    }
+    return [[null, itemName, null, null, TRASH_RECIPE_TILE_PART] as const]
+  }),
+].flatMap(([tileInputName, handInputName, tileOutputName, handOutputName, tilePart]) => {
+  const tileInput = tileInputName === null ? null : getItemIndex(tileInputName)
+  const handInput = handInputName === null ? null : getItemIndex(handInputName)
+  const tileOutput = tileOutputName === null ? null : getItemIndex(tileOutputName)
   const handOutput = handOutputName === null ? null : getItemIndex(handOutputName)
-  return tileInput === null || handInput === null || tileOutput === null || handOutputName !== null && handOutput === null
+  return tileInputName !== null && tileInput === null
+    || handInputName !== null && handInput === null
+    || tileOutputName !== null && tileOutput === null
+    || handOutputName !== null && handOutput === null
     ? []
-    : [{ tileInput, handInput, tileOutput, handOutput }]
+    : [{ tileInput, handInput, tileOutput, handOutput, tilePart }]
 })
-
-const INSTANT_TILE_RECIPE_BY_ITEMS = new Map(INSTANT_TILE_RECIPES.map((recipe) => [`${recipe.tileInput}:${recipe.handInput}`, recipe]))
 
 const PASSIVE_STOVE_RECIPES: UpstreamPassiveStoveRecipe[] = [
   ['pan:patty', 'pan:seared-patty', 15, false],
@@ -438,6 +450,14 @@ function getActiveTileRecipe(item: number | null, position: [number, number]) {
 function getPassiveStoveRecipe(item: number | null, position: [number, number]) {
   if (item === null || !tileHasPart(position, 'stove')) return null
   return PASSIVE_STOVE_RECIPE_BY_INPUT.get(item) ?? null
+}
+
+function getInstantTileRecipe(tileItem: number | null, heldItem: number | null, position: [number, number]) {
+  return INSTANT_TILE_RECIPES.find((recipe) => (
+    recipe.tileInput === tileItem
+    && recipe.handInput === heldItem
+    && (!recipe.tilePart || tileHasPart(position, recipe.tilePart))
+  )) ?? null
 }
 
 function getRenewableSourceItem(position: [number, number]) {
@@ -899,9 +919,7 @@ export function applyGameplayPacketToAuthority(
     const heldItem = getHandItem(session.snapshot, hand)
     const tileItem = getTileItem(session.snapshot, targetLocation)
     const tileProgress = getTileProgress(session.snapshot, targetLocation)
-    const instantTileRecipe = heldItem !== null && tileItem !== null
-      ? INSTANT_TILE_RECIPE_BY_ITEMS.get(`${tileItem}:${heldItem}`) ?? null
-      : null
+    const instantTileRecipe = getInstantTileRecipe(tileItem, heldItem, tile)
 
     if (tileProgress && heldItem === null && tileProgress.handOutput !== null) {
       if (tileProgress.position >= 1) {
