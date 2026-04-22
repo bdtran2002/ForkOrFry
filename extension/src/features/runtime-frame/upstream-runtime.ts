@@ -30,13 +30,11 @@ app.innerHTML = `
 <main class="takeover runtime-frame-shell">
   <section class="card stage">
     <header>
-      <p class="eyebrow">${upstreamRuntimeCopy.eyebrow}</p>
       <h2>${upstreamRuntimeCopy.title}</h2>
-      <p class="lede">${upstreamRuntimeCopy.lede}</p>
     </header>
     <div class="status-row">
       <div>
-        <p class="eyebrow compact">${upstreamRuntimeCopy.sessionStatus}</p>
+        <p class="eyebrow compact">${upstreamRuntimeCopy.statusLabel}</p>
         <div class="status-text" id="status-text">${upstreamRuntimeCopy.booting}</div>
       </div>
       <div class="stage-pill" id="stage-pill"></div>
@@ -51,7 +49,6 @@ app.innerHTML = `
       <div class="field"><label>${upstreamRuntimeCopy.labels.gameplayPackets}</label><div class="input" id="gameplay-packets-value"></div></div>
       <div class="field"><label>${upstreamRuntimeCopy.labels.gameplaySummary}</label><div class="input" id="gameplay-summary-value"></div></div>
     </div>
-    <div class="runtime-note-list">${upstreamRuntimeCopy.notes.map((note) => `<p class="helper runtime-helper">${note}</p>`).join('')}</div>
     <div class="actions runtime-controls">
       <button type="button" class="secondary" id="refresh-export">${upstreamRuntimeCopy.buttons.refresh}</button>
     </div>
@@ -183,7 +180,7 @@ function renderMessage() {
 
 function render() {
   statusText.textContent = upstreamRuntimeCopy.phaseLabels[state.phase]
-  stagePill.textContent = `${upstreamRuntimeCopy.phasePrefix} ${state.phase}`
+  stagePill.textContent = state.phase
   exportStateValue.textContent = upstreamRuntimeCopy.exportStates[state.exportState as UpstreamRuntimeExportState]
   bridgeStateValue.textContent = upstreamRuntimeCopy.bridgeStates[state.bridgeState]
   godotBridgeValue.textContent = upstreamRuntimeCopy.godotBridgeSummary(
