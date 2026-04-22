@@ -4,10 +4,10 @@ import {
   type RuntimeToHostMessage,
 } from './contract'
 import {
-  clearRuntimeHostSession,
   markRuntimeHostHidden,
   markRuntimeHostUnloading,
   openRuntimeHostSession,
+  resetRuntimeHostSession,
   saveRuntimeCheckpoint,
   type RuntimeHostSession,
   updateRuntimeHostSession,
@@ -187,7 +187,7 @@ export function createRuntimeHostController(options: RuntimeHostControllerOption
         }
       }
 
-      await clearRuntimeHostSession(options.runtimeId)
+      await resetRuntimeHostSession(options.runtimeId)
     }
 
     const opened = await openRuntimeHostSession(options.runtimeId)

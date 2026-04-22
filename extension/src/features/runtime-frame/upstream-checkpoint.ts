@@ -5,6 +5,7 @@ import {
 import {
   UPSTREAM_RUNTIME_GAMEPLAY_PACKET_HISTORY_LIMIT,
   UPSTREAM_RUNTIME_SAVE_VERSION,
+  createInitialUpstreamGodotBridgeSnapshot,
   createInitialUpstreamRuntimeState,
   type UpstreamRuntimeState,
 } from './upstream-runtime-state'
@@ -46,6 +47,11 @@ function createGameplayPacketSummary(packets: UpstreamRuntimeState['gameplayPack
 
 function trimGameplayPackets(packets: UpstreamRuntimeState['gameplayPackets']) {
   return packets.slice(-UPSTREAM_RUNTIME_GAMEPLAY_PACKET_HISTORY_LIMIT)
+}
+
+function restoreGodotBridgeSnapshot(state: UpstreamRuntimeState) {
+  const snapshot = state.godotBridgeSnapshot
+  return snapshot ?? createInitialUpstreamGodotBridgeSnapshot()
 }
 
 function isUpstreamRuntimeState(value: unknown): value is UpstreamRuntimeState {
@@ -103,7 +109,7 @@ export function restoreUpstreamRuntimeCheckpoint(
     ...initialState,
     ...checkpoint.state,
     lastCheckpointReason: null,
-    godotBridgeSnapshot: checkpoint.state.godotBridgeSnapshot ?? initialState.godotBridgeSnapshot,
+    godotBridgeSnapshot: restoreGodotBridgeSnapshot(checkpoint.state),
     gameplayPackets,
     gameplayPacketSummary,
   }

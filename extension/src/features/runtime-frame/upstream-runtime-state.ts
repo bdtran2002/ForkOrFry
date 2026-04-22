@@ -11,6 +11,14 @@ export interface UpstreamGodotBridgeSnapshot {
   updatedAt: string | null
 }
 
+export function createInitialUpstreamGodotBridgeSnapshot(): UpstreamGodotBridgeSnapshot {
+  return {
+    entryState: null,
+    lastUpdate: null,
+    updatedAt: null,
+  }
+}
+
 export interface UpstreamRuntimeState {
   saveVersion: typeof UPSTREAM_RUNTIME_SAVE_VERSION
   sessionId: string
@@ -48,11 +56,7 @@ export function createInitialUpstreamRuntimeState(): UpstreamRuntimeState {
       acknowledgedPacketCount: 0,
       lastError: null,
     },
-    godotBridgeSnapshot: {
-      entryState: null,
-      lastUpdate: null,
-      updatedAt: null,
-    },
+    godotBridgeSnapshot: createInitialUpstreamGodotBridgeSnapshot(),
     gameplayPackets: [],
     gameplayPacketSummary: {
       totalCount: 0,
