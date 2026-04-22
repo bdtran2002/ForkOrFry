@@ -2,6 +2,7 @@
 
 [![CI](https://github.com/bdtran2002/ForkOrFry/actions/workflows/ci.yml/badge.svg)](https://github.com/bdtran2002/ForkOrFry/actions/workflows/ci.yml)
 [![Status: beta](https://img.shields.io/badge/status-beta-8a5cf6.svg)](./README.md)
+[![Release](https://img.shields.io/github/v/release/bdtran2002/ForkOrFry?display_name=tag&include_prereleases&label=release)](https://github.com/bdtran2002/ForkOrFry/releases)
 [![TypeScript](https://img.shields.io/badge/language-TypeScript-3178c6.svg)](./extension)
 [![Framework: WXT](https://img.shields.io/badge/framework-WXT-111827.svg)](./extension)
 [![Engine: Godot](https://img.shields.io/badge/engine-Godot-478cbf.svg)](./extension/public/upstream/hurrycurry-web)
@@ -23,6 +24,8 @@ Need to report something? [Open a bug report](https://github.com/bdtran2002/Fork
 - an upstream-derived port of Hurry Curry, trimmed for the burger level
 
 ## Current status
+
+Latest prerelease: [`v0.0.1-beta.1`](https://github.com/bdtran2002/ForkOrFry/releases/tag/v0.0.1-beta.1)
 
 What works today:
 
