@@ -1,0 +1,11 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Project README
+    url: https://github.com/bdtran2002/ForkOrFry#readme
+    about: Start here for project status, setup, and current direction.
+  - name: Contributing guide
+    url: https://github.com/bdtran2002/ForkOrFry/blob/main/CONTRIBUTING.md
+    about: Check the project rules before opening a larger change request.
+  - name: Project site
+    url: https://bdtran2002.github.io/ForkOrFry/
+    about: View the lightweight public landing page for the project.
