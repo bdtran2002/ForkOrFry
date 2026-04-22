@@ -9,6 +9,7 @@ export const upstreamRuntimeCopy = {
   labels: {
     exportState: 'Export status',
     bridgeState: 'Bootstrap bridge',
+    godotBridge: 'Godot bridge',
     session: 'Session',
     exportPath: 'Export entry',
     checkpoint: 'Checkpoint',
@@ -49,4 +50,13 @@ export const upstreamRuntimeCopy = {
   readySummary: (path: string) => `Manifest found. Loading bundled export from ${path}.`,
   loadedSummary: 'Bundled export iframe loaded.',
   checkpointSummary: (reason: string | null) => reason ? `Last checkpoint: ${reason}` : 'No explicit checkpoint request yet.',
+  godotBridgeSummary: (entryState: string | null, multiplayerState: string | null, lastUpdate: string | null) => {
+    if (!entryState && !multiplayerState) return 'No live Godot bridge data yet.'
+
+    return [
+      entryState ? `entry: ${entryState}` : null,
+      multiplayerState ? `multiplayer: ${multiplayerState}` : null,
+      lastUpdate ? `last update: ${lastUpdate}` : null,
+    ].filter(Boolean).join(' • ')
+  },
 } as const

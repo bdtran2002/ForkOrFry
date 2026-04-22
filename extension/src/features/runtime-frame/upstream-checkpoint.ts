@@ -13,6 +13,10 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null
 }
 
+function isNullableString(value: unknown) {
+  return value === null || typeof value === 'string'
+}
+
 function isUpstreamRuntimeState(value: unknown): value is UpstreamRuntimeState {
   return (
     isRecord(value)
@@ -30,6 +34,16 @@ function isUpstreamRuntimeState(value: unknown): value is UpstreamRuntimeState {
     && (value.bridgeSnapshot.acknowledgedSessionId === null || typeof value.bridgeSnapshot.acknowledgedSessionId === 'string')
     && typeof value.bridgeSnapshot.acknowledgedPacketCount === 'number'
     && (value.bridgeSnapshot.lastError === null || typeof value.bridgeSnapshot.lastError === 'string')
+    && (
+      value.godotBridgeSnapshot === undefined
+      || (
+        isRecord(value.godotBridgeSnapshot)
+        && isNullableString(value.godotBridgeSnapshot.entryState)
+        && isNullableString(value.godotBridgeSnapshot.multiplayerState)
+        && isNullableString(value.godotBridgeSnapshot.lastUpdate)
+        && isNullableString(value.godotBridgeSnapshot.updatedAt)
+      )
+    )
   )
 }
 
@@ -41,7 +55,11 @@ export function restoreUpstreamRuntimeCheckpoint(
     return createInitialUpstreamRuntimeState()
   }
 
-  return checkpoint.state
+  return {
+    ...createInitialUpstreamRuntimeState(),
+    ...checkpoint.state,
+    godotBridgeSnapshot: checkpoint.state.godotBridgeSnapshot ?? createInitialUpstreamRuntimeState().godotBridgeSnapshot,
+  }
 }
 
 export function createUpstreamRuntimeCheckpoint(runtimeId: string, state: UpstreamRuntimeState): RuntimeCheckpointEnvelope<UpstreamRuntimeState> {
