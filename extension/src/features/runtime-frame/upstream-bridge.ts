@@ -98,35 +98,6 @@ export interface UpstreamGameplayPacket {
   payload: Record<string, unknown>
 }
 
-const DEFAULT_MAP_METADATA: UpstreamMapMetadata = {
-  name: 'burgers_inc',
-  display_name: 'Burgers, Inc.',
-  players: 2,
-  difficulty: 2,
-  hand_count: 2,
-  demand_items: [],
-}
-
-const DEFAULT_PLAYER_ID = 1
-
-const DEFAULT_CHARACTER: UpstreamCharacter = {
-  color: 0,
-  headwear: 0,
-  hairstyle: 0,
-}
-
-const DEFAULT_SCORE: UpstreamScore = {
-  points: 0,
-  demands_failed: 0,
-  demands_completed: 0,
-  time_remaining: 0,
-  players: 1,
-  active_recipes: 0,
-  passive_recipes: 0,
-  instant_recipes: 0,
-  stars: 0,
-}
-
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null
 }
@@ -240,40 +211,40 @@ export function createLocalBootstrapPayload(sessionId: string): UpstreamBootstra
     type: 'forkorfry:local-bootstrap',
     version: UPSTREAM_BRIDGE_PROTOCOL_VERSION,
     sessionId,
-    map: DEFAULT_MAP_METADATA.name,
-    playerId: DEFAULT_PLAYER_ID,
+    map: BURGERS_INC_BOOTSTRAP.metadata.name,
+    playerId: BURGERS_INC_BOOTSTRAP.playerId,
     generatedAt: new Date().toISOString(),
     packets: [
       { type: 'version', major: UPSTREAM_PROTOCOL_MAJOR, minor: 0 },
       {
         type: 'server_data',
-        maps: [DEFAULT_MAP_METADATA],
+        maps: [BURGERS_INC_BOOTSTRAP.metadata],
         bot_algos: [],
-        name: 'ForkOrFry Local Runtime',
-        motd: 'Offline single-player bootstrap',
+        name: BURGERS_INC_BOOTSTRAP.serverName,
+        motd: BURGERS_INC_BOOTSTRAP.motd,
       },
       {
         type: 'game_data',
-        metadata: DEFAULT_MAP_METADATA,
+        metadata: BURGERS_INC_BOOTSTRAP.metadata,
         item_names: BURGERS_INC_BOOTSTRAP.item_names,
         tile_names: BURGERS_INC_BOOTSTRAP.tile_names,
         tile_collide: BURGERS_INC_BOOTSTRAP.tile_collide,
         tile_placeable_items: BURGERS_INC_BOOTSTRAP.tile_placeable_items,
         tile_placeable_any: BURGERS_INC_BOOTSTRAP.tile_placeable_any,
         tile_interactable_empty: BURGERS_INC_BOOTSTRAP.tile_interactable_empty,
-        hand_count: DEFAULT_MAP_METADATA.hand_count,
+        hand_count: BURGERS_INC_BOOTSTRAP.metadata.hand_count,
         is_lobby: false,
       },
       { type: 'update_map', changes: BURGERS_INC_BOOTSTRAP.changes },
-      { type: 'score', ...DEFAULT_SCORE },
+      { type: 'score', ...BURGERS_INC_BOOTSTRAP.score },
       { type: 'set_ingame', state: true },
-      { type: 'joined', id: DEFAULT_PLAYER_ID },
+      { type: 'joined', id: BURGERS_INC_BOOTSTRAP.playerId },
       {
         type: 'add_player',
-        id: DEFAULT_PLAYER_ID,
+        id: BURGERS_INC_BOOTSTRAP.playerId,
         name: 'Chef',
         position: BURGERS_INC_BOOTSTRAP.spawnPosition,
-        character: DEFAULT_CHARACTER,
+        character: BURGERS_INC_BOOTSTRAP.character,
         class: 'chef',
       },
     ],

@@ -1,7 +1,40 @@
 // Upstream-derived snapshot for the Burgers, Inc. bootstrap content.
 // This file is the checked-in source of truth for the local bootstrap payload.
 
+export interface BurgersIncMapMetadata {
+  name: string
+  display_name: string
+  players: number
+  difficulty: number
+  hand_count: number
+  demand_items: string[]
+}
+
+export interface BurgersIncCharacter {
+  color: number
+  headwear: number
+  hairstyle: number
+}
+
+export interface BurgersIncScore {
+  points: number
+  demands_failed: number
+  demands_completed: number
+  time_remaining: number
+  players: number
+  active_recipes: number
+  passive_recipes: number
+  instant_recipes: number
+  stars: number
+}
+
 export interface BurgersIncBootstrapSnapshot {
+  metadata: BurgersIncMapMetadata
+  playerId: number
+  character: BurgersIncCharacter
+  score: BurgersIncScore
+  serverName: string
+  motd: string
   item_names: string[]
   tile_names: string[]
   tile_collide: number[]
@@ -137,6 +170,33 @@ export function buildBurgersIncBootstrap(): BurgersIncBootstrapSnapshot {
   const tile_placeable_items = Object.fromEntries(withFlag('x').map((tileIndexValue) => [String(tileIndexValue), allItemIndexes]))
 
   return {
+    metadata: {
+      name: 'burgers_inc',
+      display_name: 'Burgers, Inc.',
+      players: 2,
+      difficulty: 2,
+      hand_count: 2,
+      demand_items: [],
+    },
+    playerId: 1,
+    character: {
+      color: 0,
+      headwear: 0,
+      hairstyle: 0,
+    },
+    score: {
+      points: 0,
+      demands_failed: 0,
+      demands_completed: 0,
+      time_remaining: 0,
+      players: 1,
+      active_recipes: 0,
+      passive_recipes: 0,
+      instant_recipes: 0,
+      stars: 0,
+    },
+    serverName: 'ForkOrFry Local Runtime',
+    motd: 'Offline single-player bootstrap',
     item_names: itemNames,
     tile_names: tileNames,
     tile_collide: withFlag('c'),
