@@ -129,6 +129,12 @@ body {
     window.__FORKORFRY_BOOT__ = bridgeState.payload;
   }
 
+  function queueAuthorityPackets(packets) {
+    if (!Array.isArray(packets)) return;
+    window.__FORKORFRY_BRIDGE_AUTHORITY_PACKETS__ = window.__FORKORFRY_BRIDGE_AUTHORITY_PACKETS__ || [];
+    window.__FORKORFRY_BRIDGE_AUTHORITY_PACKETS__.push(...packets);
+  }
+
   function postToParent(type, extra) {
     if (window.parent === window) return;
     window.parent.postMessage({ type, version: PROTOCOL_VERSION, ...(extra || {}) }, window.location.origin);
@@ -172,6 +178,9 @@ body {
         bridgeState.paused = true;
         bridgeState.lastPauseReason = typeof data.reason === 'string' ? data.reason : 'Paused by the extension host.';
         publishBridgeState();
+        return;
+      case 'forkorfry:bridge-authority-packets':
+        queueAuthorityPackets(data.packets);
         return;
       default:
         return;
@@ -291,4 +300,3 @@ const engine = new Engine(GODOT_CONFIG);
 		</script>
 	</body>
 </html>
-

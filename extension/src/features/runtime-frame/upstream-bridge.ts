@@ -78,6 +78,7 @@ export type UpstreamParentToEmbeddedMessage =
   | { type: 'forkorfry:bridge-bootstrap', version: typeof UPSTREAM_BRIDGE_PROTOCOL_VERSION, payload: UpstreamBootstrapPayload }
   | { type: 'forkorfry:bridge-pause', version: typeof UPSTREAM_BRIDGE_PROTOCOL_VERSION, reason: string }
   | { type: 'forkorfry:bridge-resume', version: typeof UPSTREAM_BRIDGE_PROTOCOL_VERSION, payload: UpstreamBootstrapPayload }
+  | { type: 'forkorfry:bridge-authority-packets', version: typeof UPSTREAM_BRIDGE_PROTOCOL_VERSION, packets: UpstreamAuthorityPacket[] }
 
 export type UpstreamEmbeddedToParentMessage =
   | { type: 'forkorfry:bridge-ready', version: typeof UPSTREAM_BRIDGE_PROTOCOL_VERSION }
@@ -92,6 +93,16 @@ export interface UpstreamGameplayPacket {
   version: typeof UPSTREAM_BRIDGE_PROTOCOL_VERSION
   action: UpstreamGameplayAction
   payload: Record<string, unknown>
+}
+
+export interface UpstreamAuthorityPacket {
+  type: 'movement'
+  player: number
+  pos: [number, number]
+  rot: number
+  dir: [number, number]
+  boost: boolean
+  sync?: boolean
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -232,6 +243,14 @@ export function createGameplayPacketMessage(action: UpstreamGameplayAction, payl
     version: UPSTREAM_BRIDGE_PROTOCOL_VERSION,
     action,
     payload,
+  }
+}
+
+export function createBridgeAuthorityPacketsMessage(packets: UpstreamAuthorityPacket[]): UpstreamParentToEmbeddedMessage {
+  return {
+    type: 'forkorfry:bridge-authority-packets',
+    version: UPSTREAM_BRIDGE_PROTOCOL_VERSION,
+    packets,
   }
 }
 

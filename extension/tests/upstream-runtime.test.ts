@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 
 import {
+  createBridgeAuthorityPacketsMessage,
   createBridgeBootstrapMessage,
   createGameplayPacketMessage,
   type UpstreamBootstrapPacket,
@@ -10,6 +11,7 @@ import {
 import { BURGERS_INC_BOOTSTRAP, createBurgersIncBootstrapPayload, createBurgersIncBootstrapTemplate } from '../upstream/generated/burgers-inc-bootstrap'
 import { createUpstreamRuntimeCheckpoint, restoreUpstreamRuntimeCheckpoint } from '../src/features/runtime-frame/upstream-checkpoint'
 import { normalizeUpstreamExportManifest, resolveUpstreamExportUrl } from '../src/features/runtime-frame/upstream-export'
+import { applyGameplayPacketToAuthority, createAuthorityMovementPacket, createInitialAuthoritySnapshot, createLocalAuthoritySession } from '../src/features/runtime-frame/local-authority'
 import { acknowledgeUpstreamBridgeSnapshot, createBootUpstreamRuntimeState, createInitialUpstreamBridgeSnapshot, createInitialUpstreamRuntimeState, createResumeUpstreamRuntimeState, describeUpstreamRuntimeSession, errorUpstreamBridgeSnapshot, resolveUpstreamRuntimeSessionState, restoreUpstreamBridgeSnapshotForSession } from '../src/features/runtime-frame/upstream-runtime-state'
 import { UPSTREAM_RUNTIME_GAMEPLAY_PACKET_HISTORY_LIMIT } from '../src/features/runtime-frame/upstream-runtime-state'
 
@@ -44,6 +46,13 @@ describe('upstream runtime helpers', () => {
         totalCount: 2,
         lastAction: 'interact',
         actionCounts: { movement: 1, interact: 1 },
+      },
+      authoritySnapshot: {
+        playerId: 1,
+        position: [4.5, 7.5],
+        direction: [1, 0],
+        rotation: Math.PI / 2,
+        boost: true,
       },
       lastCheckpointReason: 'checkpoint:pause',
       bootstrapPacketCount: 8,
@@ -398,6 +407,57 @@ describe('upstream runtime helpers', () => {
       name: 'Chef',
       position: [2.5, 9.5],
       class: 'chef',
+    })
+  })
+
+  it('applies movement gameplay packets through the local authority session', () => {
+    const session = createLocalAuthoritySession()
+    const result = applyGameplayPacketToAuthority(session, createGameplayPacketMessage('movement', {
+      player: 1,
+      pos: [4.5, 8.5],
+      dir: [0, 1],
+      boost: true,
+    }))
+
+    expect(result.session.snapshot).toEqual({
+      playerId: 1,
+      position: [4.5, 8.5],
+      direction: [0, 1],
+      rotation: 0,
+      boost: true,
+    })
+    expect(result.packets).toEqual([
+      {
+        type: 'movement',
+        player: 1,
+        pos: [4.5, 8.5],
+        rot: 0,
+        dir: [0, 1],
+        boost: true,
+        sync: false,
+      },
+    ])
+  })
+
+  it('creates authority movement packets from the initial authority snapshot', () => {
+    expect(createAuthorityMovementPacket(createInitialAuthoritySnapshot())).toEqual({
+      type: 'movement',
+      player: BURGERS_INC_BOOTSTRAP.playerId,
+      pos: BURGERS_INC_BOOTSTRAP.spawnPosition,
+      rot: 0,
+      dir: [0, 0],
+      boost: false,
+      sync: false,
+    })
+  })
+
+  it('wraps live authority packets in a parent-to-iframe bridge message', () => {
+    expect(createBridgeAuthorityPacketsMessage([
+      createAuthorityMovementPacket(createInitialAuthoritySnapshot()),
+    ])).toEqual({
+      type: 'forkorfry:bridge-authority-packets',
+      version: 1,
+      packets: [createAuthorityMovementPacket(createInitialAuthoritySnapshot())],
     })
   })
 

@@ -9,9 +9,25 @@ import {
   trimUpstreamRuntimeGameplayPackets,
   type UpstreamRuntimeState,
 } from './upstream-runtime-state'
+import type { UpstreamAuthoritySnapshot } from './local-authority'
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null
+}
+
+function isAuthoritySnapshot(value: unknown): value is UpstreamAuthoritySnapshot {
+  return (
+    isRecord(value)
+    && typeof value.playerId === 'number'
+    && Array.isArray(value.position)
+    && value.position.length === 2
+    && value.position.every((part) => typeof part === 'number')
+    && Array.isArray(value.direction)
+    && value.direction.length === 2
+    && value.direction.every((part) => typeof part === 'number')
+    && typeof value.rotation === 'number'
+    && typeof value.boost === 'boolean'
+  )
 }
 
 function isUpstreamRuntimeState(value: unknown): value is UpstreamRuntimeState {
@@ -30,6 +46,7 @@ function isUpstreamRuntimeState(value: unknown): value is UpstreamRuntimeState {
     && (value.bridgeSnapshot.acknowledgedSessionId === null || typeof value.bridgeSnapshot.acknowledgedSessionId === 'string')
     && typeof value.bridgeSnapshot.acknowledgedPacketCount === 'number'
     && (value.bridgeSnapshot.lastError === null || typeof value.bridgeSnapshot.lastError === 'string')
+    && (value.authoritySnapshot === null || isAuthoritySnapshot(value.authoritySnapshot))
     && Array.isArray(value.gameplayPackets)
     && (
       value.gameplayPacketSummary === undefined

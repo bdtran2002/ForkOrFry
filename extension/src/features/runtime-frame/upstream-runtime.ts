@@ -7,16 +7,19 @@ import {
   type RuntimeToHostMessage,
 } from '../runtime-host/contract'
 import {
+  createBridgeAuthorityPacketsMessage,
   createBridgeBootstrapMessage,
   createBridgePauseMessage,
   createBridgeResumeMessage,
   isUpstreamEmbeddedToParentMessage,
+  type UpstreamGameplayPacket,
 } from './upstream-bridge'
 import { createBurgersIncBootstrapPayload } from '../../../upstream/generated/burgers-inc-bootstrap'
 import { createUpstreamRuntimeCheckpoint, restoreUpstreamRuntimeCheckpoint } from './upstream-checkpoint'
 import { upstreamRuntimeCopy } from './upstream-runtime-copy'
 import { normalizeUpstreamExportManifest, resolveUpstreamExportUrl } from './upstream-export'
 import { acknowledgeUpstreamBridgeSnapshot, createBootUpstreamRuntimeState, createInitialUpstreamRuntimeState, createResumeUpstreamRuntimeState, errorUpstreamBridgeSnapshot, summarizeUpstreamRuntimeGameplayPackets, trimUpstreamRuntimeGameplayPackets, type UpstreamRuntimeExportState, type UpstreamRuntimeState } from './upstream-runtime-state'
+import { applyGameplayPacketToAuthority, createAuthorityMovementPacket, createLocalAuthoritySession, type UpstreamLocalAuthoritySession } from './local-authority'
 
 const RUNTIME_ID = 'burger-runtime'
 const EXPORT_MANIFEST_PATH = '/upstream/hurrycurry-web/manifest.json'
@@ -78,6 +81,7 @@ const runtimeEmbedFrame = app.querySelector<HTMLIFrameElement>('#runtime-embed-f
 const runtimeEmbedOverlay = app.querySelector<HTMLElement>('#runtime-embed-overlay')!
 
 let state: UpstreamRuntimeState = createInitialUpstreamRuntimeState()
+let authoritySession: UpstreamLocalAuthoritySession = createLocalAuthoritySession()
 
 function postToHost(message: RuntimeToHostMessage) {
   window.parent.postMessage(message, window.location.origin)
@@ -165,6 +169,10 @@ function postToEmbeddedRuntime(message: unknown) {
   runtimeEmbedFrame.contentWindow?.postMessage(message, window.location.origin)
 }
 
+function syncAuthoritySession(snapshot = state.authoritySnapshot) {
+  authoritySession = createLocalAuthoritySession(snapshot)
+}
+
 function createUpstreamBootstrapPayload(sessionId: string) {
   return createBurgersIncBootstrapPayload(sessionId, 1)
 }
@@ -176,7 +184,21 @@ function recordGameplayPacket(action: 'movement' | 'interact' | 'ready' | 'idle'
     gameplayPackets,
     gameplayPacketSummary: summarizeUpstreamRuntimeGameplayPackets(gameplayPackets),
   })
-  postCheckpoint(`Received outbound gameplay packet: ${action}.`)
+}
+
+function sendAuthorityPacketsToEmbeddedRuntime() {
+  postToEmbeddedRuntime(createBridgeAuthorityPacketsMessage([
+    createAuthorityMovementPacket(authoritySession.snapshot),
+  ]))
+}
+
+function handleAuthorityGameplayPacket(packet: UpstreamGameplayPacket) {
+  const result = applyGameplayPacketToAuthority(authoritySession, packet)
+  if (result.packets.length === 0) return
+
+  authoritySession = result.session
+  setState({ authoritySnapshot: authoritySession.snapshot })
+  postToEmbeddedRuntime(createBridgeAuthorityPacketsMessage(result.packets))
 }
 
 function sendBootstrapToEmbeddedRuntime(messageType: 'bootstrap' | 'resume') {
@@ -257,6 +279,7 @@ function boot(checkpoint: RuntimeCheckpointEnvelope | null, nextSessionId: strin
   const bootstrapPayload = createUpstreamBootstrapPayload(nextSessionId)
 
   state = createBootUpstreamRuntimeState(restored, nextSessionId, bootstrapPayload.packets.length)
+  syncAuthoritySession(state.authoritySnapshot)
   render()
   postStatus('booting', currentPhaseDetail())
   postToHost({
@@ -282,6 +305,7 @@ function handleHostMessage(message: HostToRuntimeMessage) {
     case 'host:resume': {
       const restored = restoreUpstreamRuntimeCheckpoint(RUNTIME_ID, message.checkpoint)
       state = createResumeUpstreamRuntimeState(restored, state.sessionId)
+      syncAuthoritySession(state.authoritySnapshot)
       render()
       sendBootstrapAndCheckpoint('resume', 'Resumed runtime shell.')
       return
@@ -328,6 +352,7 @@ window.addEventListener('message', (event) => {
           detail: `Runtime acknowledged ${embeddedMessage.packetCount} bootstrap packets.`,
         })
         postStatus(state.phase, currentPhaseDetail())
+        sendAuthorityPacketsToEmbeddedRuntime()
         postCheckpoint('Runtime acknowledged bootstrap payload.')
         return
       case 'forkorfry:bridge-error':
@@ -340,6 +365,8 @@ window.addEventListener('message', (event) => {
         return
       case 'forkorfry:bridge-gameplay-packet':
         recordGameplayPacket(embeddedMessage.action, embeddedMessage.payload)
+        handleAuthorityGameplayPacket(embeddedMessage)
+        postCheckpoint(`Received outbound gameplay packet: ${embeddedMessage.action}.`)
         return
     }
   }

@@ -176,6 +176,13 @@ func _notification(what):
 
 func _process(_delta):
 	if bridge_mode:
+		var packets_json = JavaScriptBridge.eval("(function () { var queue = window.__FORKORFRY_BRIDGE_AUTHORITY_PACKETS__ || []; window.__FORKORFRY_BRIDGE_AUTHORITY_PACKETS__ = []; return JSON.stringify(queue); }())")
+		if packets_json != null and packets_json != "null":
+			var packets = JSON.parse_string(packets_json)
+			if packets is Array:
+				for packet_data in packets:
+					if packet_data is Dictionary:
+						handle_decoded_packet(packet_data)
 		return
 
 	if connected:

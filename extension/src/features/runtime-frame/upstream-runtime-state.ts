@@ -2,6 +2,7 @@ export const UPSTREAM_RUNTIME_SAVE_VERSION = 1 as const
 export const UPSTREAM_RUNTIME_GAMEPLAY_PACKET_HISTORY_LIMIT = 25
 
 import type { UpstreamBridgeSnapshot, UpstreamBridgeState } from './upstream-bridge'
+import type { UpstreamAuthoritySnapshot } from './local-authority'
 
 export type UpstreamRuntimeExportState = 'unknown' | 'missing' | 'ready' | 'loaded' | 'error'
 
@@ -16,6 +17,7 @@ export interface UpstreamRuntimeState {
   lastCheckpointReason: string | null
   bootstrapPacketCount: number
   bridgeSnapshot: UpstreamBridgeSnapshot
+  authoritySnapshot: UpstreamAuthoritySnapshot | null
   gameplayPackets: { action: string, payload: Record<string, unknown>, receivedAt: string }[]
   gameplayPacketSummary: {
     totalCount: number
@@ -130,6 +132,7 @@ export function createInitialUpstreamRuntimeState(): UpstreamRuntimeState {
     lastCheckpointReason: null,
     bootstrapPacketCount: 0,
     bridgeSnapshot: createInitialUpstreamBridgeSnapshot(),
+    authoritySnapshot: null,
     gameplayPackets: [],
     gameplayPacketSummary: {
       totalCount: 0,
