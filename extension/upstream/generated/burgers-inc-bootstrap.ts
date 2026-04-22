@@ -84,6 +84,14 @@ export interface BurgersIncBootstrapPayload<V extends number = number> {
   packets: BurgersIncBootstrapPacket[]
 }
 
+export interface BurgersIncBootstrapTemplate<V extends number = number> {
+  type: 'forkorfry:local-bootstrap'
+  version: V
+  map: string
+  playerId: number
+  packets: BurgersIncBootstrapPacket[]
+}
+
 type TileDefinition = {
   tiles: string[]
   item?: string
@@ -292,15 +300,21 @@ export function buildBurgersIncBootstrap(): BurgersIncBootstrapSnapshot {
   }
 }
 
-export function createBurgersIncBootstrapPayload<V extends number>(sessionId: string, version: V): BurgersIncBootstrapPayload<V> {
+export function createBurgersIncBootstrapTemplate<V extends number>(version: V): BurgersIncBootstrapTemplate<V> {
   return {
     type: 'forkorfry:local-bootstrap',
     version,
-    sessionId,
     map: BURGERS_INC_BOOTSTRAP.metadata.name,
     playerId: BURGERS_INC_BOOTSTRAP.playerId,
-    generatedAt: new Date().toISOString(),
     packets: BURGERS_INC_BOOTSTRAP.packets,
+  }
+}
+
+export function createBurgersIncBootstrapPayload<V extends number>(sessionId: string, version: V): BurgersIncBootstrapPayload<V> {
+  return {
+    ...createBurgersIncBootstrapTemplate(version),
+    sessionId,
+    generatedAt: new Date().toISOString(),
   }
 }
 

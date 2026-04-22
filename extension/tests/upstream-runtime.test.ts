@@ -7,7 +7,7 @@ import {
   isUpstreamBootstrapPayload,
   isUpstreamEmbeddedToParentMessage,
 } from '../src/features/runtime-frame/upstream-bridge'
-import { BURGERS_INC_BOOTSTRAP, createBurgersIncBootstrapPayload } from '../upstream/generated/burgers-inc-bootstrap'
+import { BURGERS_INC_BOOTSTRAP, createBurgersIncBootstrapPayload, createBurgersIncBootstrapTemplate } from '../upstream/generated/burgers-inc-bootstrap'
 import { createUpstreamRuntimeCheckpoint, restoreUpstreamRuntimeCheckpoint } from '../src/features/runtime-frame/upstream-checkpoint'
 import { normalizeUpstreamExportManifest, resolveUpstreamExportUrl } from '../src/features/runtime-frame/upstream-export'
 import { createInitialUpstreamRuntimeState, describeUpstreamRuntimeSession } from '../src/features/runtime-frame/upstream-runtime-state'
@@ -268,6 +268,16 @@ describe('upstream runtime helpers', () => {
       name: 'Chef',
       position: [2.5, 9.5],
       class: 'chef',
+    })
+  })
+
+  it('keeps the generated bootstrap template session-agnostic', () => {
+    expect(createBurgersIncBootstrapTemplate(1)).toEqual({
+      type: 'forkorfry:local-bootstrap',
+      version: 1,
+      map: BURGERS_INC_BOOTSTRAP.metadata.name,
+      playerId: BURGERS_INC_BOOTSTRAP.playerId,
+      packets: BURGERS_INC_BOOTSTRAP.packets,
     })
   })
 

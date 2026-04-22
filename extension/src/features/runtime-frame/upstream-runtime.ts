@@ -12,7 +12,7 @@ import {
   createBridgeResumeMessage,
   isUpstreamEmbeddedToParentMessage,
 } from './upstream-bridge'
-import { createBurgersIncBootstrapPayload } from '../../../upstream/generated/burgers-inc-bootstrap'
+import { createBurgersIncBootstrapTemplate } from '../../../upstream/generated/burgers-inc-bootstrap'
 import { createUpstreamRuntimeCheckpoint, restoreUpstreamRuntimeCheckpoint } from './upstream-checkpoint'
 import { upstreamRuntimeCopy } from './upstream-runtime-copy'
 import { normalizeUpstreamExportManifest, resolveUpstreamExportUrl } from './upstream-export'
@@ -21,6 +21,15 @@ import { createInitialUpstreamRuntimeState, describeUpstreamRuntimeSession, UPST
 const RUNTIME_ID = 'burger-runtime'
 const EXPORT_MANIFEST_PATH = '/upstream/hurrycurry-web/manifest.json'
 const RUNTIME_CAPABILITIES = ['checkpoint', 'pause', 'resume', 'upstream-runtime-shell'] as const
+const LOCAL_BOOTSTRAP_TEMPLATE = createBurgersIncBootstrapTemplate(1)
+
+function createRuntimeBootstrapPayload(sessionId: string) {
+  return {
+    ...LOCAL_BOOTSTRAP_TEMPLATE,
+    sessionId,
+    generatedAt: new Date().toISOString(),
+  }
+}
 
 const app = document.querySelector<HTMLDivElement>('#app')
 
@@ -205,7 +214,7 @@ function recordGameplayPacket(action: 'movement' | 'interact' | 'ready' | 'idle'
 
 function sendBootstrapToEmbeddedRuntime(messageType: 'bootstrap' | 'resume') {
   if (!state.sessionId || !runtimeEmbedFrame.contentWindow) return
-  const payload = createBurgersIncBootstrapPayload(state.sessionId, 1)
+  const payload = createRuntimeBootstrapPayload(state.sessionId)
 
   postToEmbeddedRuntime(
     messageType === 'resume'
@@ -273,7 +282,7 @@ async function loadBundledExport() {
 
 function boot(checkpoint: RuntimeCheckpointEnvelope | null, nextSessionId: string) {
   const restored = restoreUpstreamRuntimeCheckpoint(RUNTIME_ID, checkpoint)
-  const bootstrapPayload = createBurgersIncBootstrapPayload(nextSessionId, 1)
+  const bootstrapPayload = createRuntimeBootstrapPayload(nextSessionId)
 
   state = {
     ...restored,
