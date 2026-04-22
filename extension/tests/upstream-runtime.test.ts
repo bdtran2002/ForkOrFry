@@ -630,12 +630,147 @@ describe('upstream runtime helpers', () => {
         location: { tile: panTilePacket.location.tile },
         item: panPattyIndex,
       },
+    ])
+  })
+
+  it('assembles the hidden cheeseburger variant through the plate instant authority path', () => {
+    const slicedBunIndex = BURGERS_INC_BOOTSTRAP.item_names.indexOf('sliced-bun')
+    const slicedCheeseIndex = BURGERS_INC_BOOTSTRAP.item_names.indexOf('sliced-cheese')
+    const panIndex = BURGERS_INC_BOOTSTRAP.item_names.indexOf('pan')
+    const panSearedPattyIndex = BURGERS_INC_BOOTSTRAP.item_names.indexOf('pan:seared-patty')
+    const plateIndex = BURGERS_INC_BOOTSTRAP.item_names.indexOf('plate')
+    const plateBunIndex = BURGERS_INC_BOOTSTRAP.item_names.indexOf('plate:sliced-bun')
+    const platePattyBunIndex = BURGERS_INC_BOOTSTRAP.item_names.indexOf('plate:seared-patty,sliced-bun')
+    const finalBurgerIndex = BURGERS_INC_BOOTSTRAP.item_names.indexOf('plate:seared-patty,sliced-bun,sliced-cheese')
+    const plateTilePacket = BURGERS_INC_BOOTSTRAP.packets.find((packet) => packet.type === 'set_item' && 'tile' in packet.location && packet.item === plateIndex)
+    if (
+      slicedBunIndex < 0 || slicedCheeseIndex < 0 || panIndex < 0 || panSearedPattyIndex < 0
+      || plateBunIndex < 0 || platePattyBunIndex < 0 || finalBurgerIndex < 0
+      || !plateTilePacket || !('tile' in plateTilePacket.location)
+    ) {
+      throw new Error('Missing burger assembly fixture')
+    }
+
+    const bunAdded = applyGameplayPacketToAuthority(createLocalAuthoritySession({
+      ...createInitialAuthoritySnapshot(),
+      hands: [slicedBunIndex, null],
+    }), createGameplayPacketMessage('interact', {
+      player: 1,
+      hand: 0,
+      target: { tile: plateTilePacket.location.tile },
+    }))
+
+    expect(bunAdded.session.snapshot.hands[0]).toBeNull()
+    expect(bunAdded.session.snapshot.tileItems[plateTilePacket.location.tile.join(',')]).toBe(plateBunIndex)
+
+    const pattyAdded = applyGameplayPacketToAuthority(createLocalAuthoritySession({
+      ...bunAdded.session.snapshot,
+      hands: [panSearedPattyIndex, null],
+    }), createGameplayPacketMessage('interact', {
+      player: 1,
+      hand: 0,
+      target: { tile: plateTilePacket.location.tile },
+    }))
+
+    expect(pattyAdded.session.snapshot.hands[0]).toBe(panIndex)
+    expect(pattyAdded.session.snapshot.tileItems[plateTilePacket.location.tile.join(',')]).toBe(platePattyBunIndex)
+    expect(pattyAdded.packets).toEqual([
       {
         type: 'set_item',
-        location: { player: [1, 0] },
+        location: { tile: plateTilePacket.location.tile },
         item: null,
       },
+      {
+        type: 'move_item',
+        from: { player: [1, 0] },
+        to: { tile: plateTilePacket.location.tile },
+      },
+      {
+        type: 'set_item',
+        location: { tile: plateTilePacket.location.tile },
+        item: null,
+      },
+      {
+        type: 'set_item',
+        location: { tile: plateTilePacket.location.tile },
+        item: panIndex,
+      },
+      {
+        type: 'move_item',
+        from: { tile: plateTilePacket.location.tile },
+        to: { player: [1, 0] },
+      },
+      {
+        type: 'set_item',
+        location: { tile: plateTilePacket.location.tile },
+        item: platePattyBunIndex,
+      },
     ])
+
+    const finished = applyGameplayPacketToAuthority(createLocalAuthoritySession({
+      ...pattyAdded.session.snapshot,
+      hands: [slicedCheeseIndex, null],
+    }), createGameplayPacketMessage('interact', {
+      player: 1,
+      hand: 0,
+      target: { tile: plateTilePacket.location.tile },
+    }))
+
+    expect(finished.session.snapshot.hands[0]).toBeNull()
+    expect(finished.session.snapshot.tileItems[plateTilePacket.location.tile.join(',')]).toBe(finalBurgerIndex)
+  })
+
+  it('builds the same cheeseburger output in a different valid order', () => {
+    const slicedBunIndex = BURGERS_INC_BOOTSTRAP.item_names.indexOf('sliced-bun')
+    const slicedCheeseIndex = BURGERS_INC_BOOTSTRAP.item_names.indexOf('sliced-cheese')
+    const panIndex = BURGERS_INC_BOOTSTRAP.item_names.indexOf('pan')
+    const panSearedPattyIndex = BURGERS_INC_BOOTSTRAP.item_names.indexOf('pan:seared-patty')
+    const plateIndex = BURGERS_INC_BOOTSTRAP.item_names.indexOf('plate')
+    const plateCheeseIndex = BURGERS_INC_BOOTSTRAP.item_names.indexOf('plate:sliced-cheese')
+    const platePattyCheeseIndex = BURGERS_INC_BOOTSTRAP.item_names.indexOf('plate:seared-patty,sliced-cheese')
+    const finalBurgerIndex = BURGERS_INC_BOOTSTRAP.item_names.indexOf('plate:seared-patty,sliced-bun,sliced-cheese')
+    const plateTilePacket = BURGERS_INC_BOOTSTRAP.packets.find((packet) => packet.type === 'set_item' && 'tile' in packet.location && packet.item === plateIndex)
+    if (
+      slicedBunIndex < 0 || slicedCheeseIndex < 0 || panIndex < 0 || panSearedPattyIndex < 0
+      || plateCheeseIndex < 0 || platePattyCheeseIndex < 0 || finalBurgerIndex < 0
+      || !plateTilePacket || !('tile' in plateTilePacket.location)
+    ) {
+      throw new Error('Missing alternate burger assembly fixture')
+    }
+
+    const cheeseAdded = applyGameplayPacketToAuthority(createLocalAuthoritySession({
+      ...createInitialAuthoritySnapshot(),
+      hands: [slicedCheeseIndex, null],
+    }), createGameplayPacketMessage('interact', {
+      player: 1,
+      hand: 0,
+      target: { tile: plateTilePacket.location.tile },
+    }))
+
+    expect(cheeseAdded.session.snapshot.tileItems[plateTilePacket.location.tile.join(',')]).toBe(plateCheeseIndex)
+
+    const pattyAdded = applyGameplayPacketToAuthority(createLocalAuthoritySession({
+      ...cheeseAdded.session.snapshot,
+      hands: [panSearedPattyIndex, null],
+    }), createGameplayPacketMessage('interact', {
+      player: 1,
+      hand: 0,
+      target: { tile: plateTilePacket.location.tile },
+    }))
+
+    expect(pattyAdded.session.snapshot.hands[0]).toBe(panIndex)
+    expect(pattyAdded.session.snapshot.tileItems[plateTilePacket.location.tile.join(',')]).toBe(platePattyCheeseIndex)
+
+    const finished = applyGameplayPacketToAuthority(createLocalAuthoritySession({
+      ...pattyAdded.session.snapshot,
+      hands: [slicedBunIndex, null],
+    }), createGameplayPacketMessage('interact', {
+      player: 1,
+      hand: 0,
+      target: { tile: plateTilePacket.location.tile },
+    }))
+
+    expect(finished.session.snapshot.tileItems[plateTilePacket.location.tile.join(',')]).toBe(finalBurgerIndex)
   })
 
   it('starts and completes passive stove searing and burn progression', () => {

@@ -102,7 +102,10 @@ type TileDefinition = {
 const DEFAULT_ITEM_NAMES = [
   'foodprocessor', 'plate', 'glass', 'pan', 'basket', 'steak', 'coconut', 'strawberry', 'tomato', 'lettuce',
   'cheese', 'potato', 'bun', 'dirty-plate', 'water', 'sliced-tomato', 'sliced-lettuce', 'sliced-cheese',
-  'patty', 'sliced-bun', 'pan:patty', 'pan:seared-patty', 'pan:burned', 'french-fries', 'seared-steak',
+  'patty', 'sliced-bun', 'pan:patty', 'pan:seared-patty', 'pan:burned',
+  'plate:sliced-bun', 'plate:sliced-cheese', 'plate:seared-patty', 'plate:sliced-bun,sliced-cheese',
+  'plate:seared-patty,sliced-bun', 'plate:seared-patty,sliced-cheese', 'plate:seared-patty,sliced-bun,sliced-cheese',
+  'french-fries', 'seared-steak',
 ] as const
 
 const BURGERS_INC_ROWS = [

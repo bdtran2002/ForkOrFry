@@ -100,6 +100,18 @@ const CUTTING_BOARD_RECIPE_BY_INPUT = new Map(CUTTING_BOARD_RECIPES.map((recipe)
 
 const INSTANT_TILE_RECIPES: UpstreamInstantTileRecipe[] = [
   ['pan', 'patty', 'pan:patty', null],
+  ['plate', 'sliced-bun', 'plate:sliced-bun', null],
+  ['plate', 'sliced-cheese', 'plate:sliced-cheese', null],
+  ['plate', 'pan:seared-patty', 'plate:seared-patty', 'pan'],
+  ['plate:sliced-bun', 'sliced-cheese', 'plate:sliced-bun,sliced-cheese', null],
+  ['plate:sliced-bun', 'pan:seared-patty', 'plate:seared-patty,sliced-bun', 'pan'],
+  ['plate:sliced-cheese', 'sliced-bun', 'plate:sliced-bun,sliced-cheese', null],
+  ['plate:sliced-cheese', 'pan:seared-patty', 'plate:seared-patty,sliced-cheese', 'pan'],
+  ['plate:seared-patty', 'sliced-bun', 'plate:seared-patty,sliced-bun', null],
+  ['plate:seared-patty', 'sliced-cheese', 'plate:seared-patty,sliced-cheese', null],
+  ['plate:sliced-bun,sliced-cheese', 'pan:seared-patty', 'plate:seared-patty,sliced-bun,sliced-cheese', 'pan'],
+  ['plate:seared-patty,sliced-bun', 'sliced-cheese', 'plate:seared-patty,sliced-bun,sliced-cheese', null],
+  ['plate:seared-patty,sliced-cheese', 'sliced-bun', 'plate:seared-patty,sliced-bun,sliced-cheese', null],
 ].flatMap(([tileInputName, handInputName, tileOutputName, handOutputName]) => {
   const tileInput = getItemIndex(tileInputName)
   const handInput = getItemIndex(handInputName)
@@ -328,33 +340,38 @@ function createInstantRecipePackets(
   location: { tile: [number, number] },
   playerId: number,
   hand: number,
+  tileHadItem: boolean,
+  handHadItem: boolean,
   tileOutput: number | null,
   handOutput: number | null,
 ): UpstreamAuthorityPacket[] {
   return [
-    {
-      type: 'set_item',
-      location,
-      item: null,
-    },
-    {
-      type: 'move_item',
-      from: { player: [playerId, hand] },
-      to: location,
-    },
-    {
-      type: 'set_item',
-      location,
-      item: null,
-    },
+    ...(tileHadItem
+      ? [{ type: 'set_item' as const, location, item: null }]
+      : []),
+    ...(handHadItem
+      ? [
+        {
+          type: 'move_item' as const,
+          from: { player: [playerId, hand] as [number, number] },
+          to: location,
+        },
+        { type: 'set_item' as const, location, item: null },
+      ]
+      : []),
+    ...(handOutput !== null
+      ? [
+        { type: 'set_item' as const, location, item: handOutput },
+        {
+          type: 'move_item' as const,
+          from: location,
+          to: { player: [playerId, hand] as [number, number] },
+        },
+      ]
+      : []),
     ...(tileOutput !== null
       ? [{ type: 'set_item' as const, location, item: tileOutput }]
       : []),
-    {
-      type: 'set_item',
-      location: { player: [playerId, hand] },
-      item: handOutput,
-    },
   ]
 }
 
@@ -676,6 +693,8 @@ export function applyGameplayPacketToAuthority(
           targetLocation,
           session.snapshot.playerId,
           hand,
+          tileItem !== null,
+          heldItem !== null,
           instantTileRecipe.tileOutput,
           instantTileRecipe.handOutput,
         ),
