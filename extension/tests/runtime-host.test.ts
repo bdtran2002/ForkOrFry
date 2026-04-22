@@ -53,6 +53,7 @@ describe('runtime host', () => {
 
     const first = await openRuntimeHostSession('burger-runtime')
     expect(first.resumeCount).toBe(0)
+    expect(first.lifecycleState).toBe('fresh')
 
     await saveRuntimeCheckpoint('burger-runtime', {
       version: 1,
@@ -63,6 +64,7 @@ describe('runtime host', () => {
 
     const reopened = await openRuntimeHostSession('burger-runtime')
     expect(reopened.resumeCount).toBe(1)
+    expect(reopened.lifecycleState).toBe('reopened')
     expect(reopened.checkpoint?.state).toEqual({ saveVersion: 1, levelId: 'burger', tick: 2 })
 
     await clearRuntimeHostSession('burger-runtime')
@@ -215,7 +217,36 @@ describe('runtime host', () => {
     await vi.waitFor(async () => {
       const session = await getRuntimeHostSession('burger-runtime')
       expect(session.status).toBe('paused')
+      expect(session.lifecycleState).toBe('unloading')
       expect(session.lastHiddenAt).not.toBeNull()
+    })
+  })
+
+  it('marks resumed sessions explicitly after hidden pauses', async () => {
+    const mock = createBrowserMock()
+    Object.assign(globalThis, { browser: mock.browser as BrowserMock })
+
+    const runtimeWindow = { postMessage: vi.fn() } as unknown as Window
+    const frame = document.createElement('iframe')
+    const mountRuntime = vi.fn().mockResolvedValue({ frame, runtimeWindow })
+
+    const { getRuntimeHostSession } = await import('../src/features/runtime-host/checkpoint-store')
+    const { createRuntimeHostController } = await import('../src/features/runtime-host/controller')
+
+    const controller = createRuntimeHostController({
+      runtimeId: 'burger-runtime',
+      mountRuntime,
+      onSessionChange: vi.fn(),
+    })
+
+    await controller.start()
+    await controller.pause('Host window hidden.')
+    await controller.resume()
+
+    await vi.waitFor(async () => {
+      const session = await getRuntimeHostSession('burger-runtime')
+      expect(session.status).toBe('running')
+      expect(session.lifecycleState).toBe('resumed')
     })
   })
 

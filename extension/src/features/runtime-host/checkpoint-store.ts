@@ -3,6 +3,7 @@ import { type RuntimeCheckpointEnvelope } from './contract'
 const STORAGE_KEY = 'forkorfry:runtime-host-session:v1'
 
 export type RuntimeHostStatus = 'idle' | 'booting' | 'running' | 'paused' | 'ready' | 'error'
+export type RuntimeHostLifecycleState = 'fresh' | 'hidden' | 'unloading' | 'reopened' | 'resumed'
 
 export interface RuntimeHostSession {
   version: 1
@@ -10,6 +11,7 @@ export interface RuntimeHostSession {
   runtimeId: string
   status: RuntimeHostStatus
   detail: string | null
+  lifecycleState: RuntimeHostLifecycleState
   resumeCount: number
   lastOpenedAt: number | null
   lastReadyAt: number | null
@@ -21,7 +23,7 @@ export interface RuntimeHostSession {
 
 export type MutableRuntimeHostSessionPatch = Partial<Pick<
   RuntimeHostSession,
-  'status' | 'detail' | 'resumeCount' | 'lastOpenedAt' | 'lastReadyAt' | 'lastCheckpointAt' | 'lastHiddenAt' | 'lastError' | 'checkpoint'
+  'status' | 'detail' | 'lifecycleState' | 'resumeCount' | 'lastOpenedAt' | 'lastReadyAt' | 'lastCheckpointAt' | 'lastHiddenAt' | 'lastError' | 'checkpoint'
 >>
 
 const DEFAULT_SESSION: RuntimeHostSession = {
@@ -30,6 +32,7 @@ const DEFAULT_SESSION: RuntimeHostSession = {
   runtimeId: '',
   status: 'idle',
   detail: null,
+  lifecycleState: 'fresh',
   resumeCount: 0,
   lastOpenedAt: null,
   lastReadyAt: null,
@@ -81,6 +84,8 @@ function isRuntimeHostSession(value: unknown): value is RuntimeHostSession {
     typeof value.runtimeId === 'string' &&
     isRuntimeHostStatus(value.status) &&
     isNullableString(value.detail) &&
+    typeof value.lifecycleState === 'string' &&
+    ['fresh', 'hidden', 'unloading', 'reopened', 'resumed'].includes(value.lifecycleState) &&
     typeof value.resumeCount === 'number' &&
     isNullableNumber(value.lastOpenedAt) &&
     isNullableNumber(value.lastReadyAt) &&
@@ -149,6 +154,7 @@ export async function openRuntimeHostSession(runtimeId: string) {
     lastOpenedAt: Date.now(),
     lastHiddenAt: null,
     lastError: null,
+    lifecycleState: resumed ? 'reopened' : 'fresh',
   }
 
   await saveRuntimeHostSession(next)
@@ -163,6 +169,7 @@ export async function updateRuntimeHostSession(runtimeId: string, partial: Mutab
     version: current.version,
     sessionId: current.sessionId,
     runtimeId: current.runtimeId,
+    lifecycleState: partial.lifecycleState ?? current.lifecycleState,
   }
 
   await saveRuntimeHostSession(next)
@@ -181,6 +188,16 @@ export async function markRuntimeHostHidden(runtimeId: string, detail: string) {
   return updateRuntimeHostSession(runtimeId, {
     status: 'paused',
     detail,
+    lifecycleState: 'hidden',
+    lastHiddenAt: Date.now(),
+  })
+}
+
+export async function markRuntimeHostUnloading(runtimeId: string, detail: string) {
+  return updateRuntimeHostSession(runtimeId, {
+    status: 'paused',
+    detail,
+    lifecycleState: 'unloading',
     lastHiddenAt: Date.now(),
   })
 }

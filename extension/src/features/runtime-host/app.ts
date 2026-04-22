@@ -34,6 +34,7 @@ app.innerHTML = `
   <section class="card stage host-stage">
     <div class="status-grid host-status-grid" aria-label="Runtime host state">
       <div class="status-tile"><span class="status-label">${runtimeHostCopy.labels.status}</span><strong class="status-value" id="host-status"></strong></div>
+      <div class="status-tile"><span class="status-label">${runtimeHostCopy.labels.lifecycle}</span><strong class="status-value" id="lifecycle-state"></strong></div>
       <div class="status-tile"><span class="status-label">${runtimeHostCopy.labels.surface}</span><strong class="status-value" id="host-surface"></strong></div>
       <div class="status-tile"><span class="status-label">${runtimeHostCopy.labels.runtime}</span><strong class="status-value" id="runtime-id"></strong></div>
       <div class="status-tile"><span class="status-label">${runtimeHostCopy.labels.session}</span><strong class="status-value" id="session-id"></strong></div>
@@ -64,6 +65,7 @@ app.innerHTML = `
 </main>`
 
 const hostStatus = app.querySelector<HTMLElement>('#host-status')!
+const lifecycleStateValue = app.querySelector<HTMLElement>('#lifecycle-state')!
 const hostSurfaceValue = app.querySelector<HTMLElement>('#host-surface')!
 const runtimeIdValue = app.querySelector<HTMLElement>('#runtime-id')!
 const sessionIdValue = app.querySelector<HTMLElement>('#session-id')!
@@ -93,6 +95,7 @@ function shortSessionId(value: string) {
 
 function renderSession(session: RuntimeHostSession) {
   hostStatus.textContent = session.detail ? `${session.status} — ${session.detail}` : session.status
+  lifecycleStateValue.textContent = session.lifecycleState
   hostSurfaceValue.textContent = currentSurface === 'full-tab' ? runtimeHostCopy.surfaces.fullTab : runtimeHostCopy.surfaces.popupWindow
   runtimeIdValue.textContent = session.runtimeId
   sessionIdValue.textContent = shortSessionId(session.sessionId)

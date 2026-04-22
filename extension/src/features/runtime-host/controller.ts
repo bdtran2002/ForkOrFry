@@ -6,6 +6,7 @@ import {
 import {
   clearRuntimeHostSession,
   markRuntimeHostHidden,
+  markRuntimeHostUnloading,
   openRuntimeHostSession,
   saveRuntimeCheckpoint,
   type RuntimeHostSession,
@@ -234,6 +235,7 @@ export function createRuntimeHostController(options: RuntimeHostControllerOption
         status: 'running',
         detail: 'Resuming child runtime from the latest checkpoint.',
         lastHiddenAt: null,
+        lifecycleState: 'resumed',
       })
       emit(next)
       postToRuntime({ type: 'host:resume', runtimeId: options.runtimeId, checkpoint: next.checkpoint })
@@ -262,7 +264,7 @@ export function createRuntimeHostController(options: RuntimeHostControllerOption
         })
       }
 
-      void markRuntimeHostHidden(options.runtimeId, reason)
+      void markRuntimeHostUnloading(options.runtimeId, reason)
         .then((next) => {
           emit(next)
         })

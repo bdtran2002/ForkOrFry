@@ -1,4 +1,5 @@
 export const UPSTREAM_RUNTIME_SAVE_VERSION = 1 as const
+export const UPSTREAM_RUNTIME_GAMEPLAY_PACKET_HISTORY_LIMIT = 25
 
 import type { UpstreamBridgeSnapshot, UpstreamBridgeState } from './upstream-bridge'
 
@@ -59,4 +60,12 @@ export function createInitialUpstreamRuntimeState(): UpstreamRuntimeState {
       actionCounts: {},
     },
   }
+}
+
+export function describeUpstreamRuntimeSession(sessionId: string, reused: boolean) {
+  const shortSessionId = sessionId.slice(0, 9)
+
+  return reused
+    ? `Reusing checkpointed session ${shortSessionId}.`
+    : `Boot accepted for ${shortSessionId}.`
 }

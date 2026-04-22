@@ -17,7 +17,7 @@ import {
 import { createUpstreamRuntimeCheckpoint, restoreUpstreamRuntimeCheckpoint } from './upstream-checkpoint'
 import { upstreamRuntimeCopy } from './upstream-runtime-copy'
 import { normalizeUpstreamExportManifest, resolveUpstreamExportUrl } from './upstream-export'
-import { createInitialUpstreamRuntimeState, type UpstreamRuntimeExportState, type UpstreamRuntimeState } from './upstream-runtime-state'
+import { createInitialUpstreamRuntimeState, describeUpstreamRuntimeSession, UPSTREAM_RUNTIME_GAMEPLAY_PACKET_HISTORY_LIMIT, type UpstreamRuntimeExportState, type UpstreamRuntimeState } from './upstream-runtime-state'
 
 const RUNTIME_ID = 'burger-runtime'
 const EXPORT_MANIFEST_PATH = '/upstream/hurrycurry-web/manifest.json'
@@ -124,13 +124,22 @@ function setState(nextState: Partial<UpstreamRuntimeState>) {
   render()
 }
 
-function updateGameplayPacketSummary(action: string) {
-  const actionCounts = { ...state.gameplayPacketSummary.actionCounts }
-  actionCounts[action] = (actionCounts[action] ?? 0) + 1
+function trimGameplayPackets(packets: UpstreamRuntimeState['gameplayPackets']) {
+  return packets.slice(-UPSTREAM_RUNTIME_GAMEPLAY_PACKET_HISTORY_LIMIT)
+}
+
+function createGameplayPacketSummary(packets: UpstreamRuntimeState['gameplayPackets']) {
+  const actionCounts: Record<string, number> = {}
+  let lastAction: string | null = null
+
+  for (const packet of packets) {
+    actionCounts[packet.action] = (actionCounts[packet.action] ?? 0) + 1
+    lastAction = packet.action
+  }
 
   return {
-    totalCount: state.gameplayPacketSummary.totalCount + 1,
-    lastAction: action,
+    totalCount: packets.length,
+    lastAction,
     actionCounts,
   }
 }
@@ -235,9 +244,10 @@ function postToEmbeddedRuntime(message: unknown) {
 
 function recordGameplayPacket(action: 'movement' | 'interact' | 'ready' | 'idle', payload: Record<string, unknown>) {
   const packet = { action, payload, receivedAt: new Date().toISOString() }
+  const gameplayPackets = trimGameplayPackets([...state.gameplayPackets, packet])
   setState({
-    gameplayPackets: [...state.gameplayPackets, packet],
-    gameplayPacketSummary: updateGameplayPacketSummary(action),
+    gameplayPackets,
+    gameplayPacketSummary: createGameplayPacketSummary(gameplayPackets),
   })
   postCheckpoint(`Received outbound gameplay packet: ${action}.`)
 }
@@ -337,7 +347,7 @@ function boot(checkpoint: RuntimeCheckpointEnvelope | null, nextSessionId: strin
     godotBridgeSnapshot: reusingSnapshot
       ? restored.godotBridgeSnapshot
       : createInitialUpstreamRuntimeState().godotBridgeSnapshot,
-    detail: `Boot accepted for ${nextSessionId.slice(0, 8)}.`,
+    detail: describeUpstreamRuntimeSession(nextSessionId, reusingSnapshot),
   }
   render()
   postStatus('booting', currentPhaseDetail())
@@ -370,7 +380,9 @@ function handleHostMessage(message: HostToRuntimeMessage) {
         phase: restored.exportUrl ? 'running' : 'ready',
         bridgeState: restored.exportUrl ? 'waiting' : restored.bridgeState,
         bootstrapPacketCount: restored.bridgeSnapshot.payload?.packets.length ?? restored.bootstrapPacketCount,
-        detail: restored.exportUrl ? upstreamRuntimeCopy.phaseLabels.running : upstreamRuntimeCopy.phaseLabels.ready,
+        detail: restored.bridgeSnapshot.payload?.sessionId === restored.sessionId
+          ? describeUpstreamRuntimeSession(restored.sessionId, true)
+          : restored.exportUrl ? upstreamRuntimeCopy.phaseLabels.running : upstreamRuntimeCopy.phaseLabels.ready,
       }
       render()
       startGodotBridgePoll()
