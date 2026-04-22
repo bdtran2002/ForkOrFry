@@ -49,6 +49,7 @@ app.innerHTML = `
       <div class="field"><label>${upstreamRuntimeCopy.labels.exportPath}</label><div class="input" id="export-path-value"></div></div>
       <div class="field"><label>${upstreamRuntimeCopy.labels.checkpoint}</label><div class="input" id="checkpoint-value"></div></div>
       <div class="field"><label>${upstreamRuntimeCopy.labels.gameplayPackets}</label><div class="input" id="gameplay-packets-value"></div></div>
+      <div class="field"><label>${upstreamRuntimeCopy.labels.gameplaySummary}</label><div class="input" id="gameplay-summary-value"></div></div>
     </div>
     <div class="runtime-note-list">${upstreamRuntimeCopy.notes.map((note) => `<p class="helper runtime-helper">${note}</p>`).join('')}</div>
     <div class="actions runtime-controls">
@@ -74,6 +75,7 @@ const sessionValue = app.querySelector<HTMLElement>('#session-value')!
 const exportPathValue = app.querySelector<HTMLElement>('#export-path-value')!
 const checkpointValue = app.querySelector<HTMLElement>('#checkpoint-value')!
 const gameplayPacketsValue = app.querySelector<HTMLElement>('#gameplay-packets-value')!
+const gameplaySummaryValue = app.querySelector<HTMLElement>('#gameplay-summary-value')!
 const exportMessageBody = app.querySelector<HTMLElement>('#export-message-body')!
 const refreshButton = app.querySelector<HTMLButtonElement>('#refresh-export')!
 const runtimeEmbed = app.querySelector<HTMLElement>('#runtime-embed')!
@@ -86,7 +88,6 @@ let godotBridgePollHandle: number | null = null
 interface RuntimeIframeWindow extends Window {
   __FORKORFRY_GODOT_BRIDGE__?: {
     entryState?: unknown
-    multiplayerState?: unknown
     updatedAt?: unknown
   }
   __FORKORFRY_GODOT_LAST_UPDATE__?: unknown
@@ -121,6 +122,17 @@ function postCheckpoint(reason?: string) {
 function setState(nextState: Partial<UpstreamRuntimeState>) {
   state = { ...state, ...nextState }
   render()
+}
+
+function updateGameplayPacketSummary(action: string) {
+  const actionCounts = { ...state.gameplayPacketSummary.actionCounts }
+  actionCounts[action] = (actionCounts[action] ?? 0) + 1
+
+  return {
+    totalCount: state.gameplayPacketSummary.totalCount + 1,
+    lastAction: action,
+    actionCounts,
+  }
 }
 
 function currentPhaseDetail() {
@@ -167,13 +179,13 @@ function render() {
   bridgeStateValue.textContent = upstreamRuntimeCopy.bridgeStates[state.bridgeState]
   godotBridgeValue.textContent = upstreamRuntimeCopy.godotBridgeSummary(
     state.godotBridgeSnapshot.entryState,
-    state.godotBridgeSnapshot.multiplayerState,
     state.godotBridgeSnapshot.lastUpdate,
   )
   sessionValue.textContent = state.sessionId ? state.sessionId.slice(0, 12) : 'No session yet'
   exportPathValue.textContent = state.exportUrl ?? EXPORT_MANIFEST_PATH
   checkpointValue.textContent = upstreamRuntimeCopy.checkpointSummary(state.lastCheckpointReason)
   gameplayPacketsValue.textContent = upstreamRuntimeCopy.gameplayPacketsSummary(state.gameplayPackets)
+  gameplaySummaryValue.textContent = upstreamRuntimeCopy.gameplayPacketSummary(state.gameplayPacketSummary)
   renderMessage()
   renderEmbed()
 }
@@ -192,14 +204,12 @@ function syncGodotBridgeSnapshotFromIframe() {
   const bridge = iframeWindow.__FORKORFRY_GODOT_BRIDGE__
   const nextSnapshot = {
     entryState: typeof bridge?.entryState === 'string' ? bridge.entryState : null,
-    multiplayerState: typeof bridge?.multiplayerState === 'string' ? bridge.multiplayerState : null,
     lastUpdate: typeof iframeWindow.__FORKORFRY_GODOT_LAST_UPDATE__ === 'string' ? iframeWindow.__FORKORFRY_GODOT_LAST_UPDATE__ : null,
     updatedAt: typeof bridge?.updatedAt === 'string' ? bridge.updatedAt : null,
   }
 
   if (
     state.godotBridgeSnapshot.entryState === nextSnapshot.entryState
-    && state.godotBridgeSnapshot.multiplayerState === nextSnapshot.multiplayerState
     && state.godotBridgeSnapshot.lastUpdate === nextSnapshot.lastUpdate
     && state.godotBridgeSnapshot.updatedAt === nextSnapshot.updatedAt
   ) {
@@ -225,7 +235,10 @@ function postToEmbeddedRuntime(message: unknown) {
 
 function recordGameplayPacket(action: 'movement' | 'interact' | 'ready' | 'idle', payload: Record<string, unknown>) {
   const packet = { action, payload, receivedAt: new Date().toISOString() }
-  setState({ gameplayPackets: [...state.gameplayPackets, packet] })
+  setState({
+    gameplayPackets: [...state.gameplayPackets, packet],
+    gameplayPacketSummary: updateGameplayPacketSummary(action),
+  })
   postCheckpoint(`Received outbound gameplay packet: ${action}.`)
 }
 
@@ -399,8 +412,9 @@ window.addEventListener('message', (event) => {
     return
   }
 
-  if (event.source === runtimeEmbedFrame.contentWindow && isUpstreamEmbeddedToParentMessage(event.data)) {
-    switch (event.data.type) {
+  const embeddedMessage = event.data
+  if (event.source === runtimeEmbedFrame.contentWindow && isUpstreamEmbeddedToParentMessage(embeddedMessage)) {
+    switch (embeddedMessage.type) {
       case 'forkorfry:bridge-ready':
         setState({ bridgeState: 'waiting', detail: 'Embedded runtime bridge is ready for bootstrap data.' })
         sendBootstrapToEmbeddedRuntime('bootstrap')
@@ -410,11 +424,11 @@ window.addEventListener('message', (event) => {
           bridgeState: 'acknowledged',
           bridgeSnapshot: {
             ...state.bridgeSnapshot,
-            acknowledgedSessionId: event.data.sessionId,
-            acknowledgedPacketCount: event.data.packetCount,
+            acknowledgedSessionId: embeddedMessage.sessionId,
+            acknowledgedPacketCount: embeddedMessage.packetCount,
             lastError: null,
           },
-          detail: `Embedded runtime acknowledged ${event.data.packetCount} bootstrap packets.`,
+          detail: `Embedded runtime acknowledged ${embeddedMessage.packetCount} bootstrap packets.`,
         })
         postStatus(state.phase, currentPhaseDetail())
         postCheckpoint('Embedded runtime acknowledged bootstrap payload.')
@@ -424,14 +438,14 @@ window.addEventListener('message', (event) => {
           bridgeState: 'error',
           bridgeSnapshot: {
             ...state.bridgeSnapshot,
-            lastError: event.data.detail,
+            lastError: embeddedMessage.detail,
           },
-          detail: event.data.detail,
+          detail: embeddedMessage.detail,
         })
         postStatus(state.phase, currentPhaseDetail())
         return
       case 'forkorfry:bridge-gameplay-packet':
-        recordGameplayPacket(event.data.action, event.data.payload)
+        recordGameplayPacket(embeddedMessage.action, embeddedMessage.payload)
         return
     }
   }

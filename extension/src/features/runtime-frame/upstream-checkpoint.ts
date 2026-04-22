@@ -17,6 +17,32 @@ function isNullableString(value: unknown) {
   return value === null || typeof value === 'string'
 }
 
+function isGameplayPacket(value: unknown): value is UpstreamRuntimeState['gameplayPackets'][number] {
+  return (
+    isRecord(value)
+    && typeof value.action === 'string'
+    && isRecord(value.payload)
+    && typeof value.receivedAt === 'string'
+  )
+}
+
+function createGameplayPacketSummary(packets: UpstreamRuntimeState['gameplayPackets']) {
+  const actionCounts: Record<string, number> = {}
+  let lastAction: string | null = null
+
+  for (const packet of packets) {
+    if (!isGameplayPacket(packet)) continue
+    actionCounts[packet.action] = (actionCounts[packet.action] ?? 0) + 1
+    lastAction = packet.action
+  }
+
+  return {
+    totalCount: packets.length,
+    lastAction,
+    actionCounts,
+  }
+}
+
 function isUpstreamRuntimeState(value: unknown): value is UpstreamRuntimeState {
   return (
     isRecord(value)
@@ -39,12 +65,20 @@ function isUpstreamRuntimeState(value: unknown): value is UpstreamRuntimeState {
       || (
         isRecord(value.godotBridgeSnapshot)
         && isNullableString(value.godotBridgeSnapshot.entryState)
-        && isNullableString(value.godotBridgeSnapshot.multiplayerState)
         && isNullableString(value.godotBridgeSnapshot.lastUpdate)
         && isNullableString(value.godotBridgeSnapshot.updatedAt)
       )
     )
     && Array.isArray(value.gameplayPackets)
+    && (
+      value.gameplayPacketSummary === undefined
+      || (
+        isRecord(value.gameplayPacketSummary)
+        && typeof value.gameplayPacketSummary.totalCount === 'number'
+        && (value.gameplayPacketSummary.lastAction === null || typeof value.gameplayPacketSummary.lastAction === 'string')
+        && isRecord(value.gameplayPacketSummary.actionCounts)
+      )
+    )
   )
 }
 
@@ -56,10 +90,15 @@ export function restoreUpstreamRuntimeCheckpoint(
     return createInitialUpstreamRuntimeState()
   }
 
+  const initialState = createInitialUpstreamRuntimeState()
+  const gameplayPacketSummary = createGameplayPacketSummary(checkpoint.state.gameplayPackets)
+
   return {
-    ...createInitialUpstreamRuntimeState(),
+    ...initialState,
     ...checkpoint.state,
-    godotBridgeSnapshot: checkpoint.state.godotBridgeSnapshot ?? createInitialUpstreamRuntimeState().godotBridgeSnapshot,
+    lastCheckpointReason: null,
+    godotBridgeSnapshot: checkpoint.state.godotBridgeSnapshot ?? initialState.godotBridgeSnapshot,
+    gameplayPacketSummary,
   }
 }
 

@@ -6,7 +6,6 @@ export type UpstreamRuntimeExportState = 'unknown' | 'missing' | 'ready' | 'load
 
 export interface UpstreamGodotBridgeSnapshot {
   entryState: string | null
-  multiplayerState: string | null
   lastUpdate: string | null
   updatedAt: string | null
 }
@@ -24,6 +23,11 @@ export interface UpstreamRuntimeState {
   bridgeSnapshot: UpstreamBridgeSnapshot
   godotBridgeSnapshot: UpstreamGodotBridgeSnapshot
   gameplayPackets: { action: string, payload: Record<string, unknown>, receivedAt: string }[]
+  gameplayPacketSummary: {
+    totalCount: number
+    lastAction: string | null
+    actionCounts: Record<string, number>
+  }
 }
 
 export function createInitialUpstreamRuntimeState(): UpstreamRuntimeState {
@@ -45,10 +49,14 @@ export function createInitialUpstreamRuntimeState(): UpstreamRuntimeState {
     },
     godotBridgeSnapshot: {
       entryState: null,
-      multiplayerState: null,
       lastUpdate: null,
       updatedAt: null,
     },
     gameplayPackets: [],
+    gameplayPacketSummary: {
+      totalCount: 0,
+      lastAction: null,
+      actionCounts: {},
+    },
   }
 }

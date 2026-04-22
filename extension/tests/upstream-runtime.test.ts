@@ -37,19 +37,88 @@ describe('upstream runtime helpers', () => {
         acknowledgedPacketCount: 8,
         lastError: null,
       },
+      gameplayPackets: [
+        { action: 'movement', payload: { x: 1 }, receivedAt: '2026-04-21T00:00:00.000Z' },
+        { action: 'interact', payload: { target: 'bun' }, receivedAt: '2026-04-21T00:00:01.000Z' },
+      ],
+      gameplayPacketSummary: {
+        totalCount: 2,
+        lastAction: 'interact',
+        actionCounts: { movement: 1, interact: 1 },
+      },
       godotBridgeSnapshot: {
         entryState: 'entry-ready',
-        multiplayerState: 'multiplayer-bridge:connected',
         lastUpdate: 'multiplayer',
         updatedAt: '2026-04-21T00:00:00.000Z',
       },
+      lastCheckpointReason: 'checkpoint:pause',
       bootstrapPacketCount: 8,
     }
 
     const checkpoint = createUpstreamRuntimeCheckpoint('burger-runtime', state)
     const restored = restoreUpstreamRuntimeCheckpoint('burger-runtime', checkpoint)
 
-    expect(restored).toEqual(state)
+    expect(restored).toEqual({
+      ...state,
+      lastCheckpointReason: null,
+      gameplayPacketSummary: {
+        totalCount: 2,
+        lastAction: 'interact',
+        actionCounts: { movement: 1, interact: 1 },
+      },
+    })
+  })
+
+  it('recomputes gameplay packet summary on restore', () => {
+    const restored = restoreUpstreamRuntimeCheckpoint('burger-runtime', {
+      version: 1,
+      runtimeId: 'burger-runtime',
+      updatedAt: Date.now(),
+      state: {
+        ...createInitialUpstreamRuntimeState(),
+        gameplayPackets: [
+          { action: 'movement', payload: {}, receivedAt: '2026-04-21T00:00:00.000Z' },
+          { action: 'ready', payload: {}, receivedAt: '2026-04-21T00:00:01.000Z' },
+        ],
+        gameplayPacketSummary: {
+          totalCount: 99,
+          lastAction: 'stale',
+          actionCounts: { stale: 99 },
+        },
+        lastCheckpointReason: 'stale-checkpoint',
+      },
+    })
+
+    expect(restored.gameplayPacketSummary).toEqual({
+      totalCount: 2,
+      lastAction: 'ready',
+      actionCounts: { movement: 1, ready: 1 },
+    })
+    expect(restored.lastCheckpointReason).toBeNull()
+  })
+
+  it('ignores malformed gameplay packets when restoring a checkpoint', () => {
+    const restored = restoreUpstreamRuntimeCheckpoint('burger-runtime', {
+      version: 1,
+      runtimeId: 'burger-runtime',
+      updatedAt: Date.now(),
+      state: {
+        ...createInitialUpstreamRuntimeState(),
+        gameplayPackets: [
+          { action: 'movement', payload: { x: 1 }, receivedAt: '2026-04-21T00:00:00.000Z' },
+          { action: null, payload: { x: 2 }, receivedAt: '2026-04-21T00:00:01.000Z' } as unknown as { action: string, payload: Record<string, unknown>, receivedAt: string },
+          { payload: { x: 3 }, receivedAt: '2026-04-21T00:00:02.000Z' } as unknown as { action: string, payload: Record<string, unknown>, receivedAt: string },
+          null as unknown as { action: string, payload: Record<string, unknown>, receivedAt: string },
+          { action: 'ready', payload: {}, receivedAt: '2026-04-21T00:00:03.000Z' },
+        ],
+      },
+    })
+
+    expect(restored.gameplayPacketSummary).toEqual({
+      totalCount: 5,
+      lastAction: 'ready',
+      actionCounts: { movement: 1, ready: 1 },
+    })
   })
 
   it('falls back to the initial state for an invalid checkpoint', () => {
@@ -61,6 +130,28 @@ describe('upstream runtime helpers', () => {
     })
 
     expect(restored).toEqual(createInitialUpstreamRuntimeState())
+  })
+
+  it('rebuilds gameplay packet summary for older checkpoints', () => {
+    const restored = restoreUpstreamRuntimeCheckpoint('burger-runtime', {
+      version: 1,
+      runtimeId: 'burger-runtime',
+      updatedAt: Date.now(),
+      state: {
+        ...createInitialUpstreamRuntimeState(),
+        gameplayPackets: [
+          { action: 'movement', payload: {}, receivedAt: '2026-04-21T00:00:00.000Z' },
+          { action: 'movement', payload: {}, receivedAt: '2026-04-21T00:00:01.000Z' },
+          { action: 'ready', payload: {}, receivedAt: '2026-04-21T00:00:02.000Z' },
+        ],
+      },
+    })
+
+    expect(restored.gameplayPacketSummary).toEqual({
+      totalCount: 3,
+      lastAction: 'ready',
+      actionCounts: { movement: 2, ready: 1 },
+    })
   })
 
   it('normalizes the upstream export manifest', () => {
