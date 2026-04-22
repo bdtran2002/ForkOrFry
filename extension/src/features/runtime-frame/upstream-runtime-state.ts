@@ -133,3 +133,37 @@ export function describeUpstreamRuntimeSession(sessionId: string, reused: boolea
     ? `Reusing checkpointed session ${shortSessionId}.`
     : `Boot accepted for ${shortSessionId}.`
 }
+
+export function createBootUpstreamRuntimeState(
+  restored: UpstreamRuntimeState,
+  sessionId: string,
+  bootstrapPacketCount: number,
+): UpstreamRuntimeState {
+  const reused = isUpstreamRuntimeSessionReused(restored.bridgeSnapshot, sessionId)
+
+  return {
+    ...restored,
+    sessionId,
+    phase: 'booting' as const,
+    bridgeState: 'waiting' as const,
+    bootstrapPacketCount,
+    bridgeSnapshot: restoreUpstreamBridgeSnapshotForSession(restored.bridgeSnapshot, sessionId),
+    detail: describeUpstreamRuntimeSession(sessionId, reused),
+  }
+}
+
+export function createResumeUpstreamRuntimeState(restored: UpstreamRuntimeState, fallbackSessionId: string): UpstreamRuntimeState {
+  const sessionId = restored.sessionId || fallbackSessionId
+  const reused = isUpstreamRuntimeSessionReused(restored.bridgeSnapshot, sessionId)
+
+  return {
+    ...restored,
+    sessionId,
+    phase: restored.exportUrl ? 'running' : 'ready',
+    bridgeState: (restored.exportUrl ? 'waiting' : restored.bridgeState),
+    bridgeSnapshot: restoreUpstreamBridgeSnapshotForSession(restored.bridgeSnapshot, sessionId),
+    detail: reused
+      ? describeUpstreamRuntimeSession(sessionId, true)
+      : restored.exportUrl ? 'Bundled Godot runtime loaded.' : 'Ready.',
+  }
+}

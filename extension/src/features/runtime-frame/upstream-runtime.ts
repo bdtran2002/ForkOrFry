@@ -16,7 +16,7 @@ import { createBurgersIncBootstrapTemplate } from '../../../upstream/generated/b
 import { createUpstreamRuntimeCheckpoint, restoreUpstreamRuntimeCheckpoint } from './upstream-checkpoint'
 import { upstreamRuntimeCopy } from './upstream-runtime-copy'
 import { normalizeUpstreamExportManifest, resolveUpstreamExportUrl } from './upstream-export'
-import { acknowledgeUpstreamBridgeSnapshot, createInitialUpstreamRuntimeState, describeUpstreamRuntimeSession, errorUpstreamBridgeSnapshot, isUpstreamRuntimeSessionReused, restoreUpstreamBridgeSnapshotForSession, summarizeUpstreamRuntimeGameplayPackets, trimUpstreamRuntimeGameplayPackets, type UpstreamRuntimeExportState, type UpstreamRuntimeState } from './upstream-runtime-state'
+import { acknowledgeUpstreamBridgeSnapshot, createBootUpstreamRuntimeState, createInitialUpstreamRuntimeState, createResumeUpstreamRuntimeState, errorUpstreamBridgeSnapshot, summarizeUpstreamRuntimeGameplayPackets, trimUpstreamRuntimeGameplayPackets, type UpstreamRuntimeExportState, type UpstreamRuntimeState } from './upstream-runtime-state'
 
 const RUNTIME_ID = 'burger-runtime'
 const EXPORT_MANIFEST_PATH = '/upstream/hurrycurry-web/manifest.json'
@@ -263,17 +263,8 @@ async function loadBundledExport() {
 function boot(checkpoint: RuntimeCheckpointEnvelope | null, nextSessionId: string) {
   const restored = restoreUpstreamRuntimeCheckpoint(RUNTIME_ID, checkpoint)
   const bootstrapPayload = createRuntimeBootstrapPayload(nextSessionId)
-  const reused = isUpstreamRuntimeSessionReused(restored.bridgeSnapshot, nextSessionId)
 
-  state = {
-    ...restored,
-    sessionId: nextSessionId,
-    phase: 'booting',
-    bridgeState: 'waiting',
-    bootstrapPacketCount: bootstrapPayload.packets.length,
-    bridgeSnapshot: restoreUpstreamBridgeSnapshotForSession(restored.bridgeSnapshot, nextSessionId),
-    detail: describeUpstreamRuntimeSession(nextSessionId, reused),
-  }
+  state = createBootUpstreamRuntimeState(restored, nextSessionId, bootstrapPayload.packets.length)
   render()
   postStatus('booting', currentPhaseDetail())
   postToHost({
@@ -299,18 +290,7 @@ function handleHostMessage(message: HostToRuntimeMessage) {
       return
     case 'host:resume': {
       const restored = restoreUpstreamRuntimeCheckpoint(RUNTIME_ID, message.checkpoint)
-      const sessionId = restored.sessionId || state.sessionId
-      const reused = isUpstreamRuntimeSessionReused(restored.bridgeSnapshot, sessionId)
-      state = {
-        ...restored,
-        sessionId,
-        phase: restored.exportUrl ? 'running' : 'ready',
-        bridgeState: restored.exportUrl ? 'waiting' : restored.bridgeState,
-        bridgeSnapshot: restoreUpstreamBridgeSnapshotForSession(restored.bridgeSnapshot, sessionId),
-        detail: reused
-          ? describeUpstreamRuntimeSession(sessionId, true)
-          : restored.exportUrl ? upstreamRuntimeCopy.phaseLabels.running : upstreamRuntimeCopy.phaseLabels.ready,
-      }
+      state = createResumeUpstreamRuntimeState(restored, state.sessionId)
       render()
       sendBootstrapToEmbeddedRuntime('resume')
       postStatus(state.phase, currentPhaseDetail())

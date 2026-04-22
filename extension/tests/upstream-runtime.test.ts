@@ -10,7 +10,7 @@ import {
 import { BURGERS_INC_BOOTSTRAP, createBurgersIncBootstrapPayload, createBurgersIncBootstrapTemplate } from '../upstream/generated/burgers-inc-bootstrap'
 import { createUpstreamRuntimeCheckpoint, restoreUpstreamRuntimeCheckpoint } from '../src/features/runtime-frame/upstream-checkpoint'
 import { normalizeUpstreamExportManifest, resolveUpstreamExportUrl } from '../src/features/runtime-frame/upstream-export'
-import { acknowledgeUpstreamBridgeSnapshot, createInitialUpstreamBridgeSnapshot, createInitialUpstreamRuntimeState, describeUpstreamRuntimeSession, errorUpstreamBridgeSnapshot, restoreUpstreamBridgeSnapshotForSession } from '../src/features/runtime-frame/upstream-runtime-state'
+import { acknowledgeUpstreamBridgeSnapshot, createBootUpstreamRuntimeState, createInitialUpstreamBridgeSnapshot, createInitialUpstreamRuntimeState, createResumeUpstreamRuntimeState, describeUpstreamRuntimeSession, errorUpstreamBridgeSnapshot, restoreUpstreamBridgeSnapshotForSession } from '../src/features/runtime-frame/upstream-runtime-state'
 import { UPSTREAM_RUNTIME_GAMEPLAY_PACKET_HISTORY_LIMIT } from '../src/features/runtime-frame/upstream-runtime-state'
 
 describe('upstream runtime helpers', () => {
@@ -214,6 +214,76 @@ describe('upstream runtime helpers', () => {
       acknowledgedSessionId: 'session-123',
       acknowledgedPacketCount: 8,
       lastError: 'bad bridge',
+    })
+  })
+
+  it('creates boot state from restored state with active-session reuse rules', () => {
+    const restored = {
+      ...createInitialUpstreamRuntimeState(),
+      sessionId: 'old-session',
+      bridgeState: 'acknowledged' as const,
+      bridgeSnapshot: {
+        acknowledgedSessionId: 'session-123',
+        acknowledgedPacketCount: 8,
+        lastError: 'stale',
+      },
+    }
+
+    expect(createBootUpstreamRuntimeState(restored, 'session-123', 8)).toMatchObject({
+      sessionId: 'session-123',
+      phase: 'booting',
+      bridgeState: 'waiting',
+      bootstrapPacketCount: 8,
+      bridgeSnapshot: {
+        acknowledgedSessionId: 'session-123',
+        acknowledgedPacketCount: 8,
+        lastError: null,
+      },
+      detail: 'Reusing checkpointed session session-1.',
+    })
+
+    expect(createBootUpstreamRuntimeState(restored, 'session-999', 8)).toMatchObject({
+      sessionId: 'session-999',
+      bridgeSnapshot: createInitialUpstreamBridgeSnapshot(),
+      detail: 'Boot accepted for session-9.',
+    })
+  })
+
+  it('creates resume state from restored state with fallback session handling', () => {
+    const restored = {
+      ...createInitialUpstreamRuntimeState(),
+      sessionId: '',
+      exportUrl: '/upstream/hurrycurry-web/index.html',
+      bridgeState: 'acknowledged' as const,
+      bridgeSnapshot: {
+        acknowledgedSessionId: 'session-123',
+        acknowledgedPacketCount: 8,
+        lastError: 'stale',
+      },
+    }
+
+    expect(createResumeUpstreamRuntimeState(restored, 'session-123')).toMatchObject({
+      sessionId: 'session-123',
+      phase: 'running',
+      bridgeState: 'waiting',
+      bridgeSnapshot: {
+        acknowledgedSessionId: 'session-123',
+        acknowledgedPacketCount: 8,
+        lastError: null,
+      },
+      detail: 'Reusing checkpointed session session-1.',
+    })
+
+    expect(createResumeUpstreamRuntimeState({
+      ...restored,
+      exportUrl: null,
+      bridgeState: 'idle',
+      bridgeSnapshot: createInitialUpstreamBridgeSnapshot(),
+    }, 'session-999')).toMatchObject({
+      sessionId: 'session-999',
+      phase: 'ready',
+      bridgeState: 'idle',
+      detail: 'Ready.',
     })
   })
 
