@@ -87,7 +87,6 @@ const runtimeEmbedFrame = app.querySelector<HTMLIFrameElement>('#runtime-embed-f
 const runtimeEmbedOverlay = app.querySelector<HTMLElement>('#runtime-embed-overlay')!
 
 let state: UpstreamRuntimeState = createInitialUpstreamRuntimeState()
-let godotBridgePollHandle: number | null = null
 
 function postToHost(message: RuntimeToHostMessage) {
   window.parent.postMessage(message, window.location.origin)
@@ -171,13 +170,6 @@ function render() {
   renderEmbed()
 }
 
-function clearGodotBridgePoll() {
-  if (godotBridgePollHandle !== null) {
-    window.clearInterval(godotBridgePollHandle)
-    godotBridgePollHandle = null
-  }
-}
-
 function postToEmbeddedRuntime(message: unknown) {
   runtimeEmbedFrame.contentWindow?.postMessage(message, window.location.origin)
 }
@@ -215,7 +207,6 @@ async function loadBundledExport() {
   try {
     const response = await fetch(EXPORT_MANIFEST_PATH, { cache: 'no-store' })
     if (!response.ok) {
-      clearGodotBridgePoll()
       setState({
         exportState: 'missing',
         phase: 'ready',
@@ -228,7 +219,6 @@ async function loadBundledExport() {
 
     const manifest = normalizeUpstreamExportManifest(await response.json())
     if (!manifest) {
-      clearGodotBridgePoll()
       setState({
         exportState: 'error',
         phase: 'ready',
@@ -249,7 +239,6 @@ async function loadBundledExport() {
     postStatus(state.phase === 'paused' ? 'paused' : 'running', currentPhaseDetail())
   } catch (error) {
     const detail = error instanceof Error ? error.message : 'Unknown export-loading error.'
-    clearGodotBridgePoll()
     setState({
       exportState: 'error',
       phase: 'ready',
@@ -282,7 +271,6 @@ function handleHostMessage(message: HostToRuntimeMessage) {
       boot(message.checkpoint, message.sessionId)
       return
     case 'host:pause':
-      clearGodotBridgePoll()
       postToEmbeddedRuntime(createBridgePauseMessage(message.reason))
       setState({ phase: 'paused', detail: message.reason })
       postStatus('paused', currentPhaseDetail())
@@ -301,7 +289,6 @@ function handleHostMessage(message: HostToRuntimeMessage) {
       postCheckpoint(message.reason)
       return
     case 'host:shutdown':
-      clearGodotBridgePoll()
       postCheckpoint('Host requested shutdown.')
   }
 }
@@ -365,7 +352,6 @@ document.addEventListener('visibilitychange', () => {
 })
 
 window.addEventListener('pagehide', () => {
-  clearGodotBridgePoll()
   postCheckpoint('Runtime frame unloading.')
 })
 
