@@ -13,6 +13,7 @@ export const upstreamRuntimeCopy = {
     session: 'Session',
     exportPath: 'Export entry',
     checkpoint: 'Checkpoint',
+    gameplayPackets: 'Gameplay packets',
   },
   buttons: {
     refresh: 'Retry export scan',
@@ -50,6 +51,7 @@ export const upstreamRuntimeCopy = {
   readySummary: (path: string) => `Manifest found. Loading bundled export from ${path}.`,
   loadedSummary: 'Bundled export iframe loaded.',
   checkpointSummary: (reason: string | null) => reason ? `Last checkpoint: ${reason}` : 'No explicit checkpoint request yet.',
+  gameplayPacketsSummary: (packets: { action: string }[]) => packets.length ? `${packets.length} outbound gameplay packet${packets.length === 1 ? '' : 's'} received.` : 'No outbound gameplay packets received yet.',
   godotBridgeSummary: (entryState: string | null, multiplayerState: string | null, lastUpdate: string | null) => {
     if (!entryState && !multiplayerState) return 'No live Godot bridge data yet.'
 

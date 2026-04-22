@@ -48,6 +48,7 @@ app.innerHTML = `
       <div class="field"><label>${upstreamRuntimeCopy.labels.session}</label><div class="input" id="session-value"></div></div>
       <div class="field"><label>${upstreamRuntimeCopy.labels.exportPath}</label><div class="input" id="export-path-value"></div></div>
       <div class="field"><label>${upstreamRuntimeCopy.labels.checkpoint}</label><div class="input" id="checkpoint-value"></div></div>
+      <div class="field"><label>${upstreamRuntimeCopy.labels.gameplayPackets}</label><div class="input" id="gameplay-packets-value"></div></div>
     </div>
     <div class="runtime-note-list">${upstreamRuntimeCopy.notes.map((note) => `<p class="helper runtime-helper">${note}</p>`).join('')}</div>
     <div class="actions runtime-controls">
@@ -72,6 +73,7 @@ const godotBridgeValue = app.querySelector<HTMLElement>('#godot-bridge-value')!
 const sessionValue = app.querySelector<HTMLElement>('#session-value')!
 const exportPathValue = app.querySelector<HTMLElement>('#export-path-value')!
 const checkpointValue = app.querySelector<HTMLElement>('#checkpoint-value')!
+const gameplayPacketsValue = app.querySelector<HTMLElement>('#gameplay-packets-value')!
 const exportMessageBody = app.querySelector<HTMLElement>('#export-message-body')!
 const refreshButton = app.querySelector<HTMLButtonElement>('#refresh-export')!
 const runtimeEmbed = app.querySelector<HTMLElement>('#runtime-embed')!
@@ -171,6 +173,7 @@ function render() {
   sessionValue.textContent = state.sessionId ? state.sessionId.slice(0, 12) : 'No session yet'
   exportPathValue.textContent = state.exportUrl ?? EXPORT_MANIFEST_PATH
   checkpointValue.textContent = upstreamRuntimeCopy.checkpointSummary(state.lastCheckpointReason)
+  gameplayPacketsValue.textContent = upstreamRuntimeCopy.gameplayPacketsSummary(state.gameplayPackets)
   renderMessage()
   renderEmbed()
 }
@@ -218,6 +221,12 @@ function resetGodotBridgeSnapshot() {
 
 function postToEmbeddedRuntime(message: unknown) {
   runtimeEmbedFrame.contentWindow?.postMessage(message, window.location.origin)
+}
+
+function recordGameplayPacket(action: 'movement' | 'interact' | 'ready' | 'idle', payload: Record<string, unknown>) {
+  const packet = { action, payload, receivedAt: new Date().toISOString() }
+  setState({ gameplayPackets: [...state.gameplayPackets, packet] })
+  postCheckpoint(`Received outbound gameplay packet: ${action}.`)
 }
 
 function sendBootstrapToEmbeddedRuntime(messageType: 'bootstrap' | 'resume') {
@@ -420,6 +429,10 @@ window.addEventListener('message', (event) => {
           detail: event.data.detail,
         })
         postStatus(state.phase, currentPhaseDetail())
+        return
+      case 'forkorfry:bridge-gameplay-packet':
+        recordGameplayPacket(event.data.action, event.data.payload)
+        return
     }
   }
 })

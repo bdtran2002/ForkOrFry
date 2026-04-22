@@ -86,6 +86,15 @@ export type UpstreamEmbeddedToParentMessage =
   | { type: 'forkorfry:bridge-bootstrap-ack', version: typeof UPSTREAM_BRIDGE_PROTOCOL_VERSION, sessionId: string, packetCount: number }
   | { type: 'forkorfry:bridge-error', version: typeof UPSTREAM_BRIDGE_PROTOCOL_VERSION, detail: string }
 
+export type UpstreamGameplayAction = 'movement' | 'interact' | 'ready' | 'idle'
+
+export interface UpstreamGameplayPacket {
+  type: 'forkorfry:bridge-gameplay-packet'
+  version: typeof UPSTREAM_BRIDGE_PROTOCOL_VERSION
+  action: UpstreamGameplayAction
+  payload: Record<string, unknown>
+}
+
 const DEFAULT_PLAYER_ID = 1
 
 interface TileDefinition {
@@ -473,6 +482,15 @@ export function createBridgePauseMessage(reason: string): UpstreamParentToEmbedd
   }
 }
 
+export function createGameplayPacketMessage(action: UpstreamGameplayAction, payload: Record<string, unknown>): UpstreamGameplayPacket {
+  return {
+    type: 'forkorfry:bridge-gameplay-packet',
+    version: UPSTREAM_BRIDGE_PROTOCOL_VERSION,
+    action,
+    payload,
+  }
+}
+
 export function isUpstreamEmbeddedToParentMessage(value: unknown): value is UpstreamEmbeddedToParentMessage {
   if (!isRecord(value) || value.version !== UPSTREAM_BRIDGE_PROTOCOL_VERSION || typeof value.type !== 'string') {
     return false
@@ -485,6 +503,11 @@ export function isUpstreamEmbeddedToParentMessage(value: unknown): value is Upst
       return typeof value.sessionId === 'string' && typeof value.packetCount === 'number'
     case 'forkorfry:bridge-error':
       return typeof value.detail === 'string'
+    case 'forkorfry:bridge-gameplay-packet':
+      return (
+        (value.action === 'movement' || value.action === 'interact' || value.action === 'ready' || value.action === 'idle')
+        && isRecord(value.payload)
+      )
     default:
       return false
   }

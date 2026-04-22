@@ -23,6 +23,7 @@ export interface UpstreamRuntimeState {
   bootstrapPacketCount: number
   bridgeSnapshot: UpstreamBridgeSnapshot
   godotBridgeSnapshot: UpstreamGodotBridgeSnapshot
+  gameplayPackets: { action: string, payload: Record<string, unknown>, receivedAt: string }[]
 }
 
 export function createInitialUpstreamRuntimeState(): UpstreamRuntimeState {
@@ -48,5 +49,6 @@ export function createInitialUpstreamRuntimeState(): UpstreamRuntimeState {
       lastUpdate: null,
       updatedAt: null,
     },
+    gameplayPackets: [],
   }
 }
