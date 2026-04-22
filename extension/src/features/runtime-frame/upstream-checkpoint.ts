@@ -3,19 +3,20 @@ import {
   type RuntimeCheckpointEnvelope,
 } from '../runtime-host/contract'
 import {
+  UPSTREAM_RUNTIME_PREVIOUS_SAVE_VERSION,
   UPSTREAM_RUNTIME_SAVE_VERSION,
   createInitialUpstreamRuntimeState,
   summarizeUpstreamRuntimeGameplayPackets,
   trimUpstreamRuntimeGameplayPackets,
   type UpstreamRuntimeState,
 } from './upstream-runtime-state'
-import type { UpstreamAuthoritySnapshot } from './local-authority'
+import { createLocalAuthoritySession, type UpstreamAuthoritySnapshot } from './local-authority'
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null
 }
 
-function isAuthoritySnapshot(value: unknown): value is UpstreamAuthoritySnapshot {
+function isBaseAuthoritySnapshot(value: unknown) {
   return (
     isRecord(value)
     && typeof value.playerId === 'number'
@@ -54,6 +55,12 @@ function isAuthoritySnapshot(value: unknown): value is UpstreamAuthoritySnapshot
         && value.interaction.tile.every((part) => typeof part === 'number')
       )
     )
+  )
+}
+
+function isAuthoritySnapshot(value: unknown): value is UpstreamAuthoritySnapshot {
+  return (
+    isBaseAuthoritySnapshot(value)
     && isRecord(value.score)
     && typeof value.score.points === 'number'
     && typeof value.score.demands_failed === 'number'
@@ -97,10 +104,18 @@ function isAuthoritySnapshot(value: unknown): value is UpstreamAuthoritySnapshot
   )
 }
 
+function isLegacyAuthoritySnapshot(value: unknown) {
+  return isBaseAuthoritySnapshot(value)
+}
+
+function isSupportedSaveVersion(value: unknown): value is typeof UPSTREAM_RUNTIME_PREVIOUS_SAVE_VERSION | typeof UPSTREAM_RUNTIME_SAVE_VERSION {
+  return value === UPSTREAM_RUNTIME_PREVIOUS_SAVE_VERSION || value === UPSTREAM_RUNTIME_SAVE_VERSION
+}
+
 function isUpstreamRuntimeState(value: unknown): value is UpstreamRuntimeState {
   return (
     isRecord(value)
-    && value.saveVersion === UPSTREAM_RUNTIME_SAVE_VERSION
+    && isSupportedSaveVersion(value.saveVersion)
     && typeof value.sessionId === 'string'
     && (value.phase === 'booting' || value.phase === 'running' || value.phase === 'paused' || value.phase === 'ready')
     && (value.exportState === 'unknown' || value.exportState === 'missing' || value.exportState === 'ready' || value.exportState === 'loaded' || value.exportState === 'error')
@@ -113,7 +128,7 @@ function isUpstreamRuntimeState(value: unknown): value is UpstreamRuntimeState {
     && (value.bridgeSnapshot.acknowledgedSessionId === null || typeof value.bridgeSnapshot.acknowledgedSessionId === 'string')
     && typeof value.bridgeSnapshot.acknowledgedPacketCount === 'number'
     && (value.bridgeSnapshot.lastError === null || typeof value.bridgeSnapshot.lastError === 'string')
-    && (value.authoritySnapshot === null || isAuthoritySnapshot(value.authoritySnapshot))
+    && (value.authoritySnapshot === null || isAuthoritySnapshot(value.authoritySnapshot) || isLegacyAuthoritySnapshot(value.authoritySnapshot))
     && Array.isArray(value.gameplayPackets)
     && (
       value.gameplayPacketSummary === undefined
@@ -138,10 +153,15 @@ export function restoreUpstreamRuntimeCheckpoint(
   const initialState = createInitialUpstreamRuntimeState()
   const gameplayPackets = trimUpstreamRuntimeGameplayPackets(checkpoint.state.gameplayPackets)
   const gameplayPacketSummary = summarizeUpstreamRuntimeGameplayPackets(gameplayPackets)
+  const authoritySnapshot = checkpoint.state.authoritySnapshot === null
+    ? null
+    : createLocalAuthoritySession(checkpoint.state.authoritySnapshot as UpstreamAuthoritySnapshot).snapshot
 
   return {
     ...initialState,
     ...checkpoint.state,
+    saveVersion: initialState.saveVersion,
+    authoritySnapshot,
     lastCheckpointReason: null,
     gameplayPackets,
     gameplayPacketSummary,

@@ -104,14 +104,58 @@ describe('upstream runtime helpers', () => {
     const checkpoint = createUpstreamRuntimeCheckpoint('burger-runtime', state)
     const restored = restoreUpstreamRuntimeCheckpoint('burger-runtime', checkpoint)
 
-    expect(restored).toEqual({
+    expect(restored).toMatchObject({
       ...state,
+      saveVersion: 2,
       lastCheckpointReason: null,
       gameplayPacketSummary: {
         totalCount: 2,
         lastAction: 'interact',
         actionCounts: { movement: 1, interact: 1 },
       },
+      authoritySnapshot: {
+        ...state.authoritySnapshot,
+        tileItems: expect.objectContaining(state.authoritySnapshot.tileItems),
+      },
+    })
+  })
+
+  it('migrates legacy authority checkpoints without customer score state', () => {
+    const restored = restoreUpstreamRuntimeCheckpoint('burger-runtime', {
+      version: 1,
+      runtimeId: 'burger-runtime',
+      updatedAt: Date.now(),
+      state: {
+        ...createInitialUpstreamRuntimeState(),
+        saveVersion: 1,
+        sessionId: 'legacy-session',
+        authoritySnapshot: {
+          playerId: 1,
+          position: [4.5, 7.5],
+          direction: [1, 0],
+          rotation: Math.PI / 2,
+          boost: true,
+          hands: [2, null],
+          tileItems: { '4,7': null, '5,7': 3 },
+          progressTiles: {},
+          interaction: { hand: 0, tile: [6, 7] },
+        },
+      },
+    })
+
+    expect(restored.saveVersion).toBe(2)
+    expect(restored.authoritySnapshot).toMatchObject({
+      playerId: 1,
+      position: [4.5, 7.5],
+      direction: [1, 0],
+      rotation: Math.PI / 2,
+      boost: true,
+      hands: [2, null],
+      tileItems: { '4,7': null, '5,7': 3 },
+      progressTiles: {},
+      interaction: { hand: 0, tile: [6, 7] },
+      score: createInitialAuthoritySnapshot().score,
+      customer: createInitialAuthoritySnapshot().customer,
     })
   })
 

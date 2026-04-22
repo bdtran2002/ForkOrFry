@@ -1,4 +1,5 @@
-export const UPSTREAM_RUNTIME_SAVE_VERSION = 1 as const
+export const UPSTREAM_RUNTIME_PREVIOUS_SAVE_VERSION = 1 as const
+export const UPSTREAM_RUNTIME_SAVE_VERSION = 2 as const
 export const UPSTREAM_RUNTIME_GAMEPLAY_PACKET_HISTORY_LIMIT = 25
 
 import type { UpstreamBridgeSnapshot, UpstreamBridgeState } from './upstream-bridge'
