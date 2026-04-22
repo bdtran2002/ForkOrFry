@@ -21,6 +21,7 @@ import { createInitialUpstreamRuntimeState, describeUpstreamRuntimeSession, UPST
 
 const RUNTIME_ID = 'burger-runtime'
 const EXPORT_MANIFEST_PATH = '/upstream/hurrycurry-web/manifest.json'
+const RUNTIME_CAPABILITIES = ['checkpoint', 'pause', 'resume', 'upstream-runtime-shell'] as const
 
 const app = document.querySelector<HTMLDivElement>('#app')
 
@@ -30,12 +31,12 @@ app.innerHTML = `
 <main class="takeover runtime-frame-shell">
   <section class="card stage">
     <header>
-      <h2>${upstreamRuntimeCopy.title}</h2>
+      <h2>Runtime host</h2>
     </header>
     <div class="status-row">
       <div>
-        <p class="eyebrow compact">${upstreamRuntimeCopy.statusLabel}</p>
-        <div class="status-text" id="status-text">${upstreamRuntimeCopy.booting}</div>
+        <p class="eyebrow compact">Host status</p>
+        <div class="status-text" id="status-text">Waiting for startup…</div>
       </div>
       <div class="stage-pill" id="stage-pill"></div>
     </div>
@@ -50,7 +51,7 @@ app.innerHTML = `
       <div class="field"><label>${upstreamRuntimeCopy.labels.gameplaySummary}</label><div class="input" id="gameplay-summary-value"></div></div>
     </div>
     <div class="actions runtime-controls">
-      <button type="button" class="secondary" id="refresh-export">${upstreamRuntimeCopy.buttons.refresh}</button>
+      <button type="button" class="secondary" id="refresh-export">Refresh export</button>
     </div>
     <div class="completion" id="export-message">
       <div class="completion-badge">Export status</div>
@@ -351,7 +352,7 @@ function boot(checkpoint: RuntimeCheckpointEnvelope | null, nextSessionId: strin
   postToHost({
     type: 'runtime:ready',
     runtimeId: RUNTIME_ID,
-    capabilities: [...upstreamRuntimeCopy.capabilities],
+    capabilities: [...RUNTIME_CAPABILITIES],
   })
   postCheckpoint('Booted runtime shell.')
   void loadBundledExport()

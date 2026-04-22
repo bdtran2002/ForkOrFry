@@ -1,7 +1,4 @@
 export const upstreamRuntimeCopy = {
-  title: 'Hurry Curry runtime',
-  statusLabel: 'Runtime status',
-  booting: 'Waiting for startup…',
   labels: {
     exportState: 'Export state',
     bridgeState: 'Bridge state',
@@ -12,10 +9,6 @@ export const upstreamRuntimeCopy = {
     gameplayPackets: 'Packets',
     gameplaySummary: 'Packet summary',
   },
-  buttons: {
-    refresh: 'Refresh export',
-  },
-  capabilities: ['checkpoint', 'pause', 'resume', 'upstream-runtime-shell'],
   phaseLabels: {
     booting: 'Preparing runtime…',
     running: 'Runtime loaded.',
