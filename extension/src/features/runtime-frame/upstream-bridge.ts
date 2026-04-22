@@ -85,6 +85,7 @@ export type UpstreamEmbeddedToParentMessage =
   | { type: 'forkorfry:bridge-ready', version: typeof UPSTREAM_BRIDGE_PROTOCOL_VERSION }
   | { type: 'forkorfry:bridge-bootstrap-ack', version: typeof UPSTREAM_BRIDGE_PROTOCOL_VERSION, sessionId: string, packetCount: number }
   | { type: 'forkorfry:bridge-error', version: typeof UPSTREAM_BRIDGE_PROTOCOL_VERSION, detail: string }
+  | UpstreamGameplayPacket
 
 export type UpstreamGameplayAction = 'movement' | 'interact' | 'ready' | 'idle'
 
@@ -243,7 +244,7 @@ function tileFlagBase(tileName: string) {
 function buildBurgersIncBootstrap() {
   const tileNames: string[] = []
   const tileIndex = new Map<string, number>()
-  const itemNames = [...DEFAULT_ITEM_NAMES]
+  const itemNames: string[] = [...DEFAULT_ITEM_NAMES]
   const itemIndex = new Map(itemNames.map((item, index) => [item, index]))
   const changes: [[number, number], number[]][] = []
   let spawnPosition: [number, number] = [0.5, 0.5]

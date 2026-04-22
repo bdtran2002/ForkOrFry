@@ -14,6 +14,7 @@ export const upstreamRuntimeCopy = {
     exportPath: 'Export entry',
     checkpoint: 'Checkpoint',
     gameplayPackets: 'Gameplay packets',
+    gameplaySummary: 'Packet summary',
   },
   buttons: {
     refresh: 'Retry export scan',
@@ -52,12 +53,24 @@ export const upstreamRuntimeCopy = {
   loadedSummary: 'Bundled export iframe loaded.',
   checkpointSummary: (reason: string | null) => reason ? `Last checkpoint: ${reason}` : 'No explicit checkpoint request yet.',
   gameplayPacketsSummary: (packets: { action: string }[]) => packets.length ? `${packets.length} outbound gameplay packet${packets.length === 1 ? '' : 's'} received.` : 'No outbound gameplay packets received yet.',
-  godotBridgeSummary: (entryState: string | null, multiplayerState: string | null, lastUpdate: string | null) => {
-    if (!entryState && !multiplayerState) return 'No live Godot bridge data yet.'
+  gameplayPacketSummary: (summary: { totalCount: number, lastAction: string | null, actionCounts: Record<string, number> }) => {
+    if (!summary.totalCount) return 'No gameplay packets received yet.'
+
+    const counts = Object.entries(summary.actionCounts)
+      .slice(0, 3)
+      .map(([action, count]) => `${action}: ${count}`)
+
+    return [
+      `total: ${summary.totalCount}`,
+      summary.lastAction ? `last: ${summary.lastAction}` : null,
+      counts.length ? `counts: ${counts.join(', ')}` : null,
+    ].filter(Boolean).join(' • ')
+  },
+  godotBridgeSummary: (entryState: string | null, lastUpdate: string | null) => {
+    if (!entryState && !lastUpdate) return 'No live Godot bridge data yet.'
 
     return [
       entryState ? `entry: ${entryState}` : null,
-      multiplayerState ? `multiplayer: ${multiplayerState}` : null,
       lastUpdate ? `last update: ${lastUpdate}` : null,
     ].filter(Boolean).join(' • ')
   },

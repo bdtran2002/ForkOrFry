@@ -237,7 +237,9 @@ function render() {
   shiftValue.textContent = `${state.shift.servedCount} served · ${state.shift.failedCount} failed · ${state.shift.completedOrders.length}/${state.shift.totalOrders} complete`
   locationValue.textContent = `${state.player.position.x}, ${state.player.position.y}`
   facingValue.textContent = directionLabels[state.player.facing]
-  heldItemValue.textContent = state.player.heldItem ?? runtimeFrameCopy.emptyValue
+  heldItemValue.textContent = typeof state.player.heldItem === 'string'
+    ? state.player.heldItem
+    : runtimeFrameCopy.emptyValue
   orderValue.textContent = state.activeOrders.length > 0
     ? state.activeOrders
       .map((order) => `${order.id}: ${getBurgerRecipe(order.recipeId).label} · ${order.remainingTicks}/${order.durationTicks} ticks left`)
@@ -257,7 +259,9 @@ function render() {
   grillPressureValue.textContent = grillPressureText()
   boardValue.textContent = state.stations.board.items.join(', ') || runtimeFrameCopy.emptyValue
   counterValue.textContent = state.stations.counter.finishedBurger
-    ? getBurgerRecipe(state.stations.counter.finishedBurger).label
+    ? typeof state.stations.counter.finishedBurger === 'string'
+      ? getBurgerRecipe(state.stations.counter.finishedBurger as 'plain-burger' | 'cheeseburger').label
+      : runtimeFrameCopy.noCounterItem
     : runtimeFrameCopy.noCounterItem
   pantryValue.textContent = `bun ${state.inventory.bun} · patty ${state.inventory.patty} · cheese ${state.inventory.cheese}`
   renderKitchenMap()
