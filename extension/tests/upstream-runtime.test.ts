@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest'
 import {
   createBridgeBootstrapMessage,
   createLocalBootstrapPayload,
+  createGameplayPacketMessage,
   type UpstreamBootstrapPacket,
   UPSTREAM_PROTOCOL_MAJOR,
   isUpstreamBootstrapPayload,
@@ -186,5 +187,12 @@ describe('upstream runtime helpers', () => {
       sessionId: 42,
       packetCount: 8,
     })).toBe(false)
+
+    expect(isUpstreamEmbeddedToParentMessage(createGameplayPacketMessage('movement', {
+      player: 1,
+      pos: [2.5, 9.5],
+      dir: [0, 1],
+      boost: false,
+    }))).toBe(true)
   })
 })

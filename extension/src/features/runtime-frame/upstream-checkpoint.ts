@@ -44,6 +44,7 @@ function isUpstreamRuntimeState(value: unknown): value is UpstreamRuntimeState {
         && isNullableString(value.godotBridgeSnapshot.updatedAt)
       )
     )
+    && Array.isArray(value.gameplayPackets)
   )
 }
 

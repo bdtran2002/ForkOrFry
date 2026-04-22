@@ -235,6 +235,27 @@ func handle_decoded_packet(decoded_packet: Dictionary):
 			update_forkorfry_bridge_state("multiplayer-packet:%s" % str(p["type"]))
 			packet.emit(p)
 
+func send_local_bridge_gameplay_packet(action: String, payload: Dictionary) -> void:
+	if not OS.has_feature("web"):
+		return
+
+	update_forkorfry_bridge_state("multiplayer-bridge:gameplay-packet:%s" % action, {
+		"action": action,
+		"payload": payload,
+	})
+	var action_json = JSON.stringify(action)
+	var payload_json = JSON.stringify(payload)
+	JavaScriptBridge.eval("""
+		(function () {
+			window.parent.postMessage({
+				type: 'forkorfry:bridge-gameplay-packet',
+				version: 1,
+				action: %s,
+				payload: %s,
+			}, window.location.origin);
+		}());
+	""" % [action_json, payload_json])
+
 func send_join(player_name: String, character_style: Dictionary):
 	send_packet({
 		"type": "join",
@@ -250,6 +271,15 @@ func send_position(player, pos: Vector2):
 	})
 
 func send_movement(player, pos: Vector2, direction: Vector2, boost: bool):
+	if bridge_mode:
+		send_local_bridge_gameplay_packet("movement", {
+			"player": player,
+			"pos": [pos.x, pos.y],
+			"dir": [direction.x, direction.y],
+			"boost": boost,
+		})
+		return
+
 	send_packet({
 		"type": "movement",
 		"player": player,
@@ -261,6 +291,14 @@ func send_movement(player, pos: Vector2, direction: Vector2, boost: bool):
 
 func send_tile_interact(player, pos: Vector2i, edge: bool, hand: int):
 	@warning_ignore("incompatible_ternary")
+	if bridge_mode:
+		send_local_bridge_gameplay_packet("interact", {
+			"player": player,
+			"target": {"tile": [pos.x, pos.y]} if edge else null,
+			"hand": hand,
+		})
+		return
+
 	send_packet({
 		"type": "interact",
 		"player": player,
@@ -270,6 +308,14 @@ func send_tile_interact(player, pos: Vector2i, edge: bool, hand: int):
 
 func send_player_interact(player, target_player, target_hand: int, edge: bool, hand: int):
 	@warning_ignore("incompatible_ternary")
+	if bridge_mode:
+		send_local_bridge_gameplay_packet("interact", {
+			"player": player,
+			"target": {"player": [target_player, target_hand]} if edge else null,
+			"hand": hand,
+		})
+		return
+
 	send_packet({
 		"type": "interact",
 		"player": player,
@@ -294,6 +340,12 @@ func send_replay_tick(dt: float):
 	})
 
 func send_idle(paused: bool):
+	if bridge_mode:
+		send_local_bridge_gameplay_packet("idle", {
+			"paused": paused,
+		})
+		return
+
 	send_packet({
 		"type": "idle",
 		"paused": paused,
@@ -306,6 +358,10 @@ func send_leave(player):
 	})
 
 func send_ready():
+	if bridge_mode:
+		send_local_bridge_gameplay_packet("ready", {})
+		return
+
 	send_packet({
 		"type": "ready"
 	})
