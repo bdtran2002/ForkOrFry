@@ -112,80 +112,80 @@ body {
 		<script src="index.js"></script>
 		<script>
 (function () {
-	const PROTOCOL_VERSION = 1;
-	const bridgeState = {
-		version: PROTOCOL_VERSION,
-		status: 'booting',
-		paused: false,
-		payload: null,
-		lastError: null,
-		lastPauseReason: null,
-		lastEventAt: null,
-	};
+  const PROTOCOL_VERSION = 1;
+  const bridgeState = {
+    version: PROTOCOL_VERSION,
+    status: 'booting',
+    paused: false,
+    payload: null,
+    lastError: null,
+    lastPauseReason: null,
+    lastEventAt: null,
+  };
 
-	function publishBridgeState() {
-		bridgeState.lastEventAt = new Date().toISOString();
-		window.__FORKORFRY_BRIDGE__ = bridgeState;
-		window.__FORKORFRY_BOOT__ = bridgeState.payload;
-	}
+  function publishBridgeState() {
+    bridgeState.lastEventAt = new Date().toISOString();
+    window.__FORKORFRY_BRIDGE__ = bridgeState;
+    window.__FORKORFRY_BOOT__ = bridgeState.payload;
+  }
 
-	function postToParent(type, extra) {
-		if (window.parent === window) return;
-		window.parent.postMessage({ type, version: PROTOCOL_VERSION, ...(extra || {}) }, window.location.origin);
-	}
+  function postToParent(type, extra) {
+    if (window.parent === window) return;
+    window.parent.postMessage({ type, version: PROTOCOL_VERSION, ...(extra || {}) }, window.location.origin);
+  }
 
-	function isBootstrapPayload(value) {
-		return value && typeof value === 'object' && value.type === 'forkorfry:local-bootstrap' && typeof value.sessionId === 'string' && Array.isArray(value.packets);
-	}
+  function isBootstrapPayload(value) {
+    return value && typeof value === 'object' && value.type === 'forkorfry:local-bootstrap' && typeof value.sessionId === 'string' && Array.isArray(value.packets);
+  }
 
-	window.addEventListener('message', (event) => {
-		if (event.origin !== window.location.origin || event.source !== window.parent) return;
+  window.addEventListener('message', (event) => {
+    if (event.origin !== window.location.origin || event.source !== window.parent) return;
 
-		const data = event.data;
-		if (!data || typeof data !== 'object' || data.version !== PROTOCOL_VERSION || typeof data.type !== 'string') return;
+    const data = event.data;
+    if (!data || typeof data !== 'object' || data.version !== PROTOCOL_VERSION || typeof data.type !== 'string') return;
 
-		switch (data.type) {
-			case 'forkorfry:bridge-bootstrap':
-			case 'forkorfry:bridge-resume': {
-				if (!isBootstrapPayload(data.payload)) {
-					bridgeState.status = 'error';
-					bridgeState.lastError = 'Invalid bootstrap payload.';
-					publishBridgeState();
-					postToParent('forkorfry:bridge-error', { detail: bridgeState.lastError });
-					return;
-				}
+    switch (data.type) {
+      case 'forkorfry:bridge-bootstrap':
+      case 'forkorfry:bridge-resume': {
+        if (!isBootstrapPayload(data.payload)) {
+          bridgeState.status = 'error';
+          bridgeState.lastError = 'Invalid bootstrap payload.';
+          publishBridgeState();
+          postToParent('forkorfry:bridge-error', { detail: bridgeState.lastError });
+          return;
+        }
 
-				bridgeState.status = 'running';
-				bridgeState.paused = false;
-				bridgeState.payload = data.payload;
-				bridgeState.lastError = null;
-				bridgeState.lastPauseReason = null;
-				publishBridgeState();
-				postToParent('forkorfry:bridge-bootstrap-ack', {
-					sessionId: data.payload.sessionId,
-					packetCount: data.payload.packets.length,
-				});
-				return;
-			}
-			case 'forkorfry:bridge-pause':
-				bridgeState.status = 'paused';
-				bridgeState.paused = true;
-				bridgeState.lastPauseReason = typeof data.reason === 'string' ? data.reason : 'Paused by the extension host.';
-				publishBridgeState();
-				return;
-			default:
-				return;
-		}
-	});
+        bridgeState.status = 'running';
+        bridgeState.paused = false;
+        bridgeState.payload = data.payload;
+        bridgeState.lastError = null;
+        bridgeState.lastPauseReason = null;
+        publishBridgeState();
+        postToParent('forkorfry:bridge-bootstrap-ack', {
+          sessionId: data.payload.sessionId,
+          packetCount: data.payload.packets.length,
+        });
+        return;
+      }
+      case 'forkorfry:bridge-pause':
+        bridgeState.status = 'paused';
+        bridgeState.paused = true;
+        bridgeState.lastPauseReason = typeof data.reason === 'string' ? data.reason : 'Paused by the extension host.';
+        publishBridgeState();
+        return;
+      default:
+        return;
+    }
+  });
 
-	publishBridgeState();
-	window.addEventListener('load', () => {
-		postToParent('forkorfry:bridge-ready');
-	});
+  publishBridgeState();
+  window.addEventListener('load', () => {
+    postToParent('forkorfry:bridge-ready');
+  });
 }());
-		</script>
+</script>
 		<script>
-const GODOT_CONFIG = {"args":[],"canvasResizePolicy":2,"emscriptenPoolSize":8,"ensureCrossOriginIsolationHeaders":true,"executable":"index","experimentalVK":false,"fileSizes":{"index.pck":8721552,"index.wasm":37695054},"focusCanvas":true,"gdextensionLibs":[],"godotPoolSize":4};
+const GODOT_CONFIG = {"args":[],"canvasResizePolicy":2,"emscriptenPoolSize":8,"ensureCrossOriginIsolationHeaders":true,"executable":"index","experimentalVK":false,"fileSizes":{"index.pck":8729552,"index.wasm":37695054},"focusCanvas":true,"gdextensionLibs":[],"godotPoolSize":4};
 const GODOT_THREADS_ENABLED = false;
 const engine = new Engine(GODOT_CONFIG);
 
@@ -291,3 +291,4 @@ const engine = new Engine(GODOT_CONFIG);
 		</script>
 	</body>
 </html>
+

@@ -13,7 +13,7 @@ The product direction is:
 - all gameplay state is **local**
 - there is **no server dependency**
 
-The current branch keeps the extension host shell and runtime boundary that were added during the first pivot. The child runtime is still a custom TypeScript burger-session scaffold and is **not** the final game path.
+The current branch keeps the extension host shell and runtime boundary that were added during the first pivot. The child runtime has now been switched over to a **real bundled Godot web export path** with a local bridge/bootstrap adapter, but it is still mid-migration and not yet a fully shipped single-player game.
 
 ## Product definition
 
@@ -43,17 +43,42 @@ There should only be **one active host surface at a time**. Moving from popup wi
 - checkpoint storage owned by the host shell
 - pause, resume, reset, and shutdown plumbing
 - popup-window host and full-tab host support
+- a bundled Hurry Curry Godot web export inside `extension/public/upstream/hurrycurry-web/`
+- a runtime-frame adapter that loads the bundled export offline inside the extension
+- a parent ↔ embedded HTML bridge handshake for bootstrap/pause/resume messages
+- a tracked Godot overlay workflow for patching the read-only upstream client before export
+- a first local bridge route inside the Godot client (`entry.gd` → `game.gd` → `multiplayer.gd`)
+- a richer local `burgers_inc` bootstrap payload with real tile/item registries, map changes, and spawn position
+- live-boot proof that the local player reaches the real `game.gd` packet consumer path in the exported web build
 
 ### What is still temporary
 
-- `extension/src/features/runtime-frame/burger-runtime.ts` is still a custom TypeScript burger scaffold
-- gameplay logic is still local scaffolding, not the real upstream game path
-- upstream `hurrycurry` client behavior has not been integrated yet
-- server/multiplayer coupling in the real upstream code has not been removed yet
+- the TypeScript burger runtime files still exist as historical scaffold/reference, but they are no longer the active runtime path
+- the current local bridge only injects the first bootstrap packet stream; it does not yet provide a full local-authoritative simulation loop
+- downstream gameplay/input/runtime behavior after initial spawn still needs real probing and fixes
+- server/multiplayer assumptions still exist in upstream code and are being patched selectively through the overlay path
+- the Godot-side JS bridge globals were not reliable for inspection, so current debugging relies mainly on console instrumentation
 
 ### What should not keep growing
 
 The custom burger runtime is now reference/scaffolding only. Do not keep deepening it unless a change directly supports the upstream local-runtime path.
+
+### What has now been proven
+
+- the extension can ship and load a real Godot web build offline
+- the host page can boot the runtime-frame and pass a local bootstrap payload into the embedded export
+- the Godot client can detect the ForkOrFry local bridge path and route into the real game scene
+- the fallback `game-menu` path can force `mp.connect_to_urls(["forkorfry-local://bootstrap"])` when needed
+- the local bridge bootstrap now reaches `Multiplayer.handle_decoded_packet()` and then the real `Game.handle_packet()` path
+- the bootstrap packet sequence currently reaches:
+  - `server_data`
+  - `game_data`
+  - `update_map`
+  - `score`
+  - `set_ingame`
+  - `joined`
+  - `add_player`
+- the local player now spawns in the real map at `(2.5, 9.5)` on the `burgers_inc` bootstrap
 
 ## Target architecture
 
@@ -69,7 +94,8 @@ flowchart LR
 
   RH --> RF[runtime-frame iframe]
   RF --> UA[upstream local adapter]
-  UA --> LS[local single-player session]
+  UA --> GE[Bundled Godot web export]
+  GE --> LS[local single-player session]
   RH --> ST[browser.storage.local]
   LS --> ST
 ```
@@ -116,6 +142,7 @@ extension/src/
 ```text
 extension/src/features/runtime-frame/
 ├── upstream-runtime.ts            # current runtime-frame adapter shell for bundled web export
+├── upstream-bridge.ts             # local bootstrap payload + bridge message schema
 ├── upstream-export.ts             # export manifest parsing + entry resolution
 ├── upstream-checkpoint.ts         # adapter-shell checkpoint serializer
 ├── burger-runtime.ts              # current scaffold, not final direction
@@ -129,12 +156,36 @@ extension/src/features/runtime-frame/
 
 ```text
 extension/src/features/runtime-frame/
-├── upstream-runtime.ts            # next runtime entrypoint target
-├── upstream-session.ts            # local authoritative session adapter
+├── upstream-runtime.ts            # extension-side adapter shell around the Godot web export
+├── upstream-bridge.ts             # parent/export bootstrap + pause/resume bridge contract
+├── upstream-session.ts            # future local authoritative session adapter
 ├── upstream-checkpoint.ts         # checkpoint serialization for upstream-shaped state
-├── upstream-data.ts               # normalized checked-in burger-level/map data
+├── upstream-data.ts               # future normalized upstream data helpers if needed
 └── burger-runtime.ts              # kept only as reference during migration
 ```
+
+### Writable Godot overlay/export workflow
+
+```text
+extension/
+├── upstream/hurrycurry-client-overlay/
+│   ├── gui/menus/entry.gd
+│   ├── gui/menus/game.gd
+│   ├── multiplayer.gd
+│   ├── game.gd
+│   ├── service/service.gd
+│   └── system/translation_manager.gd
+├── scripts/export-godot-web-build.mjs
+└── public/upstream/hurrycurry-web/
+```
+
+Workflow:
+
+1. keep `.upstream-reference/hurrycurry/client` read-only
+2. copy it into a writable temp project
+3. overlay tracked files from `extension/upstream/hurrycurry-client-overlay/`
+4. export Godot web build
+5. sync result into `extension/public/upstream/hurrycurry-web/`
 
 ## Near-term implementation plan
 
@@ -166,8 +217,40 @@ extension/src/features/runtime-frame/
 
 ### Slice 5 — final runtime path
 
-- decide when the Godot/WASM runtime lands inside the same host shell
-- keep the extension-hosted shell architecture unchanged while swapping runtimes
+- keep the extension-hosted shell architecture unchanged while deepening the Godot runtime path
+- remove temporary debug instrumentation once the local session path is stable
+
+## What is left to do now
+
+### Immediate next work
+
+- probe actual gameplay after spawn:
+  - movement
+  - camera/follow behavior
+  - interactions
+  - item pickup/use
+  - pause/resume under the extension host
+- identify the first real post-bootstrap gameplay/runtime failure once startup noise is reduced
+- decide whether any remaining startup logs should be suppressed or simply accepted during development
+
+### Local-authority migration still missing
+
+- replace the bootstrap-only bridge with a true local-authoritative session path
+- handle outgoing gameplay packets (`movement`, `interact`, `ready`, `idle`, etc.) locally instead of dropping them
+- keep the runtime alive without websocket/server expectations
+- decide what state must be checkpointed from the real Godot runtime rather than only from the adapter shell
+
+### Single-player game behavior still missing
+
+- remove or replace remaining multiplayer-only assumptions in the live game loop
+- decide how bots/customers/orders should work in the local single-player build
+- keep first shipped scope locked to the burger map/runtime slice
+
+### Packaging/release follow-up
+
+- decide whether the generated Godot export files should stay checked in long-term or be generated in release workflow only
+- document the live harness/debug workflow separately if it will continue to be used
+- keep AMO/reviewer-facing docs aligned once the Godot path becomes the default shipped runtime
 
 ## Hard constraints
 
@@ -210,17 +293,28 @@ npm run dev
 npm run build
 npm test
 npm run lint
+npm run export:godot-web
 npm run sync:godot-web-export -- /absolute/path/to/godot-web-export
 npm run package:firefox
 ```
 
-The runtime adapter expects copied web export files under:
+The runtime adapter expects bundled web export files under:
 
 ```text
 extension/public/upstream/hurrycurry-web/
 ```
 
-The sync script writes a `manifest.json` there so `runtime-frame.html` can load the bundled export offline from inside the extension package.
+There are now two relevant workflows:
+
+- `npm run sync:godot-web-export -- /absolute/path/to/godot-web-export`
+  - copies an already-exported Godot web build into the extension package
+- `npm run export:godot-web`
+  - builds a writable temp copy of the upstream client
+  - overlays tracked local-bridge patches from `extension/upstream/hurrycurry-client-overlay/`
+  - exports a fresh Godot web build
+  - syncs it into `extension/public/upstream/hurrycurry-web/`
+
+The sync/export path writes a `manifest.json` there so `runtime-frame.html` can load the bundled export offline from inside the extension package.
 
 ### Temporary loading in Firefox
 
@@ -241,6 +335,16 @@ The sync script writes a `manifest.json` there so `runtime-frame.html` can load 
 6. From the popup-window host, use **Move to full tab** and confirm the run transfers
 7. Close and reopen the active surface to confirm checkpoint resume still works
 8. Use **Clear state** to confirm both trigger state and runtime-host state reset cleanly
+
+### Current Godot local-bridge runtime
+
+1. Run `npm run export:godot-web && npm run build` in `extension/`
+2. Load the extension temporarily in Firefox
+3. Open the popup-window host or full-tab host
+4. Confirm the bundled Godot export loads inside the runtime-frame host shell
+5. Confirm the local bridge boot sequence reaches the real game runtime
+6. Verify the local player spawns in `burgers_inc`
+7. Probe movement/interactions and capture the next real runtime failure
 
 ## Contributor guidance
 
