@@ -638,6 +638,117 @@ describe('upstream runtime helpers', () => {
     ])
   })
 
+  it('starts and completes passive stove searing and burn progression', () => {
+    const pattyIndex = BURGERS_INC_BOOTSTRAP.item_names.indexOf('patty')
+    const panIndex = BURGERS_INC_BOOTSTRAP.item_names.indexOf('pan')
+    const panPattyIndex = BURGERS_INC_BOOTSTRAP.item_names.indexOf('pan:patty')
+    const panSearedPattyIndex = BURGERS_INC_BOOTSTRAP.item_names.indexOf('pan:seared-patty')
+    const panBurnedIndex = BURGERS_INC_BOOTSTRAP.item_names.indexOf('pan:burned')
+    const panTilePacket = BURGERS_INC_BOOTSTRAP.packets.find((packet) => packet.type === 'set_item' && 'tile' in packet.location && packet.item === panIndex)
+    if (pattyIndex < 0 || panPattyIndex < 0 || panSearedPattyIndex < 0 || panBurnedIndex < 0 || !panTilePacket || !('tile' in panTilePacket.location)) {
+      throw new Error('Missing passive stove fixture')
+    }
+
+    const combined = applyGameplayPacketToAuthority(createLocalAuthoritySession({
+      ...createInitialAuthoritySnapshot(),
+      hands: [pattyIndex, null],
+    }), createGameplayPacketMessage('interact', {
+      player: 1,
+      hand: 0,
+      target: { tile: panTilePacket.location.tile },
+    }))
+
+    const startedSear = applyGameplayPacketToAuthority(combined.session, createGameplayPacketMessage('interact', {
+      player: 1,
+      hand: 0,
+      target: { tile: panTilePacket.location.tile },
+    }))
+
+    expect(startedSear.session.snapshot.progressTiles[panTilePacket.location.tile.join(',')]).toMatchObject({
+      position: 0,
+      speed: 1 / 15,
+      baseSpeed: 1 / 15,
+      warn: false,
+      players: [],
+      handOutput: null,
+      tileOutput: panSearedPattyIndex,
+    })
+    expect(startedSear.packets).toEqual([
+      {
+        type: 'set_progress',
+        players: [],
+        item: { tile: panTilePacket.location.tile },
+        position: 0,
+        speed: 1 / 15,
+        warn: false,
+      },
+    ])
+
+    const seared = advanceAuthoritySession(startedSear.session, 15)
+    expect(seared.session.snapshot.progressTiles[panTilePacket.location.tile.join(',')]).toBeUndefined()
+    expect(seared.session.snapshot.tileItems[panTilePacket.location.tile.join(',')]).toBe(panSearedPattyIndex)
+    expect(seared.packets).toEqual([
+      {
+        type: 'set_progress',
+        players: [],
+        item: { tile: panTilePacket.location.tile },
+        position: 1,
+        speed: 0,
+        warn: false,
+      },
+      {
+        type: 'set_item',
+        location: { tile: panTilePacket.location.tile },
+        item: panSearedPattyIndex,
+      },
+    ])
+
+    const startedBurn = applyGameplayPacketToAuthority(seared.session, createGameplayPacketMessage('interact', {
+      player: 1,
+      hand: 0,
+      target: { tile: panTilePacket.location.tile },
+    }))
+
+    expect(startedBurn.session.snapshot.progressTiles[panTilePacket.location.tile.join(',')]).toMatchObject({
+      position: 0,
+      speed: 1 / 5,
+      baseSpeed: 1 / 5,
+      warn: true,
+      players: [],
+      handOutput: null,
+      tileOutput: panBurnedIndex,
+    })
+    expect(startedBurn.packets).toEqual([
+      {
+        type: 'set_progress',
+        players: [],
+        item: { tile: panTilePacket.location.tile },
+        position: 0,
+        speed: 1 / 5,
+        warn: true,
+      },
+    ])
+
+    const burned = advanceAuthoritySession(startedBurn.session, 5)
+    expect(burned.session.snapshot.progressTiles[panTilePacket.location.tile.join(',')]).toBeUndefined()
+    expect(burned.session.snapshot.tileItems[panTilePacket.location.tile.join(',')]).toBe(panBurnedIndex)
+    expect(burned.packets).toEqual([
+      {
+        type: 'set_progress',
+        players: [],
+        item: { tile: panTilePacket.location.tile },
+        position: 1,
+        speed: 0,
+        warn: true,
+      },
+      {
+        type: 'set_item',
+        location: { tile: panTilePacket.location.tile },
+        item: panBurnedIndex,
+      },
+    ])
+  })
+
   it('replays active progress packets as part of the authority state', () => {
     const snapshot = createInitialAuthoritySnapshot()
     snapshot.progressTiles['4,4'] = {

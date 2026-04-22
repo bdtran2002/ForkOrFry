@@ -47,6 +47,13 @@ interface UpstreamInstantTileRecipe {
   handOutput: number | null
 }
 
+interface UpstreamPassiveStoveRecipe {
+  input: number
+  tileOutput: number
+  durationSeconds: number
+  warn: boolean
+}
+
 function createTileKey(x: number, y: number) {
   return `${x},${y}`
 }
@@ -104,6 +111,19 @@ const INSTANT_TILE_RECIPES: UpstreamInstantTileRecipe[] = [
 })
 
 const INSTANT_TILE_RECIPE_BY_ITEMS = new Map(INSTANT_TILE_RECIPES.map((recipe) => [`${recipe.tileInput}:${recipe.handInput}`, recipe]))
+
+const PASSIVE_STOVE_RECIPES: UpstreamPassiveStoveRecipe[] = [
+  ['pan:patty', 'pan:seared-patty', 15, false],
+  ['pan:seared-patty', 'pan:burned', 5, true],
+].flatMap(([inputName, outputName, durationSeconds, warn]) => {
+  const input = getItemIndex(inputName)
+  const tileOutput = getItemIndex(outputName)
+  return input === null || tileOutput === null
+    ? []
+    : [{ input, tileOutput, durationSeconds, warn }]
+})
+
+const PASSIVE_STOVE_RECIPE_BY_INPUT = new Map(PASSIVE_STOVE_RECIPES.map((recipe) => [recipe.input, recipe]))
 
 function createInitialAuthorityTileItems() {
   return Object.fromEntries(
@@ -226,6 +246,11 @@ function getCuttingBoardRecipe(item: number | null, position: [number, number]) 
   return CUTTING_BOARD_RECIPE_BY_INPUT.get(item) ?? null
 }
 
+function getPassiveStoveRecipe(item: number | null, position: [number, number]) {
+  if (item === null || !tileHasPart(position, 'stove')) return null
+  return PASSIVE_STOVE_RECIPE_BY_INPUT.get(item) ?? null
+}
+
 function createProgressPacket(location: { tile: [number, number] }, progress: UpstreamAuthorityProgressSnapshot): Extract<UpstreamAuthorityPacket, { type: 'set_progress' }> {
   return {
     type: 'set_progress',
@@ -263,6 +288,27 @@ function createCompletionPackets(
     ...(tileOutput !== null
       ? [{ type: 'set_item' as const, location, item: tileOutput }]
       : []),
+  ]
+}
+
+function createPassiveCompletionPackets(
+  location: { tile: [number, number] },
+  progress: UpstreamAuthorityProgressSnapshot,
+): UpstreamAuthorityPacket[] {
+  return [
+    {
+      type: 'set_progress',
+      players: [],
+      item: location,
+      position: 1,
+      speed: 0,
+      warn: progress.warn,
+    },
+    {
+      type: 'set_item',
+      location,
+      item: progress.tileOutput,
+    },
   ]
 }
 
@@ -411,10 +457,17 @@ export function advanceAuthoritySession(
 
   let changed = false
   const nextProgressTiles: Record<string, UpstreamAuthorityProgressSnapshot> = {}
+  const packets: UpstreamAuthorityPacket[] = []
 
   for (const [key, progress] of Object.entries(session.snapshot.progressTiles)) {
+    const location = createTileLocation(key)
     const nextPosition = Math.min(1, progress.position + Math.max(0, progress.speed) * deltaSeconds)
     if (nextPosition !== progress.position) changed = true
+
+    if (location && progress.handOutput === null && progress.tileOutput !== null && progress.speed > 0 && nextPosition >= 1) {
+      packets.push(...createPassiveCompletionPackets(location, progress))
+      continue
+    }
 
     nextProgressTiles[key] = {
       ...progress,
@@ -423,17 +476,24 @@ export function advanceAuthoritySession(
   }
 
   if (!changed) {
-    return { session, packets: [] as UpstreamAuthorityPacket[] }
+    return { session, packets }
+  }
+
+  const nextTileItems = { ...session.snapshot.tileItems }
+  for (const packet of packets) {
+    if (packet.type !== 'set_item' || !('tile' in packet.location)) continue
+    nextTileItems[createTileKey(packet.location.tile[0], packet.location.tile[1])] = packet.item
   }
 
   return {
     session: {
       snapshot: {
         ...session.snapshot,
+        tileItems: nextTileItems,
         progressTiles: nextProgressTiles,
       },
     },
-    packets: [] as UpstreamAuthorityPacket[],
+    packets,
   }
 }
 
@@ -470,7 +530,7 @@ export function applyGameplayPacketToAuthority(
       ? INSTANT_TILE_RECIPE_BY_ITEMS.get(`${tileItem}:${heldItem}`) ?? null
       : null
 
-    if (tileProgress && heldItem === null) {
+    if (tileProgress && heldItem === null && tileProgress.handOutput !== null) {
       if (tileProgress.position >= 1) {
         const hands = [...session.snapshot.hands]
         hands[hand] = tileProgress.handOutput
@@ -509,7 +569,12 @@ export function applyGameplayPacketToAuthority(
       }
     }
 
+    if (tileProgress && tileProgress.handOutput === null) {
+      return { session, packets: [] as UpstreamAuthorityPacket[] }
+    }
+
     const cuttingBoardRecipe = getCuttingBoardRecipe(heldItem ?? tileItem, tile)
+    const passiveStoveRecipe = getPassiveStoveRecipe(tileItem, tile)
 
     if (isEdge && heldItem !== null && tileItem === null && cuttingBoardRecipe && cuttingBoardRecipe.input === heldItem) {
       const hands = [...session.snapshot.hands]
@@ -562,6 +627,30 @@ export function applyGameplayPacketToAuthority(
         ...session.snapshot,
         progressTiles: setTileProgress(session.snapshot, tile, nextProgress),
         interaction,
+      }
+
+      return {
+        session: { snapshot },
+        packets: [createProgressPacket(targetLocation, nextProgress)],
+      }
+    }
+
+    if (isEdge && heldItem === null && tileItem !== null && passiveStoveRecipe && !tileProgress) {
+      const nextProgress: UpstreamAuthorityProgressSnapshot = {
+        position: 0,
+        speed: 1 / passiveStoveRecipe.durationSeconds,
+        baseSpeed: 1 / passiveStoveRecipe.durationSeconds,
+        warn: passiveStoveRecipe.warn,
+        players: [],
+        hand,
+        handOutput: null,
+        tileOutput: passiveStoveRecipe.tileOutput,
+      }
+
+      const snapshot: UpstreamAuthoritySnapshot = {
+        ...session.snapshot,
+        progressTiles: setTileProgress(session.snapshot, tile, nextProgress),
+        interaction: null,
       }
 
       return {
