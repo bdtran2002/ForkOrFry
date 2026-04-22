@@ -11,7 +11,8 @@ import {
 } from '../src/features/runtime-frame/upstream-bridge'
 import { createUpstreamRuntimeCheckpoint, restoreUpstreamRuntimeCheckpoint } from '../src/features/runtime-frame/upstream-checkpoint'
 import { normalizeUpstreamExportManifest, resolveUpstreamExportUrl } from '../src/features/runtime-frame/upstream-export'
-import { createInitialUpstreamRuntimeState } from '../src/features/runtime-frame/upstream-runtime-state'
+import { createInitialUpstreamRuntimeState, describeUpstreamRuntimeSession } from '../src/features/runtime-frame/upstream-runtime-state'
+import { UPSTREAM_RUNTIME_GAMEPLAY_PACKET_HISTORY_LIMIT } from '../src/features/runtime-frame/upstream-runtime-state'
 
 describe('upstream runtime helpers', () => {
   function getPacket<TType extends UpstreamBootstrapPacket['type']>(
@@ -97,6 +98,36 @@ describe('upstream runtime helpers', () => {
     expect(restored.lastCheckpointReason).toBeNull()
   })
 
+  it('caps restored gameplay packet history while preserving the summary window', () => {
+    const gameplayPackets = Array.from({ length: UPSTREAM_RUNTIME_GAMEPLAY_PACKET_HISTORY_LIMIT + 5 }, (_, index) => ({
+      action: index % 2 === 0 ? 'movement' : 'interact',
+      payload: { index },
+      receivedAt: `2026-04-21T00:00:${String(index).padStart(2, '0')}.000Z`,
+    }))
+
+    const restored = restoreUpstreamRuntimeCheckpoint('burger-runtime', {
+      version: 1,
+      runtimeId: 'burger-runtime',
+      updatedAt: Date.now(),
+      state: {
+        ...createInitialUpstreamRuntimeState(),
+        gameplayPackets,
+      },
+    })
+
+    expect(restored.gameplayPackets).toHaveLength(UPSTREAM_RUNTIME_GAMEPLAY_PACKET_HISTORY_LIMIT)
+    expect(restored.gameplayPackets[0]).toEqual(gameplayPackets[5])
+    expect(restored.gameplayPackets[restored.gameplayPackets.length - 1]).toEqual(gameplayPackets[gameplayPackets.length - 1])
+    expect(restored.gameplayPacketSummary).toEqual({
+      totalCount: UPSTREAM_RUNTIME_GAMEPLAY_PACKET_HISTORY_LIMIT,
+      lastAction: 'interact',
+      actionCounts: {
+        movement: 12,
+        interact: 13,
+      },
+    })
+  })
+
   it('ignores malformed gameplay packets when restoring a checkpoint', () => {
     const restored = restoreUpstreamRuntimeCheckpoint('burger-runtime', {
       version: 1,
@@ -152,6 +183,11 @@ describe('upstream runtime helpers', () => {
       lastAction: 'ready',
       actionCounts: { movement: 2, ready: 1 },
     })
+  })
+
+  it('describes reused runtime sessions distinctly from fresh boots', () => {
+    expect(describeUpstreamRuntimeSession('session-123', true)).toBe('Reusing checkpointed session session-1.')
+    expect(describeUpstreamRuntimeSession('session-123', false)).toBe('Boot accepted for session-1.')
   })
 
   it('normalizes the upstream export manifest', () => {

@@ -6,6 +6,7 @@ export const runtimeHostCopy = {
     'This surface boots the child runtime inside an extension-owned host shell. The current child is still scaffolding, but the host/checkpoint boundary is the permanent seam for the single-player upstream port.',
   labels: {
     status: 'Host status',
+    lifecycle: 'Lifecycle',
     surface: 'Surface',
     runtime: 'Runtime',
     session: 'Session',

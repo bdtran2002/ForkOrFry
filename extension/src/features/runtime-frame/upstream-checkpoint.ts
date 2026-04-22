@@ -3,6 +3,7 @@ import {
   type RuntimeCheckpointEnvelope,
 } from '../runtime-host/contract'
 import {
+  UPSTREAM_RUNTIME_GAMEPLAY_PACKET_HISTORY_LIMIT,
   UPSTREAM_RUNTIME_SAVE_VERSION,
   createInitialUpstreamRuntimeState,
   type UpstreamRuntimeState,
@@ -41,6 +42,10 @@ function createGameplayPacketSummary(packets: UpstreamRuntimeState['gameplayPack
     lastAction,
     actionCounts,
   }
+}
+
+function trimGameplayPackets(packets: UpstreamRuntimeState['gameplayPackets']) {
+  return packets.slice(-UPSTREAM_RUNTIME_GAMEPLAY_PACKET_HISTORY_LIMIT)
 }
 
 function isUpstreamRuntimeState(value: unknown): value is UpstreamRuntimeState {
@@ -91,13 +96,15 @@ export function restoreUpstreamRuntimeCheckpoint(
   }
 
   const initialState = createInitialUpstreamRuntimeState()
-  const gameplayPacketSummary = createGameplayPacketSummary(checkpoint.state.gameplayPackets)
+  const gameplayPackets = trimGameplayPackets(checkpoint.state.gameplayPackets)
+  const gameplayPacketSummary = createGameplayPacketSummary(gameplayPackets)
 
   return {
     ...initialState,
     ...checkpoint.state,
     lastCheckpointReason: null,
     godotBridgeSnapshot: checkpoint.state.godotBridgeSnapshot ?? initialState.godotBridgeSnapshot,
+    gameplayPackets,
     gameplayPacketSummary,
   }
 }
