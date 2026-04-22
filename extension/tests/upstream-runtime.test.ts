@@ -1077,6 +1077,109 @@ describe('upstream runtime helpers', () => {
     expect(result.packets).toEqual([])
   })
 
+  it('times out an unserved customer, removes them, and respawns a fresh order', () => {
+    const initial = createInitialAuthoritySnapshot()
+    if (!initial.customer) throw new Error('Missing timeout customer fixture')
+
+    const timedOut = advanceAuthoritySession(createLocalAuthoritySession(initial), 90)
+    expect(timedOut.session.snapshot.score).toMatchObject({
+      points: -1,
+      demands_failed: 1,
+    })
+    expect(timedOut.session.snapshot.customer).toMatchObject({
+      phase: 'exiting',
+      orderMessage: null,
+      orderTimeout: null,
+      despawnPending: true,
+    })
+    expect(timedOut.packets).toEqual([
+      {
+        type: 'communicate',
+        player: initial.customer.id,
+        message: null,
+        timeout: null,
+      },
+      {
+        type: 'effect',
+        effect: 'angry',
+        location: { player: [initial.customer.id, 0] },
+      },
+      {
+        type: 'effect',
+        effect: 'points',
+        amount: -1,
+        location: { player: [initial.customer.id, 0] },
+      },
+      {
+        type: 'score',
+        ...timedOut.session.snapshot.score,
+      },
+    ])
+
+    const removed = advanceAuthoritySession(timedOut.session, 0.1)
+    expect(removed.session.snapshot.customer).toMatchObject({
+      phase: 'gone',
+      timerRemaining: 5,
+    })
+    expect(removed.packets).toEqual([
+      {
+        type: 'remove_player',
+        id: initial.customer.id,
+      },
+    ])
+
+    const respawned = advanceAuthoritySession(removed.session, 5)
+    expect(respawned.session.snapshot.customer).toMatchObject({
+      phase: 'waiting',
+      id: initial.customer.id,
+      orderMessage: { item: initial.customer.demandItem },
+    })
+    expect(respawned.packets).toContainEqual({
+      type: 'add_player',
+      id: initial.customer.id,
+      name: '',
+      position: initial.customer.position,
+      character: initial.customer.character,
+      class: 'customer',
+    })
+    expect(respawned.packets).toContainEqual({
+      type: 'communicate',
+      player: initial.customer.id,
+      message: { item: initial.customer.demandItem },
+      timeout: { initial: 90, remaining: 90, pinned: true },
+    })
+  })
+
+  it('respawns a fresh customer after a completed serve loop', () => {
+    const burgerIndex = BURGERS_INC_BOOTSTRAP.item_names.indexOf('plate:seared-patty,sliced-bun,sliced-cheese')
+    if (burgerIndex < 0) throw new Error('Missing customer respawn fixture')
+
+    const initial = createInitialAuthoritySnapshot()
+    if (!initial.customer) throw new Error('Missing initial customer fixture')
+
+    const tableKey = initial.customer.table.join(',')
+    const servedSession = createLocalAuthoritySession({
+      ...initial,
+      tileItems: {
+        ...initial.tileItems,
+        [tableKey]: burgerIndex,
+      },
+    })
+
+    const served = advanceAuthoritySession(servedSession, 0.1)
+    const eaten = advanceAuthoritySession(served.session, 10)
+    const returned = advanceAuthoritySession(eaten.session, 0.1)
+    const removed = advanceAuthoritySession(returned.session, 0.1)
+    const respawned = advanceAuthoritySession(removed.session, 5)
+
+    expect(respawned.session.snapshot.customer).toMatchObject({
+      phase: 'waiting',
+      handItem: null,
+      orderMessage: { item: initial.customer.demandItem },
+    })
+    expect(respawned.packets).toContainEqual(expect.objectContaining({ type: 'add_player', class: 'customer' }))
+  })
+
   it('replays active progress packets as part of the authority state', () => {
     const snapshot = createInitialAuthoritySnapshot()
     snapshot.progressTiles['4,4'] = {

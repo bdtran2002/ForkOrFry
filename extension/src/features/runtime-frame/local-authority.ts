@@ -76,6 +76,8 @@ interface UpstreamPassiveStoveRecipe {
 
 const CUSTOMER_ID = BURGERS_INC_BOOTSTRAP.playerId + 1
 const CUSTOMER_DEMAND_DURATION = 10
+const CUSTOMER_TIMEOUT_SECONDS = 90
+const CUSTOMER_RESPAWN_SECONDS = 5
 
 function createTileKey(x: number, y: number) {
   return `${x},${y}`
@@ -200,15 +202,34 @@ function createInitialCustomerSnapshot(): UpstreamAuthorityCustomerSnapshot | nu
     demandDuration: CUSTOMER_DEMAND_DURATION,
     orderMessage: { item: demandItem },
     orderTimeout: {
-      initial: 90,
-      remaining: 90,
+      initial: CUSTOMER_TIMEOUT_SECONDS,
+      remaining: CUSTOMER_TIMEOUT_SECONDS,
       pinned: true,
     },
     scorePending: false,
-    timerRemaining: CUSTOMER_DEMAND_DURATION,
+    timerRemaining: 0,
     despawnPending: false,
     character: { ...BURGERS_INC_BOOTSTRAP.character },
   }
+}
+
+function createCustomerSpawnPackets(customer: UpstreamAuthorityCustomerSnapshot): UpstreamAuthorityPacket[] {
+  return [
+    {
+      type: 'add_player',
+      id: customer.id,
+      name: '',
+      position: customer.position,
+      character: customer.character,
+      class: 'customer',
+    },
+    createCustomerCommunicatePacket(customer),
+    {
+      type: 'set_item',
+      location: { player: [customer.id, 0] },
+      item: customer.handItem,
+    },
+  ]
 }
 
 function createInitialAuthorityTileItems() {
@@ -605,22 +626,7 @@ export function createAuthorityStatePackets(snapshot: UpstreamAuthoritySnapshot)
     .filter((packet): packet is Extract<UpstreamAuthorityPacket, { type: 'set_progress' }> => packet !== null)
 
   const customerPackets: UpstreamAuthorityPacket[] = snapshot.customer && snapshot.customer.phase !== 'gone'
-    ? [
-      {
-        type: 'add_player',
-        id: snapshot.customer.id,
-        name: '',
-        position: snapshot.customer.position,
-        character: snapshot.customer.character,
-        class: 'customer',
-      },
-      createCustomerCommunicatePacket(snapshot.customer),
-      {
-        type: 'set_item',
-        location: { player: [snapshot.customer.id, 0] },
-        item: snapshot.customer.handItem,
-      },
-    ]
+    ? createCustomerSpawnPackets(snapshot.customer)
     : []
 
   return [
@@ -670,9 +676,46 @@ export function advanceAuthoritySession(
   }
 
   if (nextCustomer?.phase === 'waiting') {
+    const nextTimeout = nextCustomer.orderTimeout
+      ? {
+        ...nextCustomer.orderTimeout,
+        remaining: Math.max(0, nextCustomer.orderTimeout.remaining - deltaSeconds),
+      }
+      : null
+
+    if (nextTimeout && nextTimeout.remaining !== nextCustomer.orderTimeout?.remaining) {
+      changed = true
+      nextCustomer = {
+        ...nextCustomer,
+        orderTimeout: nextTimeout,
+      }
+    }
+
+    if (nextTimeout && nextTimeout.remaining <= 0) {
+      nextScore = {
+        ...nextScore,
+        points: nextScore.points - 1,
+        demands_failed: nextScore.demands_failed + 1,
+      }
+      nextCustomer = {
+        ...nextCustomer,
+        phase: 'exiting',
+        orderMessage: null,
+        orderTimeout: null,
+        despawnPending: true,
+        timerRemaining: CUSTOMER_RESPAWN_SECONDS,
+      }
+      packets.push(
+        createCustomerCommunicatePacket(nextCustomer),
+        { type: 'effect', effect: 'angry', location: { player: [nextCustomer.id, 0] } },
+        { type: 'effect', effect: 'points', amount: -1, location: { player: [nextCustomer.id, 0] } },
+        createScorePacket(nextScore),
+      )
+    }
+
     const tableLocation = { tile: nextCustomer.table } as const
     const tableItem = nextTileItems[createTileKey(nextCustomer.table[0], nextCustomer.table[1])] ?? null
-    if (tableItem === nextCustomer.demandItem) {
+    if (nextCustomer.phase === 'waiting' && tableItem === nextCustomer.demandItem) {
       changed = true
       nextTileItems[createTileKey(nextCustomer.table[0], nextCustomer.table[1])] = null
       nextScore = {
@@ -744,6 +787,23 @@ export function advanceAuthoritySession(
       ...nextCustomer,
       phase: 'gone',
       despawnPending: false,
+      timerRemaining: CUSTOMER_RESPAWN_SECONDS,
+    }
+  } else if (nextCustomer?.phase === 'gone') {
+    const timerRemaining = Math.max(0, nextCustomer.timerRemaining - deltaSeconds)
+    if (timerRemaining <= 0) {
+      const respawned = createInitialCustomerSnapshot()
+      if (respawned) {
+        changed = true
+        nextCustomer = respawned
+        packets.push(...createCustomerSpawnPackets(respawned))
+      }
+    } else if (timerRemaining !== nextCustomer.timerRemaining) {
+      changed = true
+      nextCustomer = {
+        ...nextCustomer,
+        timerRemaining,
+      }
     }
   }
 
