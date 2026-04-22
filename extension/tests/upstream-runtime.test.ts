@@ -2,16 +2,15 @@ import { describe, expect, it } from 'vitest'
 
 import {
   createBridgeBootstrapMessage,
-  createLocalBootstrapPayload,
   createGameplayPacketMessage,
   type UpstreamBootstrapPacket,
-  UPSTREAM_PROTOCOL_MAJOR,
   isUpstreamBootstrapPayload,
   isUpstreamEmbeddedToParentMessage,
 } from '../src/features/runtime-frame/upstream-bridge'
+import { BURGERS_INC_BOOTSTRAP, createBurgersIncBootstrapPayload, createBurgersIncBootstrapTemplate } from '../upstream/generated/burgers-inc-bootstrap'
 import { createUpstreamRuntimeCheckpoint, restoreUpstreamRuntimeCheckpoint } from '../src/features/runtime-frame/upstream-checkpoint'
 import { normalizeUpstreamExportManifest, resolveUpstreamExportUrl } from '../src/features/runtime-frame/upstream-export'
-import { createInitialUpstreamRuntimeState, describeUpstreamRuntimeSession } from '../src/features/runtime-frame/upstream-runtime-state'
+import { acknowledgeUpstreamBridgeSnapshot, createBootUpstreamRuntimeState, createInitialUpstreamBridgeSnapshot, createInitialUpstreamRuntimeState, createResumeUpstreamRuntimeState, describeUpstreamRuntimeSession, errorUpstreamBridgeSnapshot, resolveUpstreamRuntimeSessionState, restoreUpstreamBridgeSnapshotForSession } from '../src/features/runtime-frame/upstream-runtime-state'
 import { UPSTREAM_RUNTIME_GAMEPLAY_PACKET_HISTORY_LIMIT } from '../src/features/runtime-frame/upstream-runtime-state'
 
 describe('upstream runtime helpers', () => {
@@ -33,7 +32,6 @@ describe('upstream runtime helpers', () => {
       exportUrl: '/upstream/hurrycurry-web/index.html',
       detail: 'Bundled export iframe loaded.',
       bridgeSnapshot: {
-        payload: createLocalBootstrapPayload('session-123'),
         acknowledgedSessionId: 'session-123',
         acknowledgedPacketCount: 8,
         lastError: null,
@@ -46,11 +44,6 @@ describe('upstream runtime helpers', () => {
         totalCount: 2,
         lastAction: 'interact',
         actionCounts: { movement: 1, interact: 1 },
-      },
-      godotBridgeSnapshot: {
-        entryState: 'entry-ready',
-        lastUpdate: 'multiplayer',
-        updatedAt: '2026-04-21T00:00:00.000Z',
       },
       lastCheckpointReason: 'checkpoint:pause',
       bootstrapPacketCount: 8,
@@ -96,56 +89,6 @@ describe('upstream runtime helpers', () => {
       actionCounts: { movement: 1, ready: 1 },
     })
     expect(restored.lastCheckpointReason).toBeNull()
-  })
-
-  it('preserves godot bridge snapshot data on restore without bridge acknowledgement coupling', () => {
-    const restored = restoreUpstreamRuntimeCheckpoint('burger-runtime', {
-      version: 1,
-      runtimeId: 'burger-runtime',
-      updatedAt: Date.now(),
-      state: {
-        ...createInitialUpstreamRuntimeState(),
-        bridgeSnapshot: {
-          payload: createLocalBootstrapPayload('session-123'),
-          acknowledgedSessionId: null,
-          acknowledgedPacketCount: 0,
-          lastError: null,
-        },
-        godotBridgeSnapshot: {
-          entryState: 'live',
-          lastUpdate: 'bridge-update',
-          updatedAt: '2026-04-21T00:00:00.000Z',
-        },
-      },
-    })
-
-    expect(restored.godotBridgeSnapshot).toEqual({
-      entryState: 'live',
-      lastUpdate: 'bridge-update',
-      updatedAt: '2026-04-21T00:00:00.000Z',
-    })
-  })
-
-  it('scrubs missing godot bridge snapshot data on restore', () => {
-    const restored = restoreUpstreamRuntimeCheckpoint('burger-runtime', {
-      version: 1,
-      runtimeId: 'burger-runtime',
-      updatedAt: Date.now(),
-      state: {
-        ...createInitialUpstreamRuntimeState(),
-        godotBridgeSnapshot: undefined as unknown as {
-          entryState: string | null
-          lastUpdate: string | null
-          updatedAt: string | null
-        },
-      },
-    })
-
-    expect(restored.godotBridgeSnapshot).toEqual({
-      entryState: null,
-      lastUpdate: null,
-      updatedAt: null,
-    })
   })
 
   it('caps restored gameplay packet history while preserving the summary window', () => {
@@ -240,6 +183,136 @@ describe('upstream runtime helpers', () => {
     expect(describeUpstreamRuntimeSession('session-123', false)).toBe('Boot accepted for session-1.')
   })
 
+  it('restores bridge snapshot state only for the active session', () => {
+    expect(restoreUpstreamBridgeSnapshotForSession({
+      acknowledgedSessionId: 'session-123',
+      acknowledgedPacketCount: 8,
+      lastError: 'stale',
+    }, 'session-123')).toEqual({
+      acknowledgedSessionId: 'session-123',
+      acknowledgedPacketCount: 8,
+      lastError: null,
+    })
+
+    expect(restoreUpstreamBridgeSnapshotForSession({
+      acknowledgedSessionId: 'session-123',
+      acknowledgedPacketCount: 8,
+      lastError: 'stale',
+    }, 'session-999')).toEqual(createInitialUpstreamBridgeSnapshot())
+  })
+
+  it('resolves runtime session state from a bridge snapshot in one place', () => {
+    expect(resolveUpstreamRuntimeSessionState({
+      acknowledgedSessionId: 'session-123',
+      acknowledgedPacketCount: 8,
+      lastError: 'stale',
+    }, 'session-123')).toEqual({
+      sessionId: 'session-123',
+      reused: true,
+      bridgeSnapshot: {
+        acknowledgedSessionId: 'session-123',
+        acknowledgedPacketCount: 8,
+        lastError: null,
+      },
+    })
+
+    expect(resolveUpstreamRuntimeSessionState({
+      acknowledgedSessionId: 'session-123',
+      acknowledgedPacketCount: 8,
+      lastError: 'stale',
+    }, 'session-999')).toEqual({
+      sessionId: 'session-999',
+      reused: false,
+      bridgeSnapshot: createInitialUpstreamBridgeSnapshot(),
+    })
+  })
+
+  it('updates bridge snapshot ack and error state through shared helpers', () => {
+    const acknowledged = acknowledgeUpstreamBridgeSnapshot(createInitialUpstreamBridgeSnapshot(), 'session-123', 8)
+
+    expect(acknowledged).toEqual({
+      acknowledgedSessionId: 'session-123',
+      acknowledgedPacketCount: 8,
+      lastError: null,
+    })
+
+    expect(errorUpstreamBridgeSnapshot(acknowledged, 'bad bridge')).toEqual({
+      acknowledgedSessionId: 'session-123',
+      acknowledgedPacketCount: 8,
+      lastError: 'bad bridge',
+    })
+  })
+
+  it('creates boot state from restored state with active-session reuse rules', () => {
+    const restored = {
+      ...createInitialUpstreamRuntimeState(),
+      sessionId: 'old-session',
+      bridgeState: 'acknowledged' as const,
+      bridgeSnapshot: {
+        acknowledgedSessionId: 'session-123',
+        acknowledgedPacketCount: 8,
+        lastError: 'stale',
+      },
+    }
+
+    expect(createBootUpstreamRuntimeState(restored, 'session-123', 8)).toMatchObject({
+      sessionId: 'session-123',
+      phase: 'booting',
+      bridgeState: 'waiting',
+      bootstrapPacketCount: 8,
+      bridgeSnapshot: {
+        acknowledgedSessionId: 'session-123',
+        acknowledgedPacketCount: 8,
+        lastError: null,
+      },
+      detail: 'Reusing checkpointed session session-1.',
+    })
+
+    expect(createBootUpstreamRuntimeState(restored, 'session-999', 8)).toMatchObject({
+      sessionId: 'session-999',
+      bridgeSnapshot: createInitialUpstreamBridgeSnapshot(),
+      detail: 'Boot accepted for session-9.',
+    })
+  })
+
+  it('creates resume state from restored state with fallback session handling', () => {
+    const restored = {
+      ...createInitialUpstreamRuntimeState(),
+      sessionId: '',
+      exportUrl: '/upstream/hurrycurry-web/index.html',
+      bridgeState: 'acknowledged' as const,
+      bridgeSnapshot: {
+        acknowledgedSessionId: 'session-123',
+        acknowledgedPacketCount: 8,
+        lastError: 'stale',
+      },
+    }
+
+    expect(createResumeUpstreamRuntimeState(restored, 'session-123')).toMatchObject({
+      sessionId: 'session-123',
+      phase: 'running',
+      bridgeState: 'waiting',
+      bridgeSnapshot: {
+        acknowledgedSessionId: 'session-123',
+        acknowledgedPacketCount: 8,
+        lastError: null,
+      },
+      detail: 'Reusing checkpointed session session-1.',
+    })
+
+    expect(createResumeUpstreamRuntimeState({
+      ...restored,
+      exportUrl: null,
+      bridgeState: 'idle',
+      bridgeSnapshot: createInitialUpstreamBridgeSnapshot(),
+    }, 'session-999')).toMatchObject({
+      sessionId: 'session-999',
+      phase: 'ready',
+      bridgeState: 'idle',
+      detail: 'Ready.',
+    })
+  })
+
   it('normalizes the upstream export manifest', () => {
     const manifest = normalizeUpstreamExportManifest({
       htmlEntry: 'index.html',
@@ -268,7 +341,7 @@ describe('upstream runtime helpers', () => {
   })
 
   it('creates a local bootstrap payload for the single-player upstream bridge', () => {
-    const payload = createLocalBootstrapPayload('session-123')
+    const payload = createBurgersIncBootstrapPayload('session-123', 1)
     const gameData = getPacket(payload.packets, 'game_data')
     const updateMap = getPacket(payload.packets, 'update_map')
     const addPlayer = getPacket(payload.packets, 'add_player')
@@ -276,7 +349,11 @@ describe('upstream runtime helpers', () => {
     expect(payload.sessionId).toBe('session-123')
     expect(payload.map).toBe('burgers_inc')
     expect(payload.playerId).toBe(1)
-    expect(payload.packets[0]).toMatchObject({ type: 'version', major: UPSTREAM_PROTOCOL_MAJOR, minor: 0 })
+    expect(payload.packets[0]).toMatchObject({
+      type: 'version',
+      major: BURGERS_INC_BOOTSTRAP.packets[0].type === 'version' ? BURGERS_INC_BOOTSTRAP.packets[0].major : undefined,
+      minor: 0,
+    })
     expect(payload.packets.map((packet) => packet.type)).toEqual([
       'version',
       'server_data',
@@ -324,13 +401,23 @@ describe('upstream runtime helpers', () => {
     })
   })
 
+  it('keeps the generated bootstrap template session-agnostic', () => {
+    expect(createBurgersIncBootstrapTemplate(1)).toEqual({
+      type: 'forkorfry:local-bootstrap',
+      version: 1,
+      map: BURGERS_INC_BOOTSTRAP.metadata.name,
+      playerId: BURGERS_INC_BOOTSTRAP.playerId,
+      packets: BURGERS_INC_BOOTSTRAP.packets,
+    })
+  })
+
   it('validates saved bootstrap payloads', () => {
-    expect(isUpstreamBootstrapPayload(createLocalBootstrapPayload('session-123'))).toBe(true)
+    expect(isUpstreamBootstrapPayload(createBurgersIncBootstrapPayload('session-123', 1))).toBe(true)
     expect(isUpstreamBootstrapPayload({ type: 'forkorfry:local-bootstrap', version: 1, packets: [] })).toBe(false)
   })
 
   it('wraps bootstrap payloads in a parent-to-iframe bridge message', () => {
-    const payload = createLocalBootstrapPayload('session-123')
+    const payload = createBurgersIncBootstrapPayload('session-123', 1)
 
     expect(createBridgeBootstrapMessage(payload)).toEqual({
       type: 'forkorfry:bridge-bootstrap',

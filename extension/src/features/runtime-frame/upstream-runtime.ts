@@ -10,17 +10,17 @@ import {
   createBridgeBootstrapMessage,
   createBridgePauseMessage,
   createBridgeResumeMessage,
-  createLocalBootstrapPayload,
   isUpstreamEmbeddedToParentMessage,
-  type UpstreamBootstrapPayload,
 } from './upstream-bridge'
+import { createBurgersIncBootstrapPayload } from '../../../upstream/generated/burgers-inc-bootstrap'
 import { createUpstreamRuntimeCheckpoint, restoreUpstreamRuntimeCheckpoint } from './upstream-checkpoint'
 import { upstreamRuntimeCopy } from './upstream-runtime-copy'
 import { normalizeUpstreamExportManifest, resolveUpstreamExportUrl } from './upstream-export'
-import { createInitialUpstreamRuntimeState, describeUpstreamRuntimeSession, UPSTREAM_RUNTIME_GAMEPLAY_PACKET_HISTORY_LIMIT, type UpstreamRuntimeExportState, type UpstreamRuntimeState } from './upstream-runtime-state'
+import { acknowledgeUpstreamBridgeSnapshot, createBootUpstreamRuntimeState, createInitialUpstreamRuntimeState, createResumeUpstreamRuntimeState, errorUpstreamBridgeSnapshot, summarizeUpstreamRuntimeGameplayPackets, trimUpstreamRuntimeGameplayPackets, type UpstreamRuntimeExportState, type UpstreamRuntimeState } from './upstream-runtime-state'
 
 const RUNTIME_ID = 'burger-runtime'
 const EXPORT_MANIFEST_PATH = '/upstream/hurrycurry-web/manifest.json'
+const RUNTIME_CAPABILITIES = ['checkpoint', 'pause', 'resume', 'upstream-runtime-shell'] as const
 
 const app = document.querySelector<HTMLDivElement>('#app')
 
@@ -30,30 +30,26 @@ app.innerHTML = `
 <main class="takeover runtime-frame-shell">
   <section class="card stage">
     <header>
-      <p class="eyebrow">${upstreamRuntimeCopy.eyebrow}</p>
-      <h2>${upstreamRuntimeCopy.title}</h2>
-      <p class="lede">${upstreamRuntimeCopy.lede}</p>
+      <h2>Runtime host</h2>
     </header>
     <div class="status-row">
       <div>
-        <p class="eyebrow compact">${upstreamRuntimeCopy.sessionStatus}</p>
-        <div class="status-text" id="status-text">${upstreamRuntimeCopy.booting}</div>
+        <p class="eyebrow compact">Host status</p>
+        <div class="status-text" id="status-text">Waiting for startup…</div>
       </div>
       <div class="stage-pill" id="stage-pill"></div>
     </div>
     <div class="shell-grid">
       <div class="field"><label>${upstreamRuntimeCopy.labels.exportState}</label><div class="input" id="export-state-value"></div></div>
       <div class="field"><label>${upstreamRuntimeCopy.labels.bridgeState}</label><div class="input" id="bridge-state-value"></div></div>
-      <div class="field"><label>${upstreamRuntimeCopy.labels.godotBridge}</label><div class="input" id="godot-bridge-value"></div></div>
       <div class="field"><label>${upstreamRuntimeCopy.labels.session}</label><div class="input" id="session-value"></div></div>
       <div class="field"><label>${upstreamRuntimeCopy.labels.exportPath}</label><div class="input" id="export-path-value"></div></div>
       <div class="field"><label>${upstreamRuntimeCopy.labels.checkpoint}</label><div class="input" id="checkpoint-value"></div></div>
       <div class="field"><label>${upstreamRuntimeCopy.labels.gameplayPackets}</label><div class="input" id="gameplay-packets-value"></div></div>
       <div class="field"><label>${upstreamRuntimeCopy.labels.gameplaySummary}</label><div class="input" id="gameplay-summary-value"></div></div>
     </div>
-    <div class="runtime-note-list">${upstreamRuntimeCopy.notes.map((note) => `<p class="helper runtime-helper">${note}</p>`).join('')}</div>
     <div class="actions runtime-controls">
-      <button type="button" class="secondary" id="refresh-export">${upstreamRuntimeCopy.buttons.refresh}</button>
+      <button type="button" class="secondary" id="refresh-export">Refresh export</button>
     </div>
     <div class="completion" id="export-message">
       <div class="completion-badge">Export status</div>
@@ -70,7 +66,6 @@ const statusText = app.querySelector<HTMLElement>('#status-text')!
 const stagePill = app.querySelector<HTMLElement>('#stage-pill')!
 const exportStateValue = app.querySelector<HTMLElement>('#export-state-value')!
 const bridgeStateValue = app.querySelector<HTMLElement>('#bridge-state-value')!
-const godotBridgeValue = app.querySelector<HTMLElement>('#godot-bridge-value')!
 const sessionValue = app.querySelector<HTMLElement>('#session-value')!
 const exportPathValue = app.querySelector<HTMLElement>('#export-path-value')!
 const checkpointValue = app.querySelector<HTMLElement>('#checkpoint-value')!
@@ -83,15 +78,6 @@ const runtimeEmbedFrame = app.querySelector<HTMLIFrameElement>('#runtime-embed-f
 const runtimeEmbedOverlay = app.querySelector<HTMLElement>('#runtime-embed-overlay')!
 
 let state: UpstreamRuntimeState = createInitialUpstreamRuntimeState()
-let godotBridgePollHandle: number | null = null
-
-interface RuntimeIframeWindow extends Window {
-  __FORKORFRY_GODOT_BRIDGE__?: {
-    entryState?: unknown
-    updatedAt?: unknown
-  }
-  __FORKORFRY_GODOT_LAST_UPDATE__?: unknown
-}
 
 function postToHost(message: RuntimeToHostMessage) {
   window.parent.postMessage(message, window.location.origin)
@@ -122,26 +108,6 @@ function postCheckpoint(reason?: string) {
 function setState(nextState: Partial<UpstreamRuntimeState>) {
   state = { ...state, ...nextState }
   render()
-}
-
-function trimGameplayPackets(packets: UpstreamRuntimeState['gameplayPackets']) {
-  return packets.slice(-UPSTREAM_RUNTIME_GAMEPLAY_PACKET_HISTORY_LIMIT)
-}
-
-function createGameplayPacketSummary(packets: UpstreamRuntimeState['gameplayPackets']) {
-  const actionCounts: Record<string, number> = {}
-  let lastAction: string | null = null
-
-  for (const packet of packets) {
-    actionCounts[packet.action] = (actionCounts[packet.action] ?? 0) + 1
-    lastAction = packet.action
-  }
-
-  return {
-    totalCount: packets.length,
-    lastAction,
-    actionCounts,
-  }
 }
 
 function currentPhaseDetail() {
@@ -183,13 +149,9 @@ function renderMessage() {
 
 function render() {
   statusText.textContent = upstreamRuntimeCopy.phaseLabels[state.phase]
-  stagePill.textContent = `${upstreamRuntimeCopy.phasePrefix} ${state.phase}`
+  stagePill.textContent = state.phase
   exportStateValue.textContent = upstreamRuntimeCopy.exportStates[state.exportState as UpstreamRuntimeExportState]
   bridgeStateValue.textContent = upstreamRuntimeCopy.bridgeStates[state.bridgeState]
-  godotBridgeValue.textContent = upstreamRuntimeCopy.godotBridgeSummary(
-    state.godotBridgeSnapshot.entryState,
-    state.godotBridgeSnapshot.lastUpdate,
-  )
   sessionValue.textContent = state.sessionId ? state.sessionId.slice(0, 12) : 'No session yet'
   exportPathValue.textContent = state.exportUrl ?? EXPORT_MANIFEST_PATH
   checkpointValue.textContent = upstreamRuntimeCopy.checkpointSummary(state.lastCheckpointReason)
@@ -199,62 +161,27 @@ function render() {
   renderEmbed()
 }
 
-function clearGodotBridgePoll() {
-  if (godotBridgePollHandle !== null) {
-    window.clearInterval(godotBridgePollHandle)
-    godotBridgePollHandle = null
-  }
-}
-
-function syncGodotBridgeSnapshotFromIframe() {
-  const iframeWindow = runtimeEmbedFrame.contentWindow as RuntimeIframeWindow | null
-  if (!iframeWindow) return
-
-  const bridge = iframeWindow.__FORKORFRY_GODOT_BRIDGE__
-  const nextSnapshot = {
-    entryState: typeof bridge?.entryState === 'string' ? bridge.entryState : null,
-    lastUpdate: typeof iframeWindow.__FORKORFRY_GODOT_LAST_UPDATE__ === 'string' ? iframeWindow.__FORKORFRY_GODOT_LAST_UPDATE__ : null,
-    updatedAt: typeof bridge?.updatedAt === 'string' ? bridge.updatedAt : null,
-  }
-
-  if (
-    state.godotBridgeSnapshot.entryState === nextSnapshot.entryState
-    && state.godotBridgeSnapshot.lastUpdate === nextSnapshot.lastUpdate
-    && state.godotBridgeSnapshot.updatedAt === nextSnapshot.updatedAt
-  ) {
-    return
-  }
-
-  setState({ godotBridgeSnapshot: nextSnapshot })
-}
-
-function startGodotBridgePoll() {
-  clearGodotBridgePoll()
-  syncGodotBridgeSnapshotFromIframe()
-  godotBridgePollHandle = window.setInterval(syncGodotBridgeSnapshotFromIframe, 500)
-}
-
-function resetGodotBridgeSnapshot() {
-  setState({ godotBridgeSnapshot: createInitialUpstreamRuntimeState().godotBridgeSnapshot })
-}
-
 function postToEmbeddedRuntime(message: unknown) {
   runtimeEmbedFrame.contentWindow?.postMessage(message, window.location.origin)
 }
 
+function createUpstreamBootstrapPayload(sessionId: string) {
+  return createBurgersIncBootstrapPayload(sessionId, 1)
+}
+
 function recordGameplayPacket(action: 'movement' | 'interact' | 'ready' | 'idle', payload: Record<string, unknown>) {
   const packet = { action, payload, receivedAt: new Date().toISOString() }
-  const gameplayPackets = trimGameplayPackets([...state.gameplayPackets, packet])
+  const gameplayPackets = trimUpstreamRuntimeGameplayPackets([...state.gameplayPackets, packet])
   setState({
     gameplayPackets,
-    gameplayPacketSummary: createGameplayPacketSummary(gameplayPackets),
+    gameplayPacketSummary: summarizeUpstreamRuntimeGameplayPackets(gameplayPackets),
   })
   postCheckpoint(`Received outbound gameplay packet: ${action}.`)
 }
 
 function sendBootstrapToEmbeddedRuntime(messageType: 'bootstrap' | 'resume') {
-  const payload = state.bridgeSnapshot.payload
-  if (!payload || !runtimeEmbedFrame.contentWindow) return
+  if (!state.sessionId || !runtimeEmbedFrame.contentWindow) return
+  const payload = createUpstreamBootstrapPayload(state.sessionId)
 
   postToEmbeddedRuntime(
     messageType === 'resume'
@@ -269,18 +196,24 @@ function sendBootstrapToEmbeddedRuntime(messageType: 'bootstrap' | 'resume') {
   postStatus(state.phase, currentPhaseDetail())
 }
 
+function sendBootstrapAndCheckpoint(
+  messageType: 'bootstrap' | 'resume',
+  checkpointReason: string,
+) {
+  sendBootstrapToEmbeddedRuntime(messageType)
+  postCheckpoint(checkpointReason)
+}
+
 async function loadBundledExport() {
   setState({ exportState: 'unknown', detail: upstreamRuntimeCopy.exportStates.unknown })
 
   try {
     const response = await fetch(EXPORT_MANIFEST_PATH, { cache: 'no-store' })
     if (!response.ok) {
-      clearGodotBridgePoll()
       setState({
         exportState: 'missing',
         phase: 'ready',
         exportUrl: null,
-        godotBridgeSnapshot: createInitialUpstreamRuntimeState().godotBridgeSnapshot,
         detail: upstreamRuntimeCopy.exportStates.missing,
       })
       postStatus('ready', currentPhaseDetail())
@@ -289,13 +222,11 @@ async function loadBundledExport() {
 
     const manifest = normalizeUpstreamExportManifest(await response.json())
     if (!manifest) {
-      clearGodotBridgePoll()
       setState({
         exportState: 'error',
         phase: 'ready',
         exportUrl: null,
-        godotBridgeSnapshot: createInitialUpstreamRuntimeState().godotBridgeSnapshot,
-        detail: 'manifest.json exists but is not valid for the runtime adapter.',
+        detail: 'manifest.json exists but is not valid for the runtime.',
       })
       postStatus('ready', currentPhaseDetail())
       return
@@ -304,7 +235,6 @@ async function loadBundledExport() {
     const exportUrl = resolveUpstreamExportUrl(manifest)
     setState({
       exportState: 'ready',
-      bridgeState: state.bridgeSnapshot.payload ? 'waiting' : state.bridgeState,
       phase: state.phase === 'paused' ? 'paused' : 'running',
       exportUrl,
       detail: upstreamRuntimeCopy.readySummary(exportUrl),
@@ -312,12 +242,10 @@ async function loadBundledExport() {
     postStatus(state.phase === 'paused' ? 'paused' : 'running', currentPhaseDetail())
   } catch (error) {
     const detail = error instanceof Error ? error.message : 'Unknown export-loading error.'
-    clearGodotBridgePoll()
     setState({
       exportState: 'error',
       phase: 'ready',
       exportUrl: null,
-      godotBridgeSnapshot: createInitialUpstreamRuntimeState().godotBridgeSnapshot,
       detail,
     })
     postStatus('ready', currentPhaseDetail())
@@ -326,37 +254,17 @@ async function loadBundledExport() {
 
 function boot(checkpoint: RuntimeCheckpointEnvelope | null, nextSessionId: string) {
   const restored = restoreUpstreamRuntimeCheckpoint(RUNTIME_ID, checkpoint)
-  const reusingSnapshot = restored.bridgeSnapshot.payload?.sessionId === nextSessionId
-  const bootstrapPayload: UpstreamBootstrapPayload =
-    reusingSnapshot
-      ? restored.bridgeSnapshot.payload!
-      : createLocalBootstrapPayload(nextSessionId)
+  const bootstrapPayload = createUpstreamBootstrapPayload(nextSessionId)
 
-  state = {
-    ...restored,
-    sessionId: nextSessionId,
-    phase: 'booting',
-    bridgeState: 'waiting',
-    bootstrapPacketCount: bootstrapPayload.packets.length,
-    bridgeSnapshot: {
-      payload: bootstrapPayload,
-      acknowledgedSessionId: reusingSnapshot ? restored.bridgeSnapshot.acknowledgedSessionId : null,
-      acknowledgedPacketCount: reusingSnapshot ? restored.bridgeSnapshot.acknowledgedPacketCount : 0,
-      lastError: null,
-    },
-    godotBridgeSnapshot: reusingSnapshot
-      ? restored.godotBridgeSnapshot
-      : createInitialUpstreamRuntimeState().godotBridgeSnapshot,
-    detail: describeUpstreamRuntimeSession(nextSessionId, reusingSnapshot),
-  }
+  state = createBootUpstreamRuntimeState(restored, nextSessionId, bootstrapPayload.packets.length)
   render()
   postStatus('booting', currentPhaseDetail())
   postToHost({
     type: 'runtime:ready',
     runtimeId: RUNTIME_ID,
-    capabilities: [...upstreamRuntimeCopy.capabilities],
+    capabilities: [...RUNTIME_CAPABILITIES],
   })
-  postCheckpoint('Booted upstream runtime adapter shell.')
+  postCheckpoint('Booted runtime shell.')
   void loadBundledExport()
 }
 
@@ -366,7 +274,6 @@ function handleHostMessage(message: HostToRuntimeMessage) {
       boot(message.checkpoint, message.sessionId)
       return
     case 'host:pause':
-      clearGodotBridgePoll()
       postToEmbeddedRuntime(createBridgePauseMessage(message.reason))
       setState({ phase: 'paused', detail: message.reason })
       postStatus('paused', currentPhaseDetail())
@@ -374,29 +281,15 @@ function handleHostMessage(message: HostToRuntimeMessage) {
       return
     case 'host:resume': {
       const restored = restoreUpstreamRuntimeCheckpoint(RUNTIME_ID, message.checkpoint)
-      state = {
-        ...restored,
-        sessionId: restored.sessionId || state.sessionId,
-        phase: restored.exportUrl ? 'running' : 'ready',
-        bridgeState: restored.exportUrl ? 'waiting' : restored.bridgeState,
-        bootstrapPacketCount: restored.bridgeSnapshot.payload?.packets.length ?? restored.bootstrapPacketCount,
-        detail: restored.bridgeSnapshot.payload?.sessionId === restored.sessionId
-          ? describeUpstreamRuntimeSession(restored.sessionId, true)
-          : restored.exportUrl ? upstreamRuntimeCopy.phaseLabels.running : upstreamRuntimeCopy.phaseLabels.ready,
-      }
+      state = createResumeUpstreamRuntimeState(restored, state.sessionId)
       render()
-      startGodotBridgePoll()
-      sendBootstrapToEmbeddedRuntime('resume')
-      postStatus(state.phase, currentPhaseDetail())
-      postCheckpoint('Resumed upstream runtime adapter shell.')
+      sendBootstrapAndCheckpoint('resume', 'Resumed runtime shell.')
       return
     }
     case 'host:checkpoint':
       postCheckpoint(message.reason)
       return
     case 'host:shutdown':
-      clearGodotBridgePoll()
-      resetGodotBridgeSnapshot()
       postCheckpoint('Host requested shutdown.')
   }
 }
@@ -408,10 +301,7 @@ refreshButton.addEventListener('click', () => {
 runtimeEmbedFrame.addEventListener('load', () => {
   if (!state.exportUrl || state.phase === 'paused') return
   setState({ exportState: 'loaded', phase: 'running', detail: upstreamRuntimeCopy.loadedSummary })
-  startGodotBridgePoll()
-  sendBootstrapToEmbeddedRuntime('bootstrap')
-  postStatus('running', currentPhaseDetail())
-  postCheckpoint('Bundled export iframe loaded.')
+  sendBootstrapAndCheckpoint('bootstrap', 'Bundled export iframe loaded.')
 })
 
 window.addEventListener('message', (event) => {
@@ -428,30 +318,22 @@ window.addEventListener('message', (event) => {
   if (event.source === runtimeEmbedFrame.contentWindow && isUpstreamEmbeddedToParentMessage(embeddedMessage)) {
     switch (embeddedMessage.type) {
       case 'forkorfry:bridge-ready':
-        setState({ bridgeState: 'waiting', detail: 'Embedded runtime bridge is ready for bootstrap data.' })
-        sendBootstrapToEmbeddedRuntime('bootstrap')
+        setState({ bridgeState: 'waiting', detail: 'Bridge is ready for bootstrap data.' })
+        sendBootstrapAndCheckpoint('bootstrap', 'Embedded bridge became ready.')
         return
       case 'forkorfry:bridge-bootstrap-ack':
         setState({
           bridgeState: 'acknowledged',
-          bridgeSnapshot: {
-            ...state.bridgeSnapshot,
-            acknowledgedSessionId: embeddedMessage.sessionId,
-            acknowledgedPacketCount: embeddedMessage.packetCount,
-            lastError: null,
-          },
-          detail: `Embedded runtime acknowledged ${embeddedMessage.packetCount} bootstrap packets.`,
+          bridgeSnapshot: acknowledgeUpstreamBridgeSnapshot(state.bridgeSnapshot, embeddedMessage.sessionId, embeddedMessage.packetCount),
+          detail: `Runtime acknowledged ${embeddedMessage.packetCount} bootstrap packets.`,
         })
         postStatus(state.phase, currentPhaseDetail())
-        postCheckpoint('Embedded runtime acknowledged bootstrap payload.')
+        postCheckpoint('Runtime acknowledged bootstrap payload.')
         return
       case 'forkorfry:bridge-error':
         setState({
           bridgeState: 'error',
-          bridgeSnapshot: {
-            ...state.bridgeSnapshot,
-            lastError: embeddedMessage.detail,
-          },
+          bridgeSnapshot: errorUpstreamBridgeSnapshot(state.bridgeSnapshot, embeddedMessage.detail),
           detail: embeddedMessage.detail,
         })
         postStatus(state.phase, currentPhaseDetail())
@@ -469,7 +351,6 @@ document.addEventListener('visibilitychange', () => {
 })
 
 window.addEventListener('pagehide', () => {
-  clearGodotBridgePoll()
   postCheckpoint('Runtime frame unloading.')
 })
 
