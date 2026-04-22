@@ -42,11 +42,14 @@ What is still rough:
 
 ## How to try it
 
-1. Run `npm run build` in `extension/`.
-2. Open `about:debugging#/runtime/this-firefox` in Firefox.
-3. Click **Load Temporary Add-on**.
-4. Select `extension/dist/firefox-mv3/manifest.json`.
-5. Open the extension popup and start from the host surface.
+This repo currently uses **npm** for the extension workflow.
+
+1. Run `npm install` in `extension/`.
+2. Run `npm run build` in `extension/`.
+3. Open `about:debugging#/runtime/this-firefox` in Firefox.
+4. Click **Load Temporary Add-on**.
+5. Select `extension/dist/firefox-mv3/manifest.json`.
+6. Open the extension popup and start from the host surface.
 
 ## Project site
 
@@ -75,7 +78,7 @@ flowchart LR
   PU[Extension popup UI] --> BG[Background trigger and launch control]
 
   BG --> PW[Host page in popup window]
-  BG --> FT[Host page in full tab]
+  BG --> FT[Host page in full tab (debug-only)]
 
   PW --> RH[runtime-host controller]
   FT --> RH
@@ -87,6 +90,8 @@ flowchart LR
   RH --> ST[browser.storage.local]
   LS --> ST
 ```
+
+The intended shipped surfaces are the popup and side-panel-style extension flow around the runtime host. The full-tab path stays available only as a temporary debug surface for transfer/testing and is not the production runtime target.
 
 ### Setup
 
@@ -141,7 +146,7 @@ The sync/export path writes a `manifest.json` so `runtime-frame.html` can load t
 2. Open the toolbar popup and click **Arm idle trigger**.
 3. Let Firefox enter the configured idle state.
 4. Return to activity and confirm the host opens or refocuses.
-5. Use **Move to full tab** and confirm the run transfers.
+5. Use **Move to full tab** only as a debug/dev check and confirm the run transfers.
 6. Close and reopen the active surface to confirm checkpoint resume.
 
 ## Contributing
