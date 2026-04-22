@@ -12,7 +12,6 @@ import {
   createBridgeResumeMessage,
   createLocalBootstrapPayload,
   isUpstreamEmbeddedToParentMessage,
-  type UpstreamBootstrapPayload,
 } from './upstream-bridge'
 import { createUpstreamRuntimeCheckpoint, restoreUpstreamRuntimeCheckpoint } from './upstream-checkpoint'
 import { upstreamRuntimeCopy } from './upstream-runtime-copy'
@@ -205,8 +204,8 @@ function recordGameplayPacket(action: 'movement' | 'interact' | 'ready' | 'idle'
 }
 
 function sendBootstrapToEmbeddedRuntime(messageType: 'bootstrap' | 'resume') {
-  const payload = state.bridgeSnapshot.payload
-  if (!payload || !runtimeEmbedFrame.contentWindow) return
+  if (!state.sessionId || !runtimeEmbedFrame.contentWindow) return
+  const payload = createLocalBootstrapPayload(state.sessionId)
 
   postToEmbeddedRuntime(
     messageType === 'resume'
@@ -254,7 +253,6 @@ async function loadBundledExport() {
     const exportUrl = resolveUpstreamExportUrl(manifest)
     setState({
       exportState: 'ready',
-      bridgeState: state.bridgeSnapshot.payload ? 'waiting' : state.bridgeState,
       phase: state.phase === 'paused' ? 'paused' : 'running',
       exportUrl,
       detail: upstreamRuntimeCopy.readySummary(exportUrl),
@@ -275,11 +273,7 @@ async function loadBundledExport() {
 
 function boot(checkpoint: RuntimeCheckpointEnvelope | null, nextSessionId: string) {
   const restored = restoreUpstreamRuntimeCheckpoint(RUNTIME_ID, checkpoint)
-  const reusingSnapshot = restored.bridgeSnapshot.payload?.sessionId === nextSessionId
-  const bootstrapPayload: UpstreamBootstrapPayload =
-    reusingSnapshot
-      ? restored.bridgeSnapshot.payload!
-      : createLocalBootstrapPayload(nextSessionId)
+  const bootstrapPayload = createLocalBootstrapPayload(nextSessionId)
 
   state = {
     ...restored,
@@ -288,12 +282,11 @@ function boot(checkpoint: RuntimeCheckpointEnvelope | null, nextSessionId: strin
     bridgeState: 'waiting',
     bootstrapPacketCount: bootstrapPayload.packets.length,
     bridgeSnapshot: {
-      payload: bootstrapPayload,
-      acknowledgedSessionId: reusingSnapshot ? restored.bridgeSnapshot.acknowledgedSessionId : null,
-      acknowledgedPacketCount: reusingSnapshot ? restored.bridgeSnapshot.acknowledgedPacketCount : 0,
+      acknowledgedSessionId: restored.bridgeSnapshot.acknowledgedSessionId === nextSessionId ? restored.bridgeSnapshot.acknowledgedSessionId : null,
+      acknowledgedPacketCount: restored.bridgeSnapshot.acknowledgedSessionId === nextSessionId ? restored.bridgeSnapshot.acknowledgedPacketCount : 0,
       lastError: null,
     },
-    detail: describeUpstreamRuntimeSession(nextSessionId, reusingSnapshot),
+    detail: describeUpstreamRuntimeSession(nextSessionId, restored.bridgeSnapshot.acknowledgedSessionId === nextSessionId),
   }
   render()
   postStatus('booting', currentPhaseDetail())
@@ -325,8 +318,7 @@ function handleHostMessage(message: HostToRuntimeMessage) {
         sessionId: restored.sessionId || state.sessionId,
         phase: restored.exportUrl ? 'running' : 'ready',
         bridgeState: restored.exportUrl ? 'waiting' : restored.bridgeState,
-        bootstrapPacketCount: restored.bridgeSnapshot.payload?.packets.length ?? restored.bootstrapPacketCount,
-        detail: restored.bridgeSnapshot.payload?.sessionId === restored.sessionId
+        detail: restored.bridgeSnapshot.acknowledgedSessionId === restored.sessionId
           ? describeUpstreamRuntimeSession(restored.sessionId, true)
           : restored.exportUrl ? upstreamRuntimeCopy.phaseLabels.running : upstreamRuntimeCopy.phaseLabels.ready,
       }

@@ -36,7 +36,6 @@ export function createInitialUpstreamRuntimeState(): UpstreamRuntimeState {
     lastCheckpointReason: null,
     bootstrapPacketCount: 0,
     bridgeSnapshot: {
-      payload: null,
       acknowledgedSessionId: null,
       acknowledgedPacketCount: 0,
       lastError: null,

@@ -71,7 +71,6 @@ export interface UpstreamBootstrapPayload {
 }
 
 export interface UpstreamBridgeSnapshot {
-  payload: UpstreamBootstrapPayload | null
   acknowledgedSessionId: string | null
   acknowledgedPacketCount: number
   lastError: string | null

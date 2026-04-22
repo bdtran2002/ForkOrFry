@@ -8,7 +8,6 @@ import {
   createInitialUpstreamRuntimeState,
   type UpstreamRuntimeState,
 } from './upstream-runtime-state'
-import { isUpstreamBootstrapPayload } from './upstream-bridge'
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null
@@ -57,7 +56,6 @@ function isUpstreamRuntimeState(value: unknown): value is UpstreamRuntimeState {
     && (value.lastCheckpointReason === null || typeof value.lastCheckpointReason === 'string')
     && typeof value.bootstrapPacketCount === 'number'
     && isRecord(value.bridgeSnapshot)
-    && (value.bridgeSnapshot.payload === null || isUpstreamBootstrapPayload(value.bridgeSnapshot.payload))
     && (value.bridgeSnapshot.acknowledgedSessionId === null || typeof value.bridgeSnapshot.acknowledgedSessionId === 'string')
     && typeof value.bridgeSnapshot.acknowledgedPacketCount === 'number'
     && (value.bridgeSnapshot.lastError === null || typeof value.bridgeSnapshot.lastError === 'string')

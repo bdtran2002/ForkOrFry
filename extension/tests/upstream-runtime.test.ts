@@ -33,7 +33,6 @@ describe('upstream runtime helpers', () => {
       exportUrl: '/upstream/hurrycurry-web/index.html',
       detail: 'Bundled export iframe loaded.',
       bridgeSnapshot: {
-        payload: createLocalBootstrapPayload('session-123'),
         acknowledgedSessionId: 'session-123',
         acknowledgedPacketCount: 8,
         lastError: null,
