@@ -24,6 +24,55 @@ export interface UpstreamRuntimeState {
   }
 }
 
+export function createInitialUpstreamBridgeSnapshot(): UpstreamBridgeSnapshot {
+  return {
+    acknowledgedSessionId: null,
+    acknowledgedPacketCount: 0,
+    lastError: null,
+  }
+}
+
+export function restoreUpstreamBridgeSnapshotForSession(
+  snapshot: UpstreamBridgeSnapshot,
+  sessionId: string,
+): UpstreamBridgeSnapshot {
+  return {
+    acknowledgedSessionId: snapshot.acknowledgedSessionId === sessionId ? snapshot.acknowledgedSessionId : null,
+    acknowledgedPacketCount: snapshot.acknowledgedSessionId === sessionId ? snapshot.acknowledgedPacketCount : 0,
+    lastError: null,
+  }
+}
+
+export function acknowledgeUpstreamBridgeSnapshot(
+  snapshot: UpstreamBridgeSnapshot,
+  sessionId: string,
+  packetCount: number,
+): UpstreamBridgeSnapshot {
+  return {
+    ...snapshot,
+    acknowledgedSessionId: sessionId,
+    acknowledgedPacketCount: packetCount,
+    lastError: null,
+  }
+}
+
+export function errorUpstreamBridgeSnapshot(
+  snapshot: UpstreamBridgeSnapshot,
+  detail: string,
+): UpstreamBridgeSnapshot {
+  return {
+    ...snapshot,
+    lastError: detail,
+  }
+}
+
+export function isUpstreamRuntimeSessionReused(
+  snapshot: UpstreamBridgeSnapshot,
+  sessionId: string,
+) {
+  return snapshot.acknowledgedSessionId === sessionId
+}
+
 export function isUpstreamRuntimeGameplayPacket(value: unknown): value is UpstreamRuntimeState['gameplayPackets'][number] {
   return (
     typeof value === 'object'
@@ -67,11 +116,7 @@ export function createInitialUpstreamRuntimeState(): UpstreamRuntimeState {
     exportUrl: null,
     lastCheckpointReason: null,
     bootstrapPacketCount: 0,
-    bridgeSnapshot: {
-      acknowledgedSessionId: null,
-      acknowledgedPacketCount: 0,
-      lastError: null,
-    },
+    bridgeSnapshot: createInitialUpstreamBridgeSnapshot(),
     gameplayPackets: [],
     gameplayPacketSummary: {
       totalCount: 0,

@@ -16,7 +16,7 @@ import { createBurgersIncBootstrapTemplate } from '../../../upstream/generated/b
 import { createUpstreamRuntimeCheckpoint, restoreUpstreamRuntimeCheckpoint } from './upstream-checkpoint'
 import { upstreamRuntimeCopy } from './upstream-runtime-copy'
 import { normalizeUpstreamExportManifest, resolveUpstreamExportUrl } from './upstream-export'
-import { createInitialUpstreamRuntimeState, describeUpstreamRuntimeSession, summarizeUpstreamRuntimeGameplayPackets, trimUpstreamRuntimeGameplayPackets, type UpstreamRuntimeExportState, type UpstreamRuntimeState } from './upstream-runtime-state'
+import { acknowledgeUpstreamBridgeSnapshot, createInitialUpstreamRuntimeState, describeUpstreamRuntimeSession, errorUpstreamBridgeSnapshot, isUpstreamRuntimeSessionReused, restoreUpstreamBridgeSnapshotForSession, summarizeUpstreamRuntimeGameplayPackets, trimUpstreamRuntimeGameplayPackets, type UpstreamRuntimeExportState, type UpstreamRuntimeState } from './upstream-runtime-state'
 
 const RUNTIME_ID = 'burger-runtime'
 const EXPORT_MANIFEST_PATH = '/upstream/hurrycurry-web/manifest.json'
@@ -263,6 +263,7 @@ async function loadBundledExport() {
 function boot(checkpoint: RuntimeCheckpointEnvelope | null, nextSessionId: string) {
   const restored = restoreUpstreamRuntimeCheckpoint(RUNTIME_ID, checkpoint)
   const bootstrapPayload = createRuntimeBootstrapPayload(nextSessionId)
+  const reused = isUpstreamRuntimeSessionReused(restored.bridgeSnapshot, nextSessionId)
 
   state = {
     ...restored,
@@ -270,12 +271,8 @@ function boot(checkpoint: RuntimeCheckpointEnvelope | null, nextSessionId: strin
     phase: 'booting',
     bridgeState: 'waiting',
     bootstrapPacketCount: bootstrapPayload.packets.length,
-    bridgeSnapshot: {
-      acknowledgedSessionId: restored.bridgeSnapshot.acknowledgedSessionId === nextSessionId ? restored.bridgeSnapshot.acknowledgedSessionId : null,
-      acknowledgedPacketCount: restored.bridgeSnapshot.acknowledgedSessionId === nextSessionId ? restored.bridgeSnapshot.acknowledgedPacketCount : 0,
-      lastError: null,
-    },
-    detail: describeUpstreamRuntimeSession(nextSessionId, restored.bridgeSnapshot.acknowledgedSessionId === nextSessionId),
+    bridgeSnapshot: restoreUpstreamBridgeSnapshotForSession(restored.bridgeSnapshot, nextSessionId),
+    detail: describeUpstreamRuntimeSession(nextSessionId, reused),
   }
   render()
   postStatus('booting', currentPhaseDetail())
@@ -302,13 +299,16 @@ function handleHostMessage(message: HostToRuntimeMessage) {
       return
     case 'host:resume': {
       const restored = restoreUpstreamRuntimeCheckpoint(RUNTIME_ID, message.checkpoint)
+      const sessionId = restored.sessionId || state.sessionId
+      const reused = isUpstreamRuntimeSessionReused(restored.bridgeSnapshot, sessionId)
       state = {
         ...restored,
-        sessionId: restored.sessionId || state.sessionId,
+        sessionId,
         phase: restored.exportUrl ? 'running' : 'ready',
         bridgeState: restored.exportUrl ? 'waiting' : restored.bridgeState,
-        detail: restored.bridgeSnapshot.acknowledgedSessionId === restored.sessionId
-          ? describeUpstreamRuntimeSession(restored.sessionId, true)
+        bridgeSnapshot: restoreUpstreamBridgeSnapshotForSession(restored.bridgeSnapshot, sessionId),
+        detail: reused
+          ? describeUpstreamRuntimeSession(sessionId, true)
           : restored.exportUrl ? upstreamRuntimeCopy.phaseLabels.running : upstreamRuntimeCopy.phaseLabels.ready,
       }
       render()
@@ -358,12 +358,7 @@ window.addEventListener('message', (event) => {
       case 'forkorfry:bridge-bootstrap-ack':
         setState({
           bridgeState: 'acknowledged',
-          bridgeSnapshot: {
-            ...state.bridgeSnapshot,
-            acknowledgedSessionId: embeddedMessage.sessionId,
-            acknowledgedPacketCount: embeddedMessage.packetCount,
-            lastError: null,
-          },
+          bridgeSnapshot: acknowledgeUpstreamBridgeSnapshot(state.bridgeSnapshot, embeddedMessage.sessionId, embeddedMessage.packetCount),
           detail: `Runtime acknowledged ${embeddedMessage.packetCount} bootstrap packets.`,
         })
         postStatus(state.phase, currentPhaseDetail())
@@ -372,10 +367,7 @@ window.addEventListener('message', (event) => {
       case 'forkorfry:bridge-error':
         setState({
           bridgeState: 'error',
-          bridgeSnapshot: {
-            ...state.bridgeSnapshot,
-            lastError: embeddedMessage.detail,
-          },
+          bridgeSnapshot: errorUpstreamBridgeSnapshot(state.bridgeSnapshot, embeddedMessage.detail),
           detail: embeddedMessage.detail,
         })
         postStatus(state.phase, currentPhaseDetail())

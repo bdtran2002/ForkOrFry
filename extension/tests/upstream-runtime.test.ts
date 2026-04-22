@@ -10,7 +10,7 @@ import {
 import { BURGERS_INC_BOOTSTRAP, createBurgersIncBootstrapPayload, createBurgersIncBootstrapTemplate } from '../upstream/generated/burgers-inc-bootstrap'
 import { createUpstreamRuntimeCheckpoint, restoreUpstreamRuntimeCheckpoint } from '../src/features/runtime-frame/upstream-checkpoint'
 import { normalizeUpstreamExportManifest, resolveUpstreamExportUrl } from '../src/features/runtime-frame/upstream-export'
-import { createInitialUpstreamRuntimeState, describeUpstreamRuntimeSession } from '../src/features/runtime-frame/upstream-runtime-state'
+import { acknowledgeUpstreamBridgeSnapshot, createInitialUpstreamBridgeSnapshot, createInitialUpstreamRuntimeState, describeUpstreamRuntimeSession, errorUpstreamBridgeSnapshot, restoreUpstreamBridgeSnapshotForSession } from '../src/features/runtime-frame/upstream-runtime-state'
 import { UPSTREAM_RUNTIME_GAMEPLAY_PACKET_HISTORY_LIMIT } from '../src/features/runtime-frame/upstream-runtime-state'
 
 describe('upstream runtime helpers', () => {
@@ -181,6 +181,40 @@ describe('upstream runtime helpers', () => {
   it('describes reused runtime sessions distinctly from fresh boots', () => {
     expect(describeUpstreamRuntimeSession('session-123', true)).toBe('Reusing checkpointed session session-1.')
     expect(describeUpstreamRuntimeSession('session-123', false)).toBe('Boot accepted for session-1.')
+  })
+
+  it('restores bridge snapshot state only for the active session', () => {
+    expect(restoreUpstreamBridgeSnapshotForSession({
+      acknowledgedSessionId: 'session-123',
+      acknowledgedPacketCount: 8,
+      lastError: 'stale',
+    }, 'session-123')).toEqual({
+      acknowledgedSessionId: 'session-123',
+      acknowledgedPacketCount: 8,
+      lastError: null,
+    })
+
+    expect(restoreUpstreamBridgeSnapshotForSession({
+      acknowledgedSessionId: 'session-123',
+      acknowledgedPacketCount: 8,
+      lastError: 'stale',
+    }, 'session-999')).toEqual(createInitialUpstreamBridgeSnapshot())
+  })
+
+  it('updates bridge snapshot ack and error state through shared helpers', () => {
+    const acknowledged = acknowledgeUpstreamBridgeSnapshot(createInitialUpstreamBridgeSnapshot(), 'session-123', 8)
+
+    expect(acknowledged).toEqual({
+      acknowledgedSessionId: 'session-123',
+      acknowledgedPacketCount: 8,
+      lastError: null,
+    })
+
+    expect(errorUpstreamBridgeSnapshot(acknowledged, 'bad bridge')).toEqual({
+      acknowledgedSessionId: 'session-123',
+      acknowledgedPacketCount: 8,
+      lastError: 'bad bridge',
+    })
   })
 
   it('normalizes the upstream export manifest', () => {
