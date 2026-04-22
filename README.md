@@ -13,6 +13,8 @@ It is still very beta. The game is not fully working yet, but the direction is c
 
 **Project links:** [Project site](https://bdtran2002.github.io/ForkOrFry/) · [Contributing](./CONTRIBUTING.md) · [Security](./SECURITY.md) · [Code of Conduct](./CODE_OF_CONDUCT.md) · [Releases](https://github.com/bdtran2002/ForkOrFry/releases)
 
+Need to report something? [Open a bug report](https://github.com/bdtran2002/ForkOrFry/issues/new?template=bug_report.md) or [suggest a feature](https://github.com/bdtran2002/ForkOrFry/issues/new?template=feature_request.md).
+
 ## What this project is
 
 - a browser extension build, not a full-tab web app
