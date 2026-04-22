@@ -68,6 +68,34 @@ describe('upstream runtime helpers', () => {
           },
         },
         interaction: { hand: 0, tile: [6, 7] },
+        score: {
+          points: 9,
+          demands_failed: 0,
+          demands_completed: 1,
+          time_remaining: 0,
+          players: 1,
+          active_recipes: 0,
+          passive_recipes: 0,
+          instant_recipes: 0,
+          stars: 0,
+        },
+        customer: {
+          id: 2,
+          position: [4.5, 12.5],
+          chair: [4, 12],
+          table: [4, 11],
+          phase: 'eating',
+          handItem: BURGERS_INC_BOOTSTRAP.item_names.indexOf('plate:seared-patty,sliced-bun,sliced-cheese'),
+          demandItem: BURGERS_INC_BOOTSTRAP.item_names.indexOf('plate:seared-patty,sliced-bun,sliced-cheese'),
+          demandOutput: BURGERS_INC_BOOTSTRAP.item_names.indexOf('dirty-plate'),
+          demandDuration: 10,
+          orderMessage: null,
+          orderTimeout: null,
+          scorePending: false,
+          timerRemaining: 3,
+          despawnPending: false,
+          character: { color: 0, headwear: 0, hairstyle: 0 },
+        },
       },
       lastCheckpointReason: 'checkpoint:pause',
       bootstrapPacketCount: 8,
@@ -407,7 +435,9 @@ describe('upstream runtime helpers', () => {
       is_lobby: false,
     })
     expect(gameData.item_names).toContain('plate')
+    expect(gameData.item_names).toContain('unknown-order')
     expect(gameData.item_names).toContain('bun')
+    expect(gameData.metadata.demand_items).toContain('plate:seared-patty,sliced-bun,sliced-cheese')
     expect(gameData.tile_names).toContain('floor')
     expect(gameData.tile_names).toContain('counter-window:red')
     expect(gameData.tile_names).toContain('crate:tomato')
@@ -884,6 +914,124 @@ describe('upstream runtime helpers', () => {
     ])
   })
 
+  it('serves one cheeseburger to the initial customer and returns a dirty plate', () => {
+    const burgerIndex = BURGERS_INC_BOOTSTRAP.item_names.indexOf('plate:seared-patty,sliced-bun,sliced-cheese')
+    const dirtyPlateIndex = BURGERS_INC_BOOTSTRAP.item_names.indexOf('dirty-plate')
+    if (burgerIndex < 0 || dirtyPlateIndex < 0) throw new Error('Missing customer serving fixture')
+
+    const initial = createInitialAuthoritySnapshot()
+    if (!initial.customer) throw new Error('Missing initial customer fixture')
+
+    const tableKey = initial.customer.table.join(',')
+    const servedSession = createLocalAuthoritySession({
+      ...initial,
+      tileItems: {
+        ...initial.tileItems,
+        [tableKey]: burgerIndex,
+      },
+    })
+
+    const served = advanceAuthoritySession(servedSession, 0.1)
+    expect(served.session.snapshot.score.points).toBe(9)
+    expect(served.session.snapshot.score.demands_completed).toBe(1)
+    expect(served.session.snapshot.tileItems[tableKey]).toBeNull()
+    expect(served.session.snapshot.customer).toMatchObject({
+      phase: 'eating',
+      handItem: burgerIndex,
+      scorePending: true,
+    })
+    expect(served.packets).toEqual([
+      {
+        type: 'communicate',
+        player: initial.customer.id,
+        message: null,
+        timeout: null,
+      },
+      {
+        type: 'effect',
+        effect: 'satisfied',
+        location: { player: [initial.customer.id, 0] },
+      },
+      {
+        type: 'effect',
+        effect: 'points',
+        amount: 9,
+        location: { player: [initial.customer.id, 0] },
+      },
+      {
+        type: 'move_item',
+        from: { tile: initial.customer.table },
+        to: { player: [initial.customer.id, 0] },
+      },
+    ])
+
+    const scored = advanceAuthoritySession(served.session, 0.1)
+    expect(scored.packets).toContainEqual({
+      type: 'score',
+      ...scored.session.snapshot.score,
+    })
+
+    const eaten = advanceAuthoritySession(scored.session, 10)
+    expect(eaten.session.snapshot.customer).toMatchObject({
+      phase: 'finishing',
+      handItem: dirtyPlateIndex,
+    })
+    expect(eaten.packets).toEqual([
+      {
+        type: 'set_item',
+        location: { player: [initial.customer.id, 0] },
+        item: dirtyPlateIndex,
+      },
+    ])
+
+    const returned = advanceAuthoritySession(eaten.session, 0.1)
+    expect(returned.session.snapshot.tileItems[tableKey]).toBe(dirtyPlateIndex)
+    expect(returned.session.snapshot.customer).toMatchObject({
+      phase: 'exiting',
+      handItem: null,
+      despawnPending: true,
+    })
+    expect(returned.packets).toEqual([
+      {
+        type: 'move_item',
+        from: { player: [initial.customer.id, 0] },
+        to: { tile: initial.customer.table },
+      },
+    ])
+
+    const removed = advanceAuthoritySession(returned.session, 0.1)
+    expect(removed.session.snapshot.customer?.phase).toBe('gone')
+    expect(removed.packets).toEqual([
+      {
+        type: 'remove_player',
+        id: initial.customer.id,
+      },
+    ])
+  })
+
+  it('does not serve a wrong item to the initial customer', () => {
+    const wrongItemIndex = BURGERS_INC_BOOTSTRAP.item_names.indexOf('plate:sliced-bun')
+    if (wrongItemIndex < 0) throw new Error('Missing wrong item fixture')
+
+    const initial = createInitialAuthoritySnapshot()
+    if (!initial.customer) throw new Error('Missing initial customer fixture')
+
+    const tableKey = initial.customer.table.join(',')
+    const session = createLocalAuthoritySession({
+      ...initial,
+      tileItems: {
+        ...initial.tileItems,
+        [tableKey]: wrongItemIndex,
+      },
+    })
+
+    const result = advanceAuthoritySession(session, 0.1)
+    expect(result.session.snapshot.tileItems[tableKey]).toBe(wrongItemIndex)
+    expect(result.session.snapshot.score).toEqual(initial.score)
+    expect(result.session.snapshot.customer).toMatchObject({ phase: 'waiting' })
+    expect(result.packets).toEqual([])
+  })
+
   it('replays active progress packets as part of the authority state', () => {
     const snapshot = createInitialAuthoritySnapshot()
     snapshot.progressTiles['4,4'] = {
@@ -935,6 +1083,8 @@ describe('upstream runtime helpers', () => {
     const packets = createAuthorityStatePackets(snapshot)
 
     expect(packets[0]).toEqual(createAuthorityMovementPacket(snapshot))
+    expect(packets).toContainEqual({ type: 'score', ...snapshot.score })
+    expect(packets).toContainEqual(expect.objectContaining({ type: 'add_player', class: 'customer' }))
     expect(packets.filter((packet) => packet.type === 'set_item').length).toBeGreaterThan(snapshot.hands.length)
     expect(packets).toContainEqual({
       type: 'set_item',

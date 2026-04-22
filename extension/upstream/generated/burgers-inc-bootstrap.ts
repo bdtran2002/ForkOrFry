@@ -105,7 +105,7 @@ const DEFAULT_ITEM_NAMES = [
   'patty', 'sliced-bun', 'pan:patty', 'pan:seared-patty', 'pan:burned',
   'plate:sliced-bun', 'plate:sliced-cheese', 'plate:seared-patty', 'plate:sliced-bun,sliced-cheese',
   'plate:seared-patty,sliced-bun', 'plate:seared-patty,sliced-cheese', 'plate:seared-patty,sliced-bun,sliced-cheese',
-  'french-fries', 'seared-steak',
+  'unknown-order', 'french-fries', 'seared-steak',
 ] as const
 
 const BURGERS_INC_ROWS = [
@@ -233,7 +233,7 @@ export function buildBurgersIncBootstrap(): BurgersIncBootstrapSnapshot {
     players: 2,
     difficulty: 2,
     hand_count: 2,
-    demand_items: [],
+    demand_items: ['plate:seared-patty,sliced-bun,sliced-cheese'],
   }
 
   const character: BurgersIncCharacter = {

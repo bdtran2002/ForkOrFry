@@ -1,5 +1,5 @@
 import { BURGERS_INC_BOOTSTRAP } from '../../../upstream/generated/burgers-inc-bootstrap'
-import type { UpstreamAuthorityPacket, UpstreamGameplayPacket, UpstreamItemLocation } from './upstream-bridge'
+import type { UpstreamAuthorityPacket, UpstreamCharacter, UpstreamGameplayPacket, UpstreamItemLocation, UpstreamMessage, UpstreamMessageTimeout, UpstreamScore } from './upstream-bridge'
 
 export interface UpstreamAuthorityProgressSnapshot {
   position: number
@@ -17,6 +17,24 @@ export interface UpstreamAuthorityInteractionSnapshot {
   tile: [number, number]
 }
 
+export interface UpstreamAuthorityCustomerSnapshot {
+  id: number
+  position: [number, number]
+  chair: [number, number]
+  table: [number, number]
+  phase: 'waiting' | 'eating' | 'finishing' | 'exiting' | 'gone'
+  handItem: number | null
+  demandItem: number
+  demandOutput: number
+  demandDuration: number
+  orderMessage: UpstreamMessage | null
+  orderTimeout: UpstreamMessageTimeout | null
+  scorePending: boolean
+  timerRemaining: number
+  despawnPending: boolean
+  character: UpstreamCharacter
+}
+
 export interface UpstreamAuthoritySnapshot {
   playerId: number
   position: [number, number]
@@ -27,6 +45,8 @@ export interface UpstreamAuthoritySnapshot {
   tileItems: Record<string, number | null>
   progressTiles: Record<string, UpstreamAuthorityProgressSnapshot>
   interaction: UpstreamAuthorityInteractionSnapshot | null
+  score: UpstreamScore
+  customer: UpstreamAuthorityCustomerSnapshot | null
 }
 
 export interface UpstreamLocalAuthoritySession {
@@ -54,6 +74,9 @@ interface UpstreamPassiveStoveRecipe {
   warn: boolean
 }
 
+const CUSTOMER_ID = BURGERS_INC_BOOTSTRAP.playerId + 1
+const CUSTOMER_DEMAND_DURATION = 10
+
 function createTileKey(x: number, y: number) {
   return `${x},${y}`
 }
@@ -80,6 +103,10 @@ function isItemIndex(value: unknown): value is number | null {
 function getItemIndex(name: string) {
   const index = BURGERS_INC_BOOTSTRAP.item_names.indexOf(name)
   return index >= 0 ? index : null
+}
+
+function createInitialScore(): UpstreamScore {
+  return { ...BURGERS_INC_BOOTSTRAP.score }
 }
 
 const CUTTING_BOARD_RECIPES: UpstreamCuttingBoardRecipe[] = [
@@ -136,6 +163,53 @@ const PASSIVE_STOVE_RECIPES: UpstreamPassiveStoveRecipe[] = [
 })
 
 const PASSIVE_STOVE_RECIPE_BY_INPUT = new Map(PASSIVE_STOVE_RECIPES.map((recipe) => [recipe.input, recipe]))
+
+function findInitialCustomerSeat() {
+  const directions: [number, number][] = [[0, -1], [1, 0], [0, 1], [-1, 0]]
+
+  for (const [position, tileIndexes] of BURGERS_INC_BOOTSTRAP.changes) {
+    const isChair = tileIndexes.some((tileIndex) => BURGERS_INC_BOOTSTRAP.tile_names[tileIndex]?.split(':', 1)[0] === 'chair')
+    if (!isChair) continue
+
+    for (const [dx, dy] of directions) {
+      const table: [number, number] = [position[0] + dx, position[1] + dy]
+      if (tileHasPart(table, 'table')) {
+        return { chair: position, table }
+      }
+    }
+  }
+
+  return null
+}
+
+function createInitialCustomerSnapshot(): UpstreamAuthorityCustomerSnapshot | null {
+  const seat = findInitialCustomerSeat()
+  const demandItem = getItemIndex('plate:seared-patty,sliced-bun,sliced-cheese')
+  const dirtyPlate = getItemIndex('dirty-plate')
+  if (!seat || demandItem === null || dirtyPlate === null) return null
+
+  return {
+    id: CUSTOMER_ID,
+    position: [seat.chair[0] + 0.5, seat.chair[1] + 0.5],
+    chair: seat.chair,
+    table: seat.table,
+    phase: 'waiting',
+    handItem: null,
+    demandItem,
+    demandOutput: dirtyPlate,
+    demandDuration: CUSTOMER_DEMAND_DURATION,
+    orderMessage: { item: demandItem },
+    orderTimeout: {
+      initial: 90,
+      remaining: 90,
+      pinned: true,
+    },
+    scorePending: false,
+    timerRemaining: CUSTOMER_DEMAND_DURATION,
+    despawnPending: false,
+    character: { ...BURGERS_INC_BOOTSTRAP.character },
+  }
+}
 
 function createInitialAuthorityTileItems() {
   return Object.fromEntries(
@@ -202,6 +276,63 @@ function normalizeInteraction(interaction: UpstreamAuthorityInteractionSnapshot 
   return interaction && parseTileKey(createTileKey(interaction.tile[0], interaction.tile[1])) && getHandIndex(interaction.hand) !== null
     ? { hand: interaction.hand, tile: interaction.tile }
     : null
+}
+
+function isScore(value: unknown): value is UpstreamScore {
+  return (
+    typeof value === 'object'
+    && value !== null
+    && typeof (value as { points?: unknown }).points === 'number'
+    && typeof (value as { demands_failed?: unknown }).demands_failed === 'number'
+    && typeof (value as { demands_completed?: unknown }).demands_completed === 'number'
+    && typeof (value as { time_remaining?: unknown }).time_remaining === 'number'
+    && typeof (value as { players?: unknown }).players === 'number'
+    && typeof (value as { active_recipes?: unknown }).active_recipes === 'number'
+    && typeof (value as { passive_recipes?: unknown }).passive_recipes === 'number'
+    && typeof (value as { instant_recipes?: unknown }).instant_recipes === 'number'
+    && typeof (value as { stars?: unknown }).stars === 'number'
+  )
+}
+
+function isMessage(value: unknown): value is UpstreamMessage | null {
+  return value === null || (typeof value === 'object' && value !== null && typeof (value as { item?: unknown }).item === 'number')
+}
+
+function isMessageTimeout(value: unknown): value is UpstreamMessageTimeout | null {
+  return value === null || (
+    typeof value === 'object'
+    && value !== null
+    && typeof (value as { initial?: unknown }).initial === 'number'
+    && typeof (value as { remaining?: unknown }).remaining === 'number'
+    && typeof (value as { pinned?: unknown }).pinned === 'boolean'
+  )
+}
+
+function isCharacter(value: unknown): value is UpstreamCharacter {
+  return (
+    typeof value === 'object'
+    && value !== null
+    && typeof (value as { color?: unknown }).color === 'number'
+    && typeof (value as { headwear?: unknown }).headwear === 'number'
+    && typeof (value as { hairstyle?: unknown }).hairstyle === 'number'
+  )
+}
+
+function normalizeCustomer(customer: UpstreamAuthorityCustomerSnapshot | null | undefined) {
+  const initial = createInitialCustomerSnapshot()
+  if (!customer || !initial) return initial
+  if (!isVector2(customer.position) || !isVector2(customer.chair) || !isVector2(customer.table)) return initial
+  if (!['waiting', 'eating', 'finishing', 'exiting', 'gone'].includes(customer.phase)) return initial
+  if (!isItemIndex(customer.handItem) || typeof customer.demandItem !== 'number' || typeof customer.demandOutput !== 'number') return initial
+  if (typeof customer.demandDuration !== 'number' || typeof customer.timerRemaining !== 'number') return initial
+  if (!isMessage(customer.orderMessage) || !isMessageTimeout(customer.orderTimeout)) return initial
+  if (typeof customer.scorePending !== 'boolean' || typeof customer.despawnPending !== 'boolean' || !isCharacter(customer.character)) return initial
+
+  return {
+    ...initial,
+    ...customer,
+    timerRemaining: Math.max(0, customer.timerRemaining),
+  }
 }
 
 function getTileItem(snapshot: UpstreamAuthoritySnapshot, location: UpstreamItemLocation & { tile: [number, number] }) {
@@ -271,6 +402,19 @@ function createProgressPacket(location: { tile: [number, number] }, progress: Up
     position: progress.position,
     speed: progress.speed,
     warn: progress.warn,
+  }
+}
+
+function createScorePacket(score: UpstreamScore): Extract<UpstreamAuthorityPacket, { type: 'score' }> {
+  return { type: 'score', ...score }
+}
+
+function createCustomerCommunicatePacket(customer: UpstreamAuthorityCustomerSnapshot): Extract<UpstreamAuthorityPacket, { type: 'communicate' }> {
+  return {
+    type: 'communicate',
+    player: customer.id,
+    message: customer.orderMessage,
+    timeout: customer.orderTimeout,
   }
 }
 
@@ -386,6 +530,8 @@ export function createInitialAuthoritySnapshot(): UpstreamAuthoritySnapshot {
     tileItems: createInitialAuthorityTileItems(),
     progressTiles: {},
     interaction: null,
+    score: createInitialScore(),
+    customer: createInitialCustomerSnapshot(),
   }
 }
 
@@ -401,6 +547,8 @@ export function createLocalAuthoritySession(snapshot?: UpstreamAuthoritySnapshot
         tileItems: normalizeTileItems(snapshot.tileItems),
         progressTiles: normalizeProgressTiles(snapshot.progressTiles),
         interaction: normalizeInteraction(snapshot.interaction),
+        score: isScore(snapshot.score) ? snapshot.score : initialSnapshot.score,
+        customer: normalizeCustomer(snapshot.customer),
       }
       : initialSnapshot,
   }
@@ -456,8 +604,29 @@ export function createAuthorityStatePackets(snapshot: UpstreamAuthoritySnapshot)
     })
     .filter((packet): packet is Extract<UpstreamAuthorityPacket, { type: 'set_progress' }> => packet !== null)
 
+  const customerPackets: UpstreamAuthorityPacket[] = snapshot.customer && snapshot.customer.phase !== 'gone'
+    ? [
+      {
+        type: 'add_player',
+        id: snapshot.customer.id,
+        name: '',
+        position: snapshot.customer.position,
+        character: snapshot.customer.character,
+        class: 'customer',
+      },
+      createCustomerCommunicatePacket(snapshot.customer),
+      {
+        type: 'set_item',
+        location: { player: [snapshot.customer.id, 0] },
+        item: snapshot.customer.handItem,
+      },
+    ]
+    : []
+
   return [
     createAuthorityMovementPacket(snapshot),
+    createScorePacket(snapshot.score),
+    ...customerPackets,
     ...tileItemPackets,
     ...handItemPackets,
     ...progressPackets,
@@ -475,6 +644,8 @@ export function advanceAuthoritySession(
   let changed = false
   const nextProgressTiles: Record<string, UpstreamAuthorityProgressSnapshot> = {}
   const packets: UpstreamAuthorityPacket[] = []
+  let nextScore = session.snapshot.score
+  let nextCustomer = session.snapshot.customer
 
   for (const [key, progress] of Object.entries(session.snapshot.progressTiles)) {
     const location = createTileLocation(key)
@@ -492,14 +663,91 @@ export function advanceAuthoritySession(
     }
   }
 
-  if (!changed) {
-    return { session, packets }
-  }
-
   const nextTileItems = { ...session.snapshot.tileItems }
   for (const packet of packets) {
     if (packet.type !== 'set_item' || !('tile' in packet.location)) continue
     nextTileItems[createTileKey(packet.location.tile[0], packet.location.tile[1])] = packet.item
+  }
+
+  if (nextCustomer?.phase === 'waiting') {
+    const tableLocation = { tile: nextCustomer.table } as const
+    const tableItem = nextTileItems[createTileKey(nextCustomer.table[0], nextCustomer.table[1])] ?? null
+    if (tableItem === nextCustomer.demandItem) {
+      changed = true
+      nextTileItems[createTileKey(nextCustomer.table[0], nextCustomer.table[1])] = null
+      nextScore = {
+        ...nextScore,
+        points: nextScore.points + 9,
+        demands_completed: nextScore.demands_completed + 1,
+      }
+      nextCustomer = {
+        ...nextCustomer,
+        phase: 'eating',
+        handItem: nextCustomer.demandItem,
+        orderMessage: null,
+        orderTimeout: null,
+        scorePending: true,
+        timerRemaining: nextCustomer.demandDuration,
+      }
+      packets.push(
+        createCustomerCommunicatePacket(nextCustomer),
+        { type: 'effect', effect: 'satisfied', location: { player: [nextCustomer.id, 0] } },
+        { type: 'effect', effect: 'points', amount: 9, location: { player: [nextCustomer.id, 0] } },
+        { type: 'move_item', from: tableLocation, to: { player: [nextCustomer.id, 0] } },
+      )
+    }
+  } else if (nextCustomer?.phase === 'eating') {
+    const timerRemaining = Math.max(0, nextCustomer.timerRemaining - deltaSeconds)
+    if (nextCustomer.scorePending) {
+      changed = true
+      packets.push(createScorePacket(nextScore))
+      nextCustomer = { ...nextCustomer, scorePending: false, timerRemaining }
+    } else if (timerRemaining <= 0) {
+      changed = true
+      nextCustomer = {
+        ...nextCustomer,
+        phase: 'finishing',
+        handItem: nextCustomer.demandOutput,
+        timerRemaining: 0,
+      }
+      packets.push({
+        type: 'set_item',
+        location: { player: [nextCustomer.id, 0] },
+        item: nextCustomer.demandOutput,
+      })
+    } else if (timerRemaining !== nextCustomer.timerRemaining) {
+      changed = true
+      nextCustomer = { ...nextCustomer, timerRemaining }
+    }
+  } else if (nextCustomer?.phase === 'finishing') {
+    const tableKey = createTileKey(nextCustomer.table[0], nextCustomer.table[1])
+    if (nextCustomer.handItem !== null && (nextTileItems[tableKey] ?? null) === null) {
+      changed = true
+      nextTileItems[tableKey] = nextCustomer.handItem
+      packets.push({
+        type: 'move_item',
+        from: { player: [nextCustomer.id, 0] },
+        to: { tile: nextCustomer.table },
+      })
+      nextCustomer = {
+        ...nextCustomer,
+        phase: 'exiting',
+        handItem: null,
+        despawnPending: true,
+      }
+    }
+  } else if (nextCustomer?.phase === 'exiting' && nextCustomer.despawnPending) {
+    changed = true
+    packets.push({ type: 'remove_player', id: nextCustomer.id })
+    nextCustomer = {
+      ...nextCustomer,
+      phase: 'gone',
+      despawnPending: false,
+    }
+  }
+
+  if (!changed) {
+    return { session, packets }
   }
 
   return {
@@ -508,6 +756,8 @@ export function advanceAuthoritySession(
         ...session.snapshot,
         tileItems: nextTileItems,
         progressTiles: nextProgressTiles,
+        score: nextScore,
+        customer: nextCustomer,
       },
     },
     packets,

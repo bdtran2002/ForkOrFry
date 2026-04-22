@@ -54,6 +54,46 @@ function isAuthoritySnapshot(value: unknown): value is UpstreamAuthoritySnapshot
         && value.interaction.tile.every((part) => typeof part === 'number')
       )
     )
+    && isRecord(value.score)
+    && typeof value.score.points === 'number'
+    && typeof value.score.demands_failed === 'number'
+    && typeof value.score.demands_completed === 'number'
+    && typeof value.score.time_remaining === 'number'
+    && typeof value.score.players === 'number'
+    && typeof value.score.active_recipes === 'number'
+    && typeof value.score.passive_recipes === 'number'
+    && typeof value.score.instant_recipes === 'number'
+    && typeof value.score.stars === 'number'
+    && (
+      value.customer === null
+      || (
+        isRecord(value.customer)
+        && typeof value.customer.id === 'number'
+        && Array.isArray(value.customer.position)
+        && value.customer.position.length === 2
+        && value.customer.position.every((part) => typeof part === 'number')
+        && Array.isArray(value.customer.chair)
+        && value.customer.chair.length === 2
+        && value.customer.chair.every((part) => typeof part === 'number')
+        && Array.isArray(value.customer.table)
+        && value.customer.table.length === 2
+        && value.customer.table.every((part) => typeof part === 'number')
+        && (value.customer.phase === 'waiting' || value.customer.phase === 'eating' || value.customer.phase === 'finishing' || value.customer.phase === 'exiting' || value.customer.phase === 'gone')
+        && (value.customer.handItem === null || typeof value.customer.handItem === 'number')
+        && typeof value.customer.demandItem === 'number'
+        && typeof value.customer.demandOutput === 'number'
+        && typeof value.customer.demandDuration === 'number'
+        && (value.customer.orderMessage === null || (isRecord(value.customer.orderMessage) && typeof value.customer.orderMessage.item === 'number'))
+        && (value.customer.orderTimeout === null || (isRecord(value.customer.orderTimeout) && typeof value.customer.orderTimeout.initial === 'number' && typeof value.customer.orderTimeout.remaining === 'number' && typeof value.customer.orderTimeout.pinned === 'boolean'))
+        && typeof value.customer.scorePending === 'boolean'
+        && typeof value.customer.timerRemaining === 'number'
+        && typeof value.customer.despawnPending === 'boolean'
+        && isRecord(value.customer.character)
+        && typeof value.customer.character.color === 'number'
+        && typeof value.customer.character.headwear === 'number'
+        && typeof value.customer.character.hairstyle === 'number'
+      )
+    )
   )
 }
 

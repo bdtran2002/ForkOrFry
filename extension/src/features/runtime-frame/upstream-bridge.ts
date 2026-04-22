@@ -52,6 +52,15 @@ export interface UpstreamScore {
   stars: number
 }
 
+export interface UpstreamMessageTimeout {
+  remaining: number
+  initial: number
+  pinned: boolean
+}
+
+export type UpstreamMessage =
+  | { item: number }
+
 export type UpstreamBootstrapPacket =
   | { type: 'version', minor: number, major: number, supports_bincode?: boolean }
   | ({ type: 'server_data' } & UpstreamServerdata)
@@ -132,6 +141,36 @@ export type UpstreamAuthorityPacket =
     type: 'clear_progress'
     item: UpstreamItemLocation
   }
+  | {
+    type: 'add_player'
+    id: number
+    name: string
+    position: [number, number]
+    character: UpstreamCharacter
+    class: 'chef' | 'bot' | 'customer' | 'tram'
+  }
+  | {
+    type: 'remove_player'
+    id: number
+  }
+  | {
+    type: 'communicate'
+    player: number
+    message: UpstreamMessage | null
+    timeout: UpstreamMessageTimeout | null
+  }
+  | {
+    type: 'effect'
+    effect: 'satisfied' | 'angry'
+    location: UpstreamItemLocation
+  }
+  | {
+    type: 'effect'
+    effect: 'points'
+    amount: number
+    location: UpstreamItemLocation
+  }
+  | ({ type: 'score' } & UpstreamScore)
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null
