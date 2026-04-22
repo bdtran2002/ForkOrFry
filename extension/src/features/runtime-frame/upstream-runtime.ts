@@ -12,7 +12,7 @@ import {
   createBridgeResumeMessage,
   isUpstreamEmbeddedToParentMessage,
 } from './upstream-bridge'
-import { createBurgersIncBootstrapTemplate } from '../../../upstream/generated/burgers-inc-bootstrap'
+import { createBurgersIncBootstrapPayload } from '../../../upstream/generated/burgers-inc-bootstrap'
 import { createUpstreamRuntimeCheckpoint, restoreUpstreamRuntimeCheckpoint } from './upstream-checkpoint'
 import { upstreamRuntimeCopy } from './upstream-runtime-copy'
 import { normalizeUpstreamExportManifest, resolveUpstreamExportUrl } from './upstream-export'
@@ -21,15 +21,6 @@ import { acknowledgeUpstreamBridgeSnapshot, createBootUpstreamRuntimeState, crea
 const RUNTIME_ID = 'burger-runtime'
 const EXPORT_MANIFEST_PATH = '/upstream/hurrycurry-web/manifest.json'
 const RUNTIME_CAPABILITIES = ['checkpoint', 'pause', 'resume', 'upstream-runtime-shell'] as const
-const LOCAL_BOOTSTRAP_TEMPLATE = createBurgersIncBootstrapTemplate(1)
-
-function createRuntimeBootstrapPayload(sessionId: string) {
-  return {
-    ...LOCAL_BOOTSTRAP_TEMPLATE,
-    sessionId,
-    generatedAt: new Date().toISOString(),
-  }
-}
 
 const app = document.querySelector<HTMLDivElement>('#app')
 
@@ -186,7 +177,7 @@ function recordGameplayPacket(action: 'movement' | 'interact' | 'ready' | 'idle'
 
 function sendBootstrapToEmbeddedRuntime(messageType: 'bootstrap' | 'resume') {
   if (!state.sessionId || !runtimeEmbedFrame.contentWindow) return
-  const payload = createRuntimeBootstrapPayload(state.sessionId)
+  const payload = createBurgersIncBootstrapPayload(state.sessionId, 1)
 
   postToEmbeddedRuntime(
     messageType === 'resume'
@@ -251,7 +242,7 @@ async function loadBundledExport() {
 
 function boot(checkpoint: RuntimeCheckpointEnvelope | null, nextSessionId: string) {
   const restored = restoreUpstreamRuntimeCheckpoint(RUNTIME_ID, checkpoint)
-  const bootstrapPayload = createRuntimeBootstrapPayload(nextSessionId)
+  const bootstrapPayload = createBurgersIncBootstrapPayload(nextSessionId, 1)
 
   state = createBootUpstreamRuntimeState(restored, nextSessionId, bootstrapPayload.packets.length)
   render()
