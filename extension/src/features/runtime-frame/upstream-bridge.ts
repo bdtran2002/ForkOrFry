@@ -1,5 +1,3 @@
-import { createBurgersIncBootstrapPayload } from '../../../upstream/generated/burgers-inc-bootstrap'
-
 export const UPSTREAM_BRIDGE_PROTOCOL_VERSION = 1 as const
 
 export type UpstreamBridgeState = 'idle' | 'waiting' | 'sent' | 'acknowledged' | 'error'
@@ -202,10 +200,6 @@ export function isUpstreamBootstrapPayload(value: unknown): value is UpstreamBoo
     && Array.isArray(value.packets)
     && value.packets.every(isBootstrapPacket)
   )
-}
-
-export function createLocalBootstrapPayload(sessionId: string): UpstreamBootstrapPayload {
-  return createBurgersIncBootstrapPayload(sessionId, UPSTREAM_BRIDGE_PROTOCOL_VERSION)
 }
 
 export function createBridgeBootstrapMessage(payload: UpstreamBootstrapPayload): UpstreamParentToEmbeddedMessage {

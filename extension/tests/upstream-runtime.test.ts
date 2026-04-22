@@ -2,7 +2,6 @@ import { describe, expect, it } from 'vitest'
 
 import {
   createBridgeBootstrapMessage,
-  createLocalBootstrapPayload,
   createGameplayPacketMessage,
   type UpstreamBootstrapPacket,
   isUpstreamBootstrapPayload,
@@ -273,12 +272,12 @@ describe('upstream runtime helpers', () => {
   })
 
   it('validates saved bootstrap payloads', () => {
-    expect(isUpstreamBootstrapPayload(createLocalBootstrapPayload('session-123'))).toBe(true)
+    expect(isUpstreamBootstrapPayload(createBurgersIncBootstrapPayload('session-123', 1))).toBe(true)
     expect(isUpstreamBootstrapPayload({ type: 'forkorfry:local-bootstrap', version: 1, packets: [] })).toBe(false)
   })
 
   it('wraps bootstrap payloads in a parent-to-iframe bridge message', () => {
-    const payload = createLocalBootstrapPayload('session-123')
+    const payload = createBurgersIncBootstrapPayload('session-123', 1)
 
     expect(createBridgeBootstrapMessage(payload)).toEqual({
       type: 'forkorfry:bridge-bootstrap',

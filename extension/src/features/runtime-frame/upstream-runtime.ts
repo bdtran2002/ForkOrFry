@@ -10,9 +10,9 @@ import {
   createBridgeBootstrapMessage,
   createBridgePauseMessage,
   createBridgeResumeMessage,
-  createLocalBootstrapPayload,
   isUpstreamEmbeddedToParentMessage,
 } from './upstream-bridge'
+import { createBurgersIncBootstrapPayload } from '../../../upstream/generated/burgers-inc-bootstrap'
 import { createUpstreamRuntimeCheckpoint, restoreUpstreamRuntimeCheckpoint } from './upstream-checkpoint'
 import { upstreamRuntimeCopy } from './upstream-runtime-copy'
 import { normalizeUpstreamExportManifest, resolveUpstreamExportUrl } from './upstream-export'
@@ -205,7 +205,7 @@ function recordGameplayPacket(action: 'movement' | 'interact' | 'ready' | 'idle'
 
 function sendBootstrapToEmbeddedRuntime(messageType: 'bootstrap' | 'resume') {
   if (!state.sessionId || !runtimeEmbedFrame.contentWindow) return
-  const payload = createLocalBootstrapPayload(state.sessionId)
+  const payload = createBurgersIncBootstrapPayload(state.sessionId, 1)
 
   postToEmbeddedRuntime(
     messageType === 'resume'
@@ -273,7 +273,7 @@ async function loadBundledExport() {
 
 function boot(checkpoint: RuntimeCheckpointEnvelope | null, nextSessionId: string) {
   const restored = restoreUpstreamRuntimeCheckpoint(RUNTIME_ID, checkpoint)
-  const bootstrapPayload = createLocalBootstrapPayload(nextSessionId)
+  const bootstrapPayload = createBurgersIncBootstrapPayload(nextSessionId, 1)
 
   state = {
     ...restored,
