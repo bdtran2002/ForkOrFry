@@ -184,6 +184,17 @@ export async function saveRuntimeCheckpoint(runtimeId: string, checkpoint: Runti
   })
 }
 
+export async function resetRuntimeHostSession(runtimeId: string) {
+  const next: RuntimeHostSession = {
+    ...DEFAULT_SESSION,
+    sessionId: createSessionId(),
+    runtimeId,
+  }
+
+  await saveRuntimeHostSession(next)
+  return next
+}
+
 export async function markRuntimeHostHidden(runtimeId: string, detail: string) {
   return updateRuntimeHostSession(runtimeId, {
     status: 'paused',

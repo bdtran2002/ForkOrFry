@@ -292,6 +292,13 @@ describe('runtime host', () => {
     await controller.start()
     await controller.reset()
 
+    await vi.waitFor(async () => {
+      const session = await getRuntimeHostSession('burger-runtime')
+      expect(session.lifecycleState).toBe('fresh')
+      expect(session.resumeCount).toBe(0)
+      expect(session.checkpoint).toBeNull()
+    })
+
     window.dispatchEvent(
       new MessageEvent('message', {
         source: firstRuntimeWindow as MessageEventSource,
