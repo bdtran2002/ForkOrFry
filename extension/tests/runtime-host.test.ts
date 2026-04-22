@@ -312,10 +312,49 @@ describe('runtime host', () => {
     await vi.waitFor(async () => {
       const session = await getRuntimeHostSession('burger-runtime')
       expect(session.checkpoint).toBeNull()
+      expect(session.detail).toContain('Ignored stale runtime message')
     })
     expect(secondRuntimeWindow.postMessage).toHaveBeenCalledWith(
       expect.objectContaining({ type: 'host:boot', runtimeId: 'burger-runtime' }),
       window.location.origin,
     )
+  })
+
+  it('records stale messages from the active mount when the runtime id does not match', async () => {
+    const mock = createBrowserMock()
+    Object.assign(globalThis, { browser: mock.browser as BrowserMock })
+
+    const runtimeWindow = { postMessage: vi.fn() } as unknown as Window
+    const frame = document.createElement('iframe')
+    const mountRuntime = vi.fn().mockResolvedValue({ frame, runtimeWindow })
+
+    const { getRuntimeHostSession } = await import('../src/features/runtime-host/checkpoint-store')
+    const { createRuntimeHostController } = await import('../src/features/runtime-host/controller')
+
+    const controller = createRuntimeHostController({
+      runtimeId: 'burger-runtime',
+      mountRuntime,
+      onSessionChange: vi.fn(),
+    })
+
+    await controller.start()
+
+    window.dispatchEvent(
+      new MessageEvent('message', {
+        source: runtimeWindow as MessageEventSource,
+        origin: window.location.origin,
+        data: {
+          type: 'runtime:status',
+          runtimeId: 'other-runtime',
+          phase: 'running',
+          detail: 'should be ignored',
+        },
+      }),
+    )
+
+    await vi.waitFor(async () => {
+      const session = await getRuntimeHostSession('burger-runtime')
+      expect(session.detail).toContain('Ignored stale runtime message')
+    })
   })
 })

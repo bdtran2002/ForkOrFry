@@ -57,6 +57,15 @@ export function createRuntimeHostController(options: RuntimeHostControllerOption
     options.onSessionChange(next)
   }
 
+  const markIgnoredStaleMessage = async (detail: string) => {
+    const current = session ?? (await updateRuntimeHostSession(options.runtimeId, {}))
+    const marker = `Ignored stale runtime message: ${detail}`
+    const next = await updateRuntimeHostSession(options.runtimeId, {
+      detail: current.detail ? `${current.detail} · ${marker}` : marker,
+    })
+    emit(next)
+  }
+
   const postToRuntime = (message: HostToRuntimeMessage) => {
     if (!mount) return
     mount.runtimeWindow.postMessage(message, targetOrigin)
@@ -102,6 +111,7 @@ export function createRuntimeHostController(options: RuntimeHostControllerOption
         case 'runtime:checkpoint': {
           if (message.checkpoint.runtimeId !== options.runtimeId) {
             console.warn('Ignoring checkpoint from the wrong runtime.', message.checkpoint.runtimeId)
+            void markIgnoredStaleMessage('checkpoint from the wrong runtime.')
             return
           }
 
@@ -149,8 +159,16 @@ export function createRuntimeHostController(options: RuntimeHostControllerOption
   }
 
   const onWindowMessage = (event: MessageEvent<unknown>) => {
-    if (!mount || event.source !== mount.runtimeWindow || event.origin !== targetOrigin) return
-    if (!isRuntimeToHostMessage(event.data) || event.data.runtimeId !== options.runtimeId) return
+    if (!mount || event.source !== mount.runtimeWindow || event.origin !== targetOrigin) {
+      if (mount && event.origin === targetOrigin) {
+        void markIgnoredStaleMessage('message from inactive runtime mount.')
+      }
+      return
+    }
+    if (!isRuntimeToHostMessage(event.data) || event.data.runtimeId !== options.runtimeId) {
+      void markIgnoredStaleMessage('message for a different runtime session.')
+      return
+    }
     handleRuntimeMessage(event.data)
   }
 
