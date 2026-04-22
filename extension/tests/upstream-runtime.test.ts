@@ -11,7 +11,7 @@ import {
 import { BURGERS_INC_BOOTSTRAP, createBurgersIncBootstrapPayload, createBurgersIncBootstrapTemplate } from '../upstream/generated/burgers-inc-bootstrap'
 import { createUpstreamRuntimeCheckpoint, restoreUpstreamRuntimeCheckpoint } from '../src/features/runtime-frame/upstream-checkpoint'
 import { normalizeUpstreamExportManifest, resolveUpstreamExportUrl } from '../src/features/runtime-frame/upstream-export'
-import { applyGameplayPacketToAuthority, createAuthorityMovementPacket, createInitialAuthoritySnapshot, createLocalAuthoritySession } from '../src/features/runtime-frame/local-authority'
+import { applyGameplayPacketToAuthority, createAuthorityMovementPacket, createAuthorityStatePackets, createInitialAuthoritySnapshot, createLocalAuthoritySession } from '../src/features/runtime-frame/local-authority'
 import { acknowledgeUpstreamBridgeSnapshot, createBootUpstreamRuntimeState, createInitialUpstreamBridgeSnapshot, createInitialUpstreamRuntimeState, createResumeUpstreamRuntimeState, describeUpstreamRuntimeSession, errorUpstreamBridgeSnapshot, resolveUpstreamRuntimeSessionState, restoreUpstreamBridgeSnapshotForSession } from '../src/features/runtime-frame/upstream-runtime-state'
 import { UPSTREAM_RUNTIME_GAMEPLAY_PACKET_HISTORY_LIMIT } from '../src/features/runtime-frame/upstream-runtime-state'
 
@@ -53,6 +53,8 @@ describe('upstream runtime helpers', () => {
         direction: [1, 0],
         rotation: Math.PI / 2,
         boost: true,
+        hands: [2, null],
+        tileItems: { '4,7': null, '5,7': 3 },
       },
       lastCheckpointReason: 'checkpoint:pause',
       bootstrapPacketCount: 8,
@@ -354,6 +356,9 @@ describe('upstream runtime helpers', () => {
     const gameData = getPacket(payload.packets, 'game_data')
     const updateMap = getPacket(payload.packets, 'update_map')
     const addPlayer = getPacket(payload.packets, 'add_player')
+    const setItemPackets = payload.packets.filter((packet) => packet.type === 'set_item')
+    const plateIndex = gameData.item_names.indexOf('plate')
+    const panIndex = gameData.item_names.indexOf('pan')
 
     expect(payload.sessionId).toBe('session-123')
     expect(payload.map).toBe('burgers_inc')
@@ -363,11 +368,13 @@ describe('upstream runtime helpers', () => {
       major: BURGERS_INC_BOOTSTRAP.packets[0].type === 'version' ? BURGERS_INC_BOOTSTRAP.packets[0].major : undefined,
       minor: 0,
     })
-    expect(payload.packets.map((packet) => packet.type)).toEqual([
+    expect(payload.packets.slice(0, 4).map((packet) => packet.type)).toEqual([
       'version',
       'server_data',
       'game_data',
       'update_map',
+    ])
+    expect(payload.packets.slice(-4).map((packet) => packet.type)).toEqual([
       'score',
       'set_ingame',
       'joined',
@@ -400,6 +407,17 @@ describe('upstream runtime helpers', () => {
     expect(updateMap).toMatchObject({ type: 'update_map' })
     expect(updateMap.changes.length).toBeGreaterThan(20)
     expect(updateMap.changes).toContainEqual([[3, 9], expect.any(Array)])
+    expect(setItemPackets.length).toBeGreaterThan(0)
+    expect(setItemPackets).toContainEqual({
+      type: 'set_item',
+      location: expect.objectContaining({ tile: expect.any(Array) }),
+      item: plateIndex,
+    })
+    expect(setItemPackets).toContainEqual({
+      type: 'set_item',
+      location: expect.objectContaining({ tile: expect.any(Array) }),
+      item: panIndex,
+    })
 
     expect(addPlayer).toMatchObject({
       type: 'add_player',
@@ -419,13 +437,15 @@ describe('upstream runtime helpers', () => {
       boost: true,
     }))
 
-    expect(result.session.snapshot).toEqual({
+    expect(result.session.snapshot).toMatchObject({
       playerId: 1,
       position: [4.5, 8.5],
       direction: [0, 1],
       rotation: 0,
       boost: true,
     })
+    expect(result.session.snapshot.hands).toEqual([null, null])
+    expect(Object.keys(result.session.snapshot.tileItems).length).toBeGreaterThan(0)
     expect(result.packets).toEqual([
       {
         type: 'movement',
@@ -435,6 +455,44 @@ describe('upstream runtime helpers', () => {
         dir: [0, 1],
         boost: true,
         sync: false,
+      },
+    ])
+  })
+
+  it('applies tile pickup and place gameplay packets through the local authority session', () => {
+    const session = createLocalAuthoritySession()
+    const initialTilePacket = BURGERS_INC_BOOTSTRAP.packets.find((packet) => packet.type === 'set_item' && 'tile' in packet.location && packet.item !== null)
+    if (!initialTilePacket || !('tile' in initialTilePacket.location)) throw new Error('Missing initial tile item for pickup test')
+
+    const pickup = applyGameplayPacketToAuthority(session, createGameplayPacketMessage('interact', {
+      player: 1,
+      hand: 0,
+      target: { tile: initialTilePacket.location.tile },
+    }))
+
+    expect(pickup.session.snapshot.hands[0]).toBe(initialTilePacket.item)
+    expect(pickup.session.snapshot.tileItems[initialTilePacket.location.tile.join(',')]).toBeNull()
+    expect(pickup.packets).toEqual([
+      {
+        type: 'move_item',
+        from: { tile: initialTilePacket.location.tile },
+        to: { player: [1, 0] },
+      },
+    ])
+
+    const place = applyGameplayPacketToAuthority(pickup.session, createGameplayPacketMessage('interact', {
+      player: 1,
+      hand: 0,
+      target: { tile: initialTilePacket.location.tile },
+    }))
+
+    expect(place.session.snapshot.hands[0]).toBeNull()
+    expect(place.session.snapshot.tileItems[initialTilePacket.location.tile.join(',')]).toBe(initialTilePacket.item)
+    expect(place.packets).toEqual([
+      {
+        type: 'move_item',
+        from: { player: [1, 0] },
+        to: { tile: initialTilePacket.location.tile },
       },
     ])
   })
@@ -458,6 +516,19 @@ describe('upstream runtime helpers', () => {
       type: 'forkorfry:bridge-authority-packets',
       version: 1,
       packets: [createAuthorityMovementPacket(createInitialAuthoritySnapshot())],
+    })
+  })
+
+  it('creates full authority state packets for movement, tiles, and hands', () => {
+    const snapshot = createInitialAuthoritySnapshot()
+    const packets = createAuthorityStatePackets(snapshot)
+
+    expect(packets[0]).toEqual(createAuthorityMovementPacket(snapshot))
+    expect(packets.filter((packet) => packet.type === 'set_item').length).toBeGreaterThan(snapshot.hands.length)
+    expect(packets).toContainEqual({
+      type: 'set_item',
+      location: { player: [snapshot.playerId, 0] },
+      item: null,
     })
   })
 
@@ -517,6 +588,12 @@ describe('upstream runtime helpers', () => {
       pos: [2.5, 9.5],
       dir: [0, 1],
       boost: false,
+    }))).toBe(true)
+
+    expect(isUpstreamEmbeddedToParentMessage(createGameplayPacketMessage('interact', {
+      player: 1,
+      hand: 0,
+      target: { tile: [3, 2] },
     }))).toBe(true)
   })
 })

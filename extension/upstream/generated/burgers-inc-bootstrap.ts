@@ -44,6 +44,7 @@ export type BurgersIncBootstrapPacket =
     is_lobby: boolean
   }
   | { type: 'update_map', changes: [[number, number], number[]][] }
+  | { type: 'set_item', location: { tile: [number, number] } | { player: [number, number] }, item: number | null }
   | ({ type: 'score' } & BurgersIncScore)
   | { type: 'set_ingame', state: boolean }
   | { type: 'joined', id: number }
@@ -177,6 +178,7 @@ export function buildBurgersIncBootstrap(): BurgersIncBootstrapSnapshot {
   const itemNames: string[] = [...DEFAULT_ITEM_NAMES]
   const itemIndex = new Map(itemNames.map((item, index) => [item, index]))
   const changes: [[number, number], number[]][] = []
+  const setItems: Extract<BurgersIncBootstrapPacket, { type: 'set_item' }>[] = []
   let spawnPosition: [number, number] = [0.5, 0.5]
 
   const ensureTile = (tileName: string) => {
@@ -203,7 +205,13 @@ export function buildBurgersIncBootstrap(): BurgersIncBootstrapSnapshot {
       if (!definition) throw new Error(`Missing burgers_inc tile definition for '${char}' at ${x},${y}`)
       const tileStack = definition.tiles.map(ensureTile)
       changes.push([[x, y], tileStack])
-      if (definition.item) ensureItem(definition.item)
+      if (definition.item) {
+        setItems.push({
+          type: 'set_item',
+          location: { tile: [x, y] },
+          item: ensureItem(definition.item),
+        })
+      }
       if (definition.chefSpawn) spawnPosition = [x + 0.5, y + 0.5]
     }
   }
@@ -268,6 +276,7 @@ export function buildBurgersIncBootstrap(): BurgersIncBootstrapSnapshot {
       is_lobby: false,
     },
     { type: 'update_map', changes },
+    ...setItems,
     { type: 'score', ...score },
     { type: 'set_ingame', state: true },
     { type: 'joined', id: playerId },

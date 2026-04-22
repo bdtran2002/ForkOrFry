@@ -27,6 +27,10 @@ function isAuthoritySnapshot(value: unknown): value is UpstreamAuthoritySnapshot
     && value.direction.every((part) => typeof part === 'number')
     && typeof value.rotation === 'number'
     && typeof value.boost === 'boolean'
+    && Array.isArray(value.hands)
+    && value.hands.every((item) => item === null || typeof item === 'number')
+    && isRecord(value.tileItems)
+    && Object.values(value.tileItems).every((item) => item === null || typeof item === 'number')
   )
 }
 

@@ -19,7 +19,7 @@ import { createUpstreamRuntimeCheckpoint, restoreUpstreamRuntimeCheckpoint } fro
 import { upstreamRuntimeCopy } from './upstream-runtime-copy'
 import { normalizeUpstreamExportManifest, resolveUpstreamExportUrl } from './upstream-export'
 import { acknowledgeUpstreamBridgeSnapshot, createBootUpstreamRuntimeState, createInitialUpstreamRuntimeState, createResumeUpstreamRuntimeState, errorUpstreamBridgeSnapshot, summarizeUpstreamRuntimeGameplayPackets, trimUpstreamRuntimeGameplayPackets, type UpstreamRuntimeExportState, type UpstreamRuntimeState } from './upstream-runtime-state'
-import { applyGameplayPacketToAuthority, createAuthorityMovementPacket, createLocalAuthoritySession, type UpstreamLocalAuthoritySession } from './local-authority'
+import { applyGameplayPacketToAuthority, createAuthorityStatePackets, createLocalAuthoritySession, type UpstreamLocalAuthoritySession } from './local-authority'
 
 const RUNTIME_ID = 'burger-runtime'
 const EXPORT_MANIFEST_PATH = '/upstream/hurrycurry-web/manifest.json'
@@ -187,9 +187,7 @@ function recordGameplayPacket(action: 'movement' | 'interact' | 'ready' | 'idle'
 }
 
 function sendAuthorityPacketsToEmbeddedRuntime() {
-  postToEmbeddedRuntime(createBridgeAuthorityPacketsMessage([
-    createAuthorityMovementPacket(authoritySession.snapshot),
-  ]))
+  postToEmbeddedRuntime(createBridgeAuthorityPacketsMessage(createAuthorityStatePackets(authoritySession.snapshot)))
 }
 
 function handleAuthorityGameplayPacket(packet: UpstreamGameplayPacket) {

@@ -36,6 +36,10 @@ export interface UpstreamCharacter {
   hairstyle: number
 }
 
+export type UpstreamItemLocation =
+  | { tile: [number, number] }
+  | { player: [number, number] }
+
 export interface UpstreamScore {
   points: number
   demands_failed: number
@@ -53,6 +57,7 @@ export type UpstreamBootstrapPacket =
   | ({ type: 'server_data' } & UpstreamServerdata)
   | ({ type: 'game_data' } & UpstreamGamedata)
   | { type: 'update_map', changes: [[number, number], number[]][] }
+  | { type: 'set_item', location: UpstreamItemLocation, item: number | null }
   | ({ type: 'score' } & UpstreamScore)
   | { type: 'set_ingame', state: boolean }
   | { type: 'joined', id: number }
@@ -95,15 +100,26 @@ export interface UpstreamGameplayPacket {
   payload: Record<string, unknown>
 }
 
-export interface UpstreamAuthorityPacket {
-  type: 'movement'
-  player: number
-  pos: [number, number]
-  rot: number
-  dir: [number, number]
-  boost: boolean
-  sync?: boolean
-}
+export type UpstreamAuthorityPacket =
+  | {
+    type: 'movement'
+    player: number
+    pos: [number, number]
+    rot: number
+    dir: [number, number]
+    boost: boolean
+    sync?: boolean
+  }
+  | {
+    type: 'move_item'
+    from: UpstreamItemLocation
+    to: UpstreamItemLocation
+  }
+  | {
+    type: 'set_item'
+    location: UpstreamItemLocation
+    item: number | null
+  }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null
@@ -128,6 +144,21 @@ function isCharacter(value: unknown): value is UpstreamCharacter {
     && typeof value.color === 'number'
     && typeof value.headwear === 'number'
     && typeof value.hairstyle === 'number'
+  )
+}
+
+function isVector2(value: unknown): value is [number, number] {
+  return Array.isArray(value) && value.length === 2 && value.every((part) => typeof part === 'number')
+}
+
+function isItemLocation(value: unknown): value is UpstreamItemLocation {
+  return (
+    isRecord(value)
+    && ((Array.isArray(value.tile) && isVector2(value.tile)) || (
+      Array.isArray(value.player)
+      && value.player.length === 2
+      && value.player.every((part) => typeof part === 'number')
+    ))
   )
 }
 
@@ -168,6 +199,8 @@ function isBootstrapPacket(value: unknown): value is UpstreamBootstrapPacket {
       )
     case 'update_map':
       return Array.isArray(value.changes)
+    case 'set_item':
+      return isItemLocation(value.location) && (value.item === null || typeof value.item === 'number')
     case 'score':
       return (
         typeof value.points === 'number'
