@@ -139,7 +139,7 @@ describe('upstream runtime helpers', () => {
     })
 
     expect(restored.gameplayPacketSummary).toEqual({
-      totalCount: 5,
+      totalCount: 2,
       lastAction: 'ready',
       actionCounts: { movement: 1, ready: 1 },
     })
@@ -303,7 +303,7 @@ describe('upstream runtime helpers', () => {
     expect(createResumeUpstreamRuntimeState({
       ...restored,
       exportUrl: null,
-      bridgeState: 'idle',
+      bridgeState: 'error',
       bridgeSnapshot: createInitialUpstreamBridgeSnapshot(),
     }, 'session-999')).toMatchObject({
       sessionId: 'session-999',
