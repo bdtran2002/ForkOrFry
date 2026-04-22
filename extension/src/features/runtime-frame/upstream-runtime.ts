@@ -192,6 +192,14 @@ function sendBootstrapToEmbeddedRuntime(messageType: 'bootstrap' | 'resume') {
   postStatus(state.phase, currentPhaseDetail())
 }
 
+function sendBootstrapAndCheckpoint(
+  messageType: 'bootstrap' | 'resume',
+  checkpointReason: string,
+) {
+  sendBootstrapToEmbeddedRuntime(messageType)
+  postCheckpoint(checkpointReason)
+}
+
 async function loadBundledExport() {
   setState({ exportState: 'unknown', detail: upstreamRuntimeCopy.exportStates.unknown })
 
@@ -271,9 +279,7 @@ function handleHostMessage(message: HostToRuntimeMessage) {
       const restored = restoreUpstreamRuntimeCheckpoint(RUNTIME_ID, message.checkpoint)
       state = createResumeUpstreamRuntimeState(restored, state.sessionId)
       render()
-      sendBootstrapToEmbeddedRuntime('resume')
-      postStatus(state.phase, currentPhaseDetail())
-      postCheckpoint('Resumed runtime shell.')
+      sendBootstrapAndCheckpoint('resume', 'Resumed runtime shell.')
       return
     }
     case 'host:checkpoint':
@@ -291,9 +297,7 @@ refreshButton.addEventListener('click', () => {
 runtimeEmbedFrame.addEventListener('load', () => {
   if (!state.exportUrl || state.phase === 'paused') return
   setState({ exportState: 'loaded', phase: 'running', detail: upstreamRuntimeCopy.loadedSummary })
-  sendBootstrapToEmbeddedRuntime('bootstrap')
-  postStatus('running', currentPhaseDetail())
-  postCheckpoint('Bundled export iframe loaded.')
+  sendBootstrapAndCheckpoint('bootstrap', 'Bundled export iframe loaded.')
 })
 
 window.addEventListener('message', (event) => {
@@ -311,7 +315,7 @@ window.addEventListener('message', (event) => {
     switch (embeddedMessage.type) {
       case 'forkorfry:bridge-ready':
         setState({ bridgeState: 'waiting', detail: 'Bridge is ready for bootstrap data.' })
-        sendBootstrapToEmbeddedRuntime('bootstrap')
+        sendBootstrapAndCheckpoint('bootstrap', 'Embedded bridge became ready.')
         return
       case 'forkorfry:bridge-bootstrap-ack':
         setState({
