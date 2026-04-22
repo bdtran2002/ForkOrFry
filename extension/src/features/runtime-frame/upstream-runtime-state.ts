@@ -102,15 +102,17 @@ export function trimUpstreamRuntimeGameplayPackets(packets: UpstreamRuntimeState
 export function summarizeUpstreamRuntimeGameplayPackets(packets: UpstreamRuntimeState['gameplayPackets']) {
   const actionCounts: Record<string, number> = {}
   let lastAction: string | null = null
+  let validatedCount = 0
 
   for (const packet of packets) {
     if (!isUpstreamRuntimeGameplayPacket(packet)) continue
+    validatedCount += 1
     actionCounts[packet.action] = (actionCounts[packet.action] ?? 0) + 1
     lastAction = packet.action
   }
 
   return {
-    totalCount: packets.length,
+    totalCount: validatedCount,
     lastAction,
     actionCounts,
   }
@@ -165,12 +167,17 @@ export function createBootUpstreamRuntimeState(
 
 export function createResumeUpstreamRuntimeState(restored: UpstreamRuntimeState, fallbackSessionId: string): UpstreamRuntimeState {
   const resolvedSession = resolveUpstreamRuntimeSessionState(restored.bridgeSnapshot, restored.sessionId || fallbackSessionId)
+  const bridgeState = restored.exportUrl
+    ? 'waiting'
+    : restored.bridgeState === 'error'
+      ? 'idle'
+      : restored.bridgeState
 
   return {
     ...restored,
     sessionId: resolvedSession.sessionId,
     phase: restored.exportUrl ? 'running' : 'ready',
-    bridgeState: (restored.exportUrl ? 'waiting' : restored.bridgeState),
+    bridgeState,
     bridgeSnapshot: resolvedSession.bridgeSnapshot,
     detail: resolvedSession.reused
       ? describeUpstreamRuntimeSession(resolvedSession.sessionId, true)
