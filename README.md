@@ -7,9 +7,9 @@
 [![Engine: Godot](https://img.shields.io/badge/engine-Godot-478cbf.svg)](./extension/public/upstream/hurrycurry-web)
 [![License: AGPL-3.0-only](https://img.shields.io/badge/license-AGPL%203.0--only-green.svg)](./LICENSE)
 
-ForkOrFry is a browser-extension fork of Hurry Curry, being shaped into a local-first, single-player experience.
+ForkOrFry is a local-first browser-extension fork of Hurry Curry for single-player play.
 
-It is still very beta. The game is not fully working yet, but the direction is clear: run inside an extension-owned surface, keep state local, and remove the server dependency from the shipped experience.
+It is still very beta. The game is not fully working yet, but the direction is clear: run inside an extension-owned surface, keep progress local, and remove the server dependency from the shipped experience.
 
 **Project links:** [Project site](https://bdtran2002.github.io/ForkOrFry/) · [Contributing](./CONTRIBUTING.md) · [Security](./SECURITY.md) · [Code of Conduct](./CODE_OF_CONDUCT.md) · [Releases](https://github.com/bdtran2002/ForkOrFry/releases)
 
