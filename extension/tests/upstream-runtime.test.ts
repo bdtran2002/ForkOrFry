@@ -982,7 +982,7 @@ describe('upstream runtime helpers', () => {
     expect(served.session.snapshot.customer).toMatchObject({
       phase: 'eating',
       handItem: burgerIndex,
-      scorePending: true,
+      scorePending: false,
     })
     expect(served.packets).toEqual([
       {
@@ -1007,13 +1007,14 @@ describe('upstream runtime helpers', () => {
         from: { tile: initial.customer.table },
         to: { player: [initial.customer.id, 0] },
       },
+      {
+        type: 'score',
+        ...served.session.snapshot.score,
+      },
     ])
 
     const scored = advanceAuthoritySession(served.session, 0.1)
-    expect(scored.packets).toContainEqual({
-      type: 'score',
-      ...scored.session.snapshot.score,
-    })
+    expect(scored.packets).toEqual([])
 
     const eaten = advanceAuthoritySession(scored.session, 10)
     expect(eaten.session.snapshot.customer).toMatchObject({
@@ -1097,6 +1098,45 @@ describe('upstream runtime helpers', () => {
       position: 0.25,
       speed: 0.5,
       warn: false,
+    })
+  })
+
+  it('replays waiting and eating customer state through authority packets', () => {
+    const waiting = createInitialAuthoritySnapshot()
+    if (!waiting.customer) throw new Error('Missing waiting customer fixture')
+
+    expect(createAuthorityStatePackets(waiting)).toContainEqual({
+      type: 'communicate',
+      player: waiting.customer.id,
+      message: waiting.customer.orderMessage,
+      timeout: waiting.customer.orderTimeout,
+    })
+
+    const burgerIndex = BURGERS_INC_BOOTSTRAP.item_names.indexOf('plate:seared-patty,sliced-bun,sliced-cheese')
+    if (burgerIndex < 0) throw new Error('Missing customer replay fixture')
+
+    const eating = createInitialAuthoritySnapshot()
+    if (!eating.customer) throw new Error('Missing eating customer fixture')
+    eating.customer = {
+      ...eating.customer,
+      phase: 'eating',
+      handItem: burgerIndex,
+      orderMessage: null,
+      orderTimeout: null,
+      timerRemaining: 5,
+    }
+
+    const packets = createAuthorityStatePackets(eating)
+    expect(packets).toContainEqual({
+      type: 'communicate',
+      player: eating.customer.id,
+      message: null,
+      timeout: null,
+    })
+    expect(packets).toContainEqual({
+      type: 'set_item',
+      location: { player: [eating.customer.id, 0] },
+      item: burgerIndex,
     })
   })
 

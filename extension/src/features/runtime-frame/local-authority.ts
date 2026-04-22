@@ -686,7 +686,7 @@ export function advanceAuthoritySession(
         handItem: nextCustomer.demandItem,
         orderMessage: null,
         orderTimeout: null,
-        scorePending: true,
+        scorePending: false,
         timerRemaining: nextCustomer.demandDuration,
       }
       packets.push(
@@ -694,6 +694,7 @@ export function advanceAuthoritySession(
         { type: 'effect', effect: 'satisfied', location: { player: [nextCustomer.id, 0] } },
         { type: 'effect', effect: 'points', amount: 9, location: { player: [nextCustomer.id, 0] } },
         { type: 'move_item', from: tableLocation, to: { player: [nextCustomer.id, 0] } },
+        createScorePacket(nextScore),
       )
     }
   } else if (nextCustomer?.phase === 'eating') {
