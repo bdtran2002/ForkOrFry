@@ -1,57 +1,62 @@
 # ForkOrFry
 
 [![CI](https://github.com/bdtran2002/ForkOrFry/actions/workflows/ci.yml/badge.svg)](https://github.com/bdtran2002/ForkOrFry/actions/workflows/ci.yml)
+[![Status: beta](https://img.shields.io/badge/status-beta-8a5cf6.svg)](./README.md)
+[![TypeScript](https://img.shields.io/badge/language-TypeScript-3178c6.svg)](./extension)
+[![Framework: WXT](https://img.shields.io/badge/framework-WXT-111827.svg)](./extension)
+[![Engine: Godot](https://img.shields.io/badge/engine-Godot-478cbf.svg)](./extension/public/upstream/hurrycurry-web)
 [![License: AGPL-3.0-only](https://img.shields.io/badge/license-AGPL%203.0--only-green.svg)](./LICENSE)
 
-ForkOrFry is a browser-extension build of Hurry Curry being adapted into a local, single-player game.
+ForkOrFry is a browser-extension fork of Hurry Curry, being shaped into a local-first, single-player experience.
 
-It runs inside an extension-owned surface, keeps state local, and avoids any runtime server dependency.
+It is still very beta. The game is not fully working yet, but the direction is clear: run inside an extension-owned surface, keep state local, and remove the server dependency from the shipped experience.
 
-## Overview
+**Project links:** [Project site](https://bdtran2002.github.io/ForkOrFry/) · [Contributing](./CONTRIBUTING.md) · [Security](./SECURITY.md) · [Code of Conduct](./CODE_OF_CONDUCT.md) · [Releases](https://github.com/bdtran2002/ForkOrFry/releases)
 
-ForkOrFry is aimed at a simple version of the game:
+## What this project is
 
-- install it as a browser extension
-- launch it in an extension-owned window or tab
-- keep the run local to the browser
-- stay focused on single-player play
-
-The current build supports two host surfaces:
-
-- a popup-sized host window
-- a larger full-tab host
-
-Only one host surface should be active at a time. Moving from the popup window to the full tab is meant to carry the same run forward instead of creating a second session.
+- a browser extension build, not a full-tab web app
+- a single-player fork with bots replacing remote players over time
+- a local-only runtime that persists progress inside the browser
+- an upstream-derived port of Hurry Curry, trimmed for the burger level
 
 ## Current status
 
-ForkOrFry is still in active migration to the real upstream Godot runtime.
+What works today:
 
-Right now the project can:
+- the extension can load the bundled Godot web export offline
+- the host shell can open inside the browser extension UI
+- local bootstrap, pause/resume, checkpoint, and reset flows are in place
+- the real game scene can be reached from the extension runtime path
 
-- bundle and load a real Godot web build offline
-- boot through the extension host shell
-- pass a local bootstrap payload into the embedded runtime
-- reach the real game scene and spawn the local player in `burgers_inc`
-- preserve checkpoint, pause, resume, reset, and host handoff behavior
+What is still rough:
 
-What is not finished yet:
+- gameplay is not yet fully local-authoritative after spawn
+- multiplayer/server assumptions are still being removed from the live runtime
+- the polished player-facing experience is still a work in progress
 
-- full local-authoritative gameplay after spawn
-- replacing the remaining multiplayer/server assumptions in the live runtime
-- polishing the shipped player-facing experience
+## How to try it
 
-## Highlights
+1. Run `npm run build` in `extension/`.
+2. Open `about:debugging#/runtime/this-firefox` in Firefox.
+3. Click **Load Temporary Add-on**.
+4. Select `extension/dist/firefox-mv3/manifest.json`.
+5. Open the extension popup and start from the host surface.
 
-- browser-extension delivery instead of a separate native install
-- local saves and checkpoint-based resume behavior
-- popup-window and full-tab host support
-- offline bundled Godot web runtime
+## Project site
+
+A simple GitHub Pages landing page scaffold lives in `docs/site/`.
+
+When Pages is enabled, the intended site URL is:
+
+`https://bdtran2002.github.io/ForkOrFry/`
+
+That page links back here for the full README and development details.
 
 ## Repository layout
 
 - `extension/` — extension app, popup UI, runtime host, runtime frame, tests, packaging scripts
-- `.github/workflows/` — CI and packaging workflows
+- `docs/site/` — GitHub Pages landing page scaffold
 - `docs/` — AMO and project documentation
 - `.upstream-reference/` — read-only upstream reference copy
 - `LICENSE` / `THIRD_PARTY_NOTICES.md` — licensing and attribution
@@ -78,9 +83,7 @@ flowchart LR
   LS --> ST
 ```
 
-### Developer setup
-
-### Requirements
+### Setup
 
 - Node.js `^20.19.0 || >=22.12.0`
 - npm
@@ -127,35 +130,14 @@ Two workflows matter right now:
 
 The sync/export path writes a `manifest.json` so `runtime-frame.html` can load the bundled export offline.
 
-### Temporary loading in Firefox
-
-1. Run `npm run build` in `extension/`
-2. Open `about:debugging#/runtime/this-firefox`
-3. Click **Load Temporary Add-on**
-4. Select `extension/dist/firefox-mv3/manifest.json`
-
 ### Manual verification
 
-### Host shell
-
-1. Load the temporary add-on in Firefox
-2. Open the toolbar popup and click **Arm idle trigger**
-3. Let Firefox enter the configured idle state
-4. Return to activity and confirm the popup-window host opens or refocuses
-5. Use **Open current surface** to verify the active surface can be launched directly
-6. From the popup-window host, use **Move to full tab** and confirm the run transfers
-7. Close and reopen the active surface to confirm checkpoint resume still works
-8. Use **Clear state** to confirm both trigger state and runtime-host state reset cleanly
-
-### Godot runtime
-
-1. Run `npm run export:godot-web && npm run build` in `extension/`
-2. Load the extension temporarily in Firefox
-3. Open the popup-window host or full-tab host
-4. Confirm the bundled Godot export loads inside the runtime-frame host shell
-5. Confirm the local bridge boot sequence reaches the real game runtime
-6. Verify the local player spawns in `burgers_inc`
-7. Probe movement, interactions, and pause/resume behavior
+1. Load the temporary add-on in Firefox.
+2. Open the toolbar popup and click **Arm idle trigger**.
+3. Let Firefox enter the configured idle state.
+4. Return to activity and confirm the host opens or refocuses.
+5. Use **Move to full tab** and confirm the run transfers.
+6. Close and reopen the active surface to confirm checkpoint resume.
 
 ## Contributing
 
