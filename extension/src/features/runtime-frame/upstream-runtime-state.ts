@@ -4,6 +4,13 @@ import type { UpstreamBridgeSnapshot, UpstreamBridgeState } from './upstream-bri
 
 export type UpstreamRuntimeExportState = 'unknown' | 'missing' | 'ready' | 'loaded' | 'error'
 
+export interface UpstreamGodotBridgeSnapshot {
+  entryState: string | null
+  multiplayerState: string | null
+  lastUpdate: string | null
+  updatedAt: string | null
+}
+
 export interface UpstreamRuntimeState {
   saveVersion: typeof UPSTREAM_RUNTIME_SAVE_VERSION
   sessionId: string
@@ -15,6 +22,7 @@ export interface UpstreamRuntimeState {
   lastCheckpointReason: string | null
   bootstrapPacketCount: number
   bridgeSnapshot: UpstreamBridgeSnapshot
+  godotBridgeSnapshot: UpstreamGodotBridgeSnapshot
 }
 
 export function createInitialUpstreamRuntimeState(): UpstreamRuntimeState {
@@ -33,6 +41,12 @@ export function createInitialUpstreamRuntimeState(): UpstreamRuntimeState {
       acknowledgedSessionId: null,
       acknowledgedPacketCount: 0,
       lastError: null,
+    },
+    godotBridgeSnapshot: {
+      entryState: null,
+      multiplayerState: null,
+      lastUpdate: null,
+      updatedAt: null,
     },
   }
 }

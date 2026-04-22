@@ -36,6 +36,12 @@ describe('upstream runtime helpers', () => {
         acknowledgedPacketCount: 8,
         lastError: null,
       },
+      godotBridgeSnapshot: {
+        entryState: 'entry-ready',
+        multiplayerState: 'multiplayer-bridge:connected',
+        lastUpdate: 'multiplayer',
+        updatedAt: '2026-04-21T00:00:00.000Z',
+      },
       bootstrapPacketCount: 8,
     }
 
