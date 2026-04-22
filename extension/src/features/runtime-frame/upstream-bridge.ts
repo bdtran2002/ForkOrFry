@@ -120,6 +120,18 @@ export type UpstreamAuthorityPacket =
     location: UpstreamItemLocation
     item: number | null
   }
+  | {
+    type: 'set_progress'
+    players: number[]
+    item: UpstreamItemLocation
+    position: number
+    speed: number
+    warn: boolean
+  }
+  | {
+    type: 'clear_progress'
+    item: UpstreamItemLocation
+  }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null

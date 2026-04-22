@@ -102,7 +102,7 @@ type TileDefinition = {
 const DEFAULT_ITEM_NAMES = [
   'foodprocessor', 'plate', 'glass', 'pan', 'basket', 'steak', 'coconut', 'strawberry', 'tomato', 'lettuce',
   'cheese', 'potato', 'bun', 'dirty-plate', 'water', 'sliced-tomato', 'sliced-lettuce', 'sliced-cheese',
-  'patty', 'french-fries', 'seared-steak',
+  'patty', 'sliced-bun', 'french-fries', 'seared-steak',
 ] as const
 
 const BURGERS_INC_ROWS = [

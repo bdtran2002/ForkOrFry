@@ -19,7 +19,7 @@ import { createUpstreamRuntimeCheckpoint, restoreUpstreamRuntimeCheckpoint } fro
 import { upstreamRuntimeCopy } from './upstream-runtime-copy'
 import { normalizeUpstreamExportManifest, resolveUpstreamExportUrl } from './upstream-export'
 import { acknowledgeUpstreamBridgeSnapshot, createBootUpstreamRuntimeState, createInitialUpstreamRuntimeState, createResumeUpstreamRuntimeState, errorUpstreamBridgeSnapshot, summarizeUpstreamRuntimeGameplayPackets, trimUpstreamRuntimeGameplayPackets, type UpstreamRuntimeExportState, type UpstreamRuntimeState } from './upstream-runtime-state'
-import { applyGameplayPacketToAuthority, createAuthorityStatePackets, createLocalAuthoritySession, type UpstreamLocalAuthoritySession } from './local-authority'
+import { advanceAuthoritySession, applyGameplayPacketToAuthority, createAuthorityStatePackets, createLocalAuthoritySession, type UpstreamLocalAuthoritySession } from './local-authority'
 
 const RUNTIME_ID = 'burger-runtime'
 const EXPORT_MANIFEST_PATH = '/upstream/hurrycurry-web/manifest.json'
@@ -82,6 +82,7 @@ const runtimeEmbedOverlay = app.querySelector<HTMLElement>('#runtime-embed-overl
 
 let state: UpstreamRuntimeState = createInitialUpstreamRuntimeState()
 let authoritySession: UpstreamLocalAuthoritySession = createLocalAuthoritySession()
+let lastAuthorityTickAt: number | null = null
 
 function postToHost(message: RuntimeToHostMessage) {
   window.parent.postMessage(message, window.location.origin)
@@ -199,6 +200,24 @@ function handleAuthorityGameplayPacket(packet: UpstreamGameplayPacket) {
   postToEmbeddedRuntime(createBridgeAuthorityPacketsMessage(result.packets))
 }
 
+function tickAuthority(timestamp: number) {
+  const previousTickAt = lastAuthorityTickAt
+  lastAuthorityTickAt = timestamp
+
+  if (state.phase === 'running' && previousTickAt !== null) {
+    const result = advanceAuthoritySession(authoritySession, Math.min(0.1, (timestamp - previousTickAt) / 1000))
+    if (result.session.snapshot !== authoritySession.snapshot) {
+      authoritySession = result.session
+      setState({ authoritySnapshot: authoritySession.snapshot })
+    }
+    if (result.packets.length > 0) {
+      postToEmbeddedRuntime(createBridgeAuthorityPacketsMessage(result.packets))
+    }
+  }
+
+  window.requestAnimationFrame(tickAuthority)
+}
+
 function sendBootstrapToEmbeddedRuntime(messageType: 'bootstrap' | 'resume') {
   if (!state.sessionId || !runtimeEmbedFrame.contentWindow) return
   const payload = createUpstreamBootstrapPayload(state.sessionId)
@@ -278,6 +297,7 @@ function boot(checkpoint: RuntimeCheckpointEnvelope | null, nextSessionId: strin
 
   state = createBootUpstreamRuntimeState(restored, nextSessionId, bootstrapPayload.packets.length)
   syncAuthoritySession(state.authoritySnapshot)
+  lastAuthorityTickAt = null
   render()
   postStatus('booting', currentPhaseDetail())
   postToHost({
@@ -304,6 +324,7 @@ function handleHostMessage(message: HostToRuntimeMessage) {
       const restored = restoreUpstreamRuntimeCheckpoint(RUNTIME_ID, message.checkpoint)
       state = createResumeUpstreamRuntimeState(restored, state.sessionId)
       syncAuthoritySession(state.authoritySnapshot)
+      lastAuthorityTickAt = null
       render()
       sendBootstrapAndCheckpoint('resume', 'Resumed runtime shell.')
       return
@@ -380,3 +401,4 @@ window.addEventListener('pagehide', () => {
 })
 
 render()
+window.requestAnimationFrame(tickAuthority)

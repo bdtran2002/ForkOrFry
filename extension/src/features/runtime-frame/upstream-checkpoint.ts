@@ -31,6 +31,29 @@ function isAuthoritySnapshot(value: unknown): value is UpstreamAuthoritySnapshot
     && value.hands.every((item) => item === null || typeof item === 'number')
     && isRecord(value.tileItems)
     && Object.values(value.tileItems).every((item) => item === null || typeof item === 'number')
+    && isRecord(value.progressTiles)
+    && Object.values(value.progressTiles).every((progress) => (
+      isRecord(progress)
+      && typeof progress.position === 'number'
+      && typeof progress.speed === 'number'
+      && typeof progress.baseSpeed === 'number'
+      && typeof progress.warn === 'boolean'
+      && Array.isArray(progress.players)
+      && progress.players.every((player) => typeof player === 'number')
+      && typeof progress.hand === 'number'
+      && (progress.handOutput === null || typeof progress.handOutput === 'number')
+      && (progress.tileOutput === null || typeof progress.tileOutput === 'number')
+    ))
+    && (
+      value.interaction === null
+      || (
+        isRecord(value.interaction)
+        && typeof value.interaction.hand === 'number'
+        && Array.isArray(value.interaction.tile)
+        && value.interaction.tile.length === 2
+        && value.interaction.tile.every((part) => typeof part === 'number')
+      )
+    )
   )
 }
 

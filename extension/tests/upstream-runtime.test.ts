@@ -11,7 +11,7 @@ import {
 import { BURGERS_INC_BOOTSTRAP, createBurgersIncBootstrapPayload, createBurgersIncBootstrapTemplate } from '../upstream/generated/burgers-inc-bootstrap'
 import { createUpstreamRuntimeCheckpoint, restoreUpstreamRuntimeCheckpoint } from '../src/features/runtime-frame/upstream-checkpoint'
 import { normalizeUpstreamExportManifest, resolveUpstreamExportUrl } from '../src/features/runtime-frame/upstream-export'
-import { applyGameplayPacketToAuthority, createAuthorityMovementPacket, createAuthorityStatePackets, createInitialAuthoritySnapshot, createLocalAuthoritySession } from '../src/features/runtime-frame/local-authority'
+import { advanceAuthoritySession, applyGameplayPacketToAuthority, createAuthorityMovementPacket, createAuthorityStatePackets, createInitialAuthoritySnapshot, createLocalAuthoritySession } from '../src/features/runtime-frame/local-authority'
 import { acknowledgeUpstreamBridgeSnapshot, createBootUpstreamRuntimeState, createInitialUpstreamBridgeSnapshot, createInitialUpstreamRuntimeState, createResumeUpstreamRuntimeState, describeUpstreamRuntimeSession, errorUpstreamBridgeSnapshot, resolveUpstreamRuntimeSessionState, restoreUpstreamBridgeSnapshotForSession } from '../src/features/runtime-frame/upstream-runtime-state'
 import { UPSTREAM_RUNTIME_GAMEPLAY_PACKET_HISTORY_LIMIT } from '../src/features/runtime-frame/upstream-runtime-state'
 
@@ -55,6 +55,19 @@ describe('upstream runtime helpers', () => {
         boost: true,
         hands: [2, null],
         tileItems: { '4,7': null, '5,7': 3 },
+        progressTiles: {
+          '6,7': {
+            position: 0.5,
+            speed: 0.5,
+            baseSpeed: 0.5,
+            warn: false,
+            players: [1],
+            hand: 0,
+            handOutput: 15,
+            tileOutput: null,
+          },
+        },
+        interaction: { hand: 0, tile: [6, 7] },
       },
       lastCheckpointReason: 'checkpoint:pause',
       bootstrapPacketCount: 8,
@@ -495,6 +508,109 @@ describe('upstream runtime helpers', () => {
         to: { tile: initialTilePacket.location.tile },
       },
     ])
+  })
+
+  it('starts, advances, pauses, and completes cutting-board prep through local authority', () => {
+    const tomatoIndex = BURGERS_INC_BOOTSTRAP.item_names.indexOf('tomato')
+    const slicedTomatoIndex = BURGERS_INC_BOOTSTRAP.item_names.indexOf('sliced-tomato')
+    const cuttingBoard = BURGERS_INC_BOOTSTRAP.changes.find(([_, tileIndexes]) => tileIndexes.some((tileIndex) => BURGERS_INC_BOOTSTRAP.tile_names[tileIndex] === 'cutting-board'))
+    if (tomatoIndex < 0 || slicedTomatoIndex < 0 || !cuttingBoard) throw new Error('Missing cutting-board recipe fixture')
+
+    const seededSession = createLocalAuthoritySession({
+      ...createInitialAuthoritySnapshot(),
+      hands: [tomatoIndex, null],
+      tileItems: {
+        ...createInitialAuthoritySnapshot().tileItems,
+        [cuttingBoard[0].join(',')]: null,
+      },
+    })
+
+    const started = applyGameplayPacketToAuthority(seededSession, createGameplayPacketMessage('interact', {
+      player: 1,
+      hand: 0,
+      target: { tile: cuttingBoard[0] },
+    }))
+
+    expect(started.session.snapshot.hands[0]).toBeNull()
+    expect(started.session.snapshot.tileItems[cuttingBoard[0].join(',')]).toBe(tomatoIndex)
+    expect(started.session.snapshot.progressTiles[cuttingBoard[0].join(',')]).toMatchObject({
+      position: 0,
+      speed: 0.5,
+      baseSpeed: 0.5,
+      players: [1],
+      hand: 0,
+      handOutput: slicedTomatoIndex,
+      tileOutput: null,
+    })
+    expect(started.packets).toEqual([
+      {
+        type: 'move_item',
+        from: { player: [1, 0] },
+        to: { tile: cuttingBoard[0] },
+      },
+      {
+        type: 'set_progress',
+        players: [1],
+        item: { tile: cuttingBoard[0] },
+        position: 0,
+        speed: 0.5,
+        warn: false,
+      },
+    ])
+
+    const advanced = advanceAuthoritySession(started.session, 2)
+    expect(advanced.session.snapshot.progressTiles[cuttingBoard[0].join(',')].position).toBe(1)
+
+    const paused = applyGameplayPacketToAuthority(advanced.session, createGameplayPacketMessage('interact', {
+      player: 1,
+      hand: 0,
+      target: null,
+    }))
+
+    expect(paused.session.snapshot.progressTiles[cuttingBoard[0].join(',')]).toBeUndefined()
+    expect(paused.session.snapshot.hands[0]).toBe(slicedTomatoIndex)
+    expect(paused.session.snapshot.tileItems[cuttingBoard[0].join(',')]).toBeNull()
+    expect(paused.packets).toEqual([
+      {
+        type: 'set_item',
+        location: { tile: cuttingBoard[0] },
+        item: null,
+      },
+      {
+        type: 'set_item',
+        location: { tile: cuttingBoard[0] },
+        item: slicedTomatoIndex,
+      },
+      {
+        type: 'move_item',
+        from: { tile: cuttingBoard[0] },
+        to: { player: [1, 0] },
+      },
+    ])
+  })
+
+  it('replays active progress packets as part of the authority state', () => {
+    const snapshot = createInitialAuthoritySnapshot()
+    snapshot.progressTiles['4,4'] = {
+      position: 0.25,
+      speed: 0.5,
+      baseSpeed: 0.5,
+      warn: false,
+      players: [snapshot.playerId],
+      hand: 0,
+      handOutput: BURGERS_INC_BOOTSTRAP.item_names.indexOf('sliced-tomato'),
+      tileOutput: null,
+    }
+
+    const packets = createAuthorityStatePackets(snapshot)
+    expect(packets).toContainEqual({
+      type: 'set_progress',
+      players: [snapshot.playerId],
+      item: { tile: [4, 4] },
+      position: 0.25,
+      speed: 0.5,
+      warn: false,
+    })
   })
 
   it('creates authority movement packets from the initial authority snapshot', () => {

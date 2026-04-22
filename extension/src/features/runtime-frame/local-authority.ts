@@ -1,6 +1,22 @@
 import { BURGERS_INC_BOOTSTRAP } from '../../../upstream/generated/burgers-inc-bootstrap'
 import type { UpstreamAuthorityPacket, UpstreamGameplayPacket, UpstreamItemLocation } from './upstream-bridge'
 
+export interface UpstreamAuthorityProgressSnapshot {
+  position: number
+  speed: number
+  baseSpeed: number
+  warn: boolean
+  players: number[]
+  hand: number
+  handOutput: number | null
+  tileOutput: number | null
+}
+
+export interface UpstreamAuthorityInteractionSnapshot {
+  hand: number
+  tile: [number, number]
+}
+
 export interface UpstreamAuthoritySnapshot {
   playerId: number
   position: [number, number]
@@ -9,14 +25,28 @@ export interface UpstreamAuthoritySnapshot {
   boost: boolean
   hands: (number | null)[]
   tileItems: Record<string, number | null>
+  progressTiles: Record<string, UpstreamAuthorityProgressSnapshot>
+  interaction: UpstreamAuthorityInteractionSnapshot | null
 }
 
 export interface UpstreamLocalAuthoritySession {
   snapshot: UpstreamAuthoritySnapshot
 }
 
+interface UpstreamCuttingBoardRecipe {
+  input: number
+  handOutput: number | null
+  tileOutput: number | null
+  durationSeconds: number
+}
+
 function createTileKey(x: number, y: number) {
   return `${x},${y}`
+}
+
+function createTileLocation(key: string): { tile: [number, number] } | null {
+  const location = parseTileKey(key)
+  return location ? { tile: location } : null
 }
 
 function parseTileKey(key: string): [number, number] | null {
@@ -32,6 +62,27 @@ function parseTileKey(key: string): [number, number] | null {
 function isItemIndex(value: unknown): value is number | null {
   return value === null || typeof value === 'number'
 }
+
+function getItemIndex(name: string) {
+  const index = BURGERS_INC_BOOTSTRAP.item_names.indexOf(name)
+  return index >= 0 ? index : null
+}
+
+const CUTTING_BOARD_RECIPES: UpstreamCuttingBoardRecipe[] = [
+  ['tomato', 'sliced-tomato', 2],
+  ['lettuce', 'sliced-lettuce', 2],
+  ['cheese', 'sliced-cheese', 2],
+  ['steak', 'patty', 2],
+  ['bun', 'sliced-bun', 1],
+].flatMap(([inputName, outputName, durationSeconds]) => {
+  const input = getItemIndex(inputName)
+  const handOutput = getItemIndex(outputName)
+  return input === null || handOutput === null
+    ? []
+    : [{ input, handOutput, tileOutput: null, durationSeconds }]
+})
+
+const CUTTING_BOARD_RECIPE_BY_INPUT = new Map(CUTTING_BOARD_RECIPES.map((recipe) => [recipe.input, recipe]))
 
 function createInitialAuthorityTileItems() {
   return Object.fromEntries(
@@ -57,8 +108,55 @@ function normalizeTileItems(tileItems: Record<string, number | null> | undefined
   return nextTileItems
 }
 
+function isProgressSnapshot(value: unknown): value is UpstreamAuthorityProgressSnapshot {
+  return (
+    typeof value === 'object'
+    && value !== null
+    && typeof (value as { position?: unknown }).position === 'number'
+    && typeof (value as { speed?: unknown }).speed === 'number'
+    && typeof (value as { baseSpeed?: unknown }).baseSpeed === 'number'
+    && typeof (value as { warn?: unknown }).warn === 'boolean'
+    && Array.isArray((value as { players?: unknown }).players)
+    && (value as { players: unknown[] }).players.every((player) => typeof player === 'number')
+    && typeof (value as { hand?: unknown }).hand === 'number'
+    && isItemIndex((value as { handOutput?: unknown }).handOutput)
+    && isItemIndex((value as { tileOutput?: unknown }).tileOutput)
+  )
+}
+
+function normalizeProgressTiles(progressTiles: Record<string, UpstreamAuthorityProgressSnapshot> | undefined) {
+  const nextProgressTiles: Record<string, UpstreamAuthorityProgressSnapshot> = {}
+
+  for (const [key, progress] of Object.entries(progressTiles ?? {})) {
+    if (!parseTileKey(key) || !isProgressSnapshot(progress)) continue
+
+    nextProgressTiles[key] = {
+      position: Math.max(0, Math.min(1, progress.position)),
+      speed: progress.speed,
+      baseSpeed: progress.baseSpeed,
+      warn: progress.warn,
+      players: progress.players,
+      hand: progress.hand,
+      handOutput: progress.handOutput,
+      tileOutput: progress.tileOutput,
+    }
+  }
+
+  return nextProgressTiles
+}
+
+function normalizeInteraction(interaction: UpstreamAuthorityInteractionSnapshot | null | undefined) {
+  return interaction && parseTileKey(createTileKey(interaction.tile[0], interaction.tile[1])) && getHandIndex(interaction.hand) !== null
+    ? { hand: interaction.hand, tile: interaction.tile }
+    : null
+}
+
 function getTileItem(snapshot: UpstreamAuthoritySnapshot, location: UpstreamItemLocation & { tile: [number, number] }) {
   return snapshot.tileItems[createTileKey(location.tile[0], location.tile[1])] ?? null
+}
+
+function getTileProgress(snapshot: UpstreamAuthoritySnapshot, location: UpstreamItemLocation & { tile: [number, number] }) {
+  return snapshot.progressTiles[createTileKey(location.tile[0], location.tile[1])] ?? null
 }
 
 function setTileItem(snapshot: UpstreamAuthoritySnapshot, location: UpstreamItemLocation & { tile: [number, number] }, item: number | null) {
@@ -95,6 +193,70 @@ function canPlaceItemOnTile(position: [number, number], item: number) {
   return false
 }
 
+function tileHasPart(position: [number, number], partName: string) {
+  const change = BURGERS_INC_BOOTSTRAP.changes.find(([tilePosition]) => tilePosition[0] === position[0] && tilePosition[1] === position[1])
+  if (!change) return false
+
+  return change[1].some((tileIndex) => BURGERS_INC_BOOTSTRAP.tile_names[tileIndex]?.split(':', 1)[0] === partName)
+}
+
+function getCuttingBoardRecipe(item: number | null, position: [number, number]) {
+  if (item === null || !tileHasPart(position, 'cutting-board')) return null
+  return CUTTING_BOARD_RECIPE_BY_INPUT.get(item) ?? null
+}
+
+function createProgressPacket(location: { tile: [number, number] }, progress: UpstreamAuthorityProgressSnapshot): Extract<UpstreamAuthorityPacket, { type: 'set_progress' }> {
+  return {
+    type: 'set_progress',
+    players: progress.players,
+    item: location,
+    position: progress.position,
+    speed: progress.speed,
+    warn: progress.warn,
+  }
+}
+
+function createCompletionPackets(
+  location: { tile: [number, number] },
+  playerId: number,
+  hand: number,
+  handOutput: number | null,
+  tileOutput: number | null,
+): UpstreamAuthorityPacket[] {
+  return [
+    {
+      type: 'set_item',
+      location,
+      item: null,
+    },
+    {
+      type: 'set_item',
+      location,
+      item: handOutput,
+    },
+    {
+      type: 'move_item',
+      from: location,
+      to: { player: [playerId, hand] },
+    },
+    ...(tileOutput !== null
+      ? [{ type: 'set_item' as const, location, item: tileOutput }]
+      : []),
+  ]
+}
+
+function setTileProgress(
+  snapshot: UpstreamAuthoritySnapshot,
+  location: [number, number],
+  progress: UpstreamAuthorityProgressSnapshot | null,
+) {
+  const key = createTileKey(location[0], location[1])
+  const nextProgressTiles = { ...snapshot.progressTiles }
+  if (progress) nextProgressTiles[key] = progress
+  else delete nextProgressTiles[key]
+  return nextProgressTiles
+}
+
 export function createInitialAuthoritySnapshot(): UpstreamAuthoritySnapshot {
   return {
     playerId: BURGERS_INC_BOOTSTRAP.playerId,
@@ -104,6 +266,8 @@ export function createInitialAuthoritySnapshot(): UpstreamAuthoritySnapshot {
     boost: false,
     hands: Array.from({ length: BURGERS_INC_BOOTSTRAP.metadata.hand_count }, () => null),
     tileItems: createInitialAuthorityTileItems(),
+    progressTiles: {},
+    interaction: null,
   }
 }
 
@@ -117,6 +281,8 @@ export function createLocalAuthoritySession(snapshot?: UpstreamAuthoritySnapshot
         ...snapshot,
         hands: normalizeHands(snapshot.hands),
         tileItems: normalizeTileItems(snapshot.tileItems),
+        progressTiles: normalizeProgressTiles(snapshot.progressTiles),
+        interaction: normalizeInteraction(snapshot.interaction),
       }
       : initialSnapshot,
   }
@@ -165,11 +331,61 @@ export function createAuthorityStatePackets(snapshot: UpstreamAuthoritySnapshot)
     item,
   }))
 
+  const progressPackets = Object.entries(snapshot.progressTiles)
+    .map(([key, progress]) => {
+      const location = createTileLocation(key)
+      return location ? createProgressPacket(location, progress) : null
+    })
+    .filter((packet): packet is Extract<UpstreamAuthorityPacket, { type: 'set_progress' }> => packet !== null)
+
   return [
     createAuthorityMovementPacket(snapshot),
     ...tileItemPackets,
     ...handItemPackets,
+    ...progressPackets,
   ]
+}
+
+export function advanceAuthoritySession(
+  session: UpstreamLocalAuthoritySession,
+  deltaSeconds: number,
+) {
+  if (!Number.isFinite(deltaSeconds) || deltaSeconds <= 0) {
+    return { session, packets: [] as UpstreamAuthorityPacket[] }
+  }
+
+  let changed = false
+  const nextProgressTiles: Record<string, UpstreamAuthorityProgressSnapshot> = {}
+
+  for (const [key, progress] of Object.entries(session.snapshot.progressTiles)) {
+    const nextPosition = Math.min(1, progress.position + Math.max(0, progress.speed) * deltaSeconds)
+    if (nextPosition !== progress.position) changed = true
+
+    nextProgressTiles[key] = {
+      ...progress,
+      position: nextPosition,
+    }
+  }
+
+  if (!changed) {
+    return { session, packets: [] as UpstreamAuthorityPacket[] }
+  }
+
+  return {
+    session: {
+      snapshot: {
+        ...session.snapshot,
+        progressTiles: nextProgressTiles,
+      },
+    },
+    packets: [] as UpstreamAuthorityPacket[],
+  }
+}
+
+function resolveInteractionTile(packet: UpstreamGameplayPacket, snapshot: UpstreamAuthoritySnapshot) {
+  if (packet.action !== 'interact') return null
+  if (isTileTarget(packet.payload.target)) return packet.payload.target.tile
+  return snapshot.interaction?.tile ?? null
 }
 
 export function applyGameplayPacketToAuthority(
@@ -183,12 +399,118 @@ export function applyGameplayPacketToAuthority(
 
     const target = packet.payload.target
     const hand = getHandIndex(packet.payload.hand)
-    if (!isTileTarget(target) || hand === null) {
+    const tile = resolveInteractionTile(packet, session.snapshot)
+    if (!tile || hand === null) {
       return { session, packets: [] as UpstreamAuthorityPacket[] }
     }
 
+    const targetLocation = { tile } as const
+    const isEdge = isTileTarget(target)
+    const interaction = isEdge ? { hand, tile } : null
+
     const heldItem = getHandItem(session.snapshot, hand)
-    const tileItem = getTileItem(session.snapshot, target)
+    const tileItem = getTileItem(session.snapshot, targetLocation)
+    const tileProgress = getTileProgress(session.snapshot, targetLocation)
+
+    if (tileProgress && heldItem === null) {
+      if (tileProgress.position >= 1) {
+        const hands = [...session.snapshot.hands]
+        hands[hand] = tileProgress.handOutput
+
+        const snapshot: UpstreamAuthoritySnapshot = {
+          ...session.snapshot,
+          hands,
+          tileItems: setTileItem(session.snapshot, targetLocation, tileProgress.tileOutput),
+          progressTiles: setTileProgress(session.snapshot, tile, null),
+          interaction,
+        }
+
+        return {
+          session: { snapshot },
+          packets: createCompletionPackets(targetLocation, session.snapshot.playerId, hand, tileProgress.handOutput, tileProgress.tileOutput),
+        }
+      }
+
+      const players = isEdge ? [session.snapshot.playerId] : []
+      const nextProgress: UpstreamAuthorityProgressSnapshot = {
+        ...tileProgress,
+        players,
+        speed: tileProgress.baseSpeed * players.length,
+        hand,
+      }
+
+      const snapshot: UpstreamAuthoritySnapshot = {
+        ...session.snapshot,
+        progressTiles: setTileProgress(session.snapshot, tile, nextProgress),
+        interaction,
+      }
+
+      return {
+        session: { snapshot },
+        packets: [createProgressPacket(targetLocation, nextProgress)],
+      }
+    }
+
+    const cuttingBoardRecipe = getCuttingBoardRecipe(heldItem ?? tileItem, tile)
+
+    if (isEdge && heldItem !== null && tileItem === null && cuttingBoardRecipe && cuttingBoardRecipe.input === heldItem) {
+      const hands = [...session.snapshot.hands]
+      hands[hand] = null
+      const nextProgress: UpstreamAuthorityProgressSnapshot = {
+        position: 0,
+        speed: 1 / cuttingBoardRecipe.durationSeconds,
+        baseSpeed: 1 / cuttingBoardRecipe.durationSeconds,
+        warn: false,
+        players: [session.snapshot.playerId],
+        hand,
+        handOutput: cuttingBoardRecipe.handOutput,
+        tileOutput: cuttingBoardRecipe.tileOutput,
+      }
+
+      const snapshot: UpstreamAuthoritySnapshot = {
+        ...session.snapshot,
+        hands,
+        tileItems: setTileItem(session.snapshot, targetLocation, heldItem),
+        progressTiles: setTileProgress(session.snapshot, tile, nextProgress),
+        interaction,
+      }
+
+      return {
+        session: { snapshot },
+        packets: [
+          {
+            type: 'move_item',
+            from: { player: [session.snapshot.playerId, hand] },
+            to: targetLocation,
+          },
+          createProgressPacket(targetLocation, nextProgress),
+        ],
+      }
+    }
+
+    if (isEdge && heldItem === null && tileItem !== null && cuttingBoardRecipe && !tileProgress) {
+      const nextProgress: UpstreamAuthorityProgressSnapshot = {
+        position: 0,
+        speed: 1 / cuttingBoardRecipe.durationSeconds,
+        baseSpeed: 1 / cuttingBoardRecipe.durationSeconds,
+        warn: false,
+        players: [session.snapshot.playerId],
+        hand,
+        handOutput: cuttingBoardRecipe.handOutput,
+        tileOutput: cuttingBoardRecipe.tileOutput,
+      }
+
+      const snapshot: UpstreamAuthoritySnapshot = {
+        ...session.snapshot,
+        progressTiles: setTileProgress(session.snapshot, tile, nextProgress),
+        interaction,
+      }
+
+      return {
+        session: { snapshot },
+        packets: [createProgressPacket(targetLocation, nextProgress)],
+      }
+    }
 
     if (heldItem === null && tileItem !== null) {
       const hands = [...session.snapshot.hands]
@@ -197,27 +519,29 @@ export function applyGameplayPacketToAuthority(
       const snapshot: UpstreamAuthoritySnapshot = {
         ...session.snapshot,
         hands,
-        tileItems: setTileItem(session.snapshot, target, null),
+        tileItems: setTileItem(session.snapshot, targetLocation, null),
+        interaction,
       }
 
       return {
         session: { snapshot },
         packets: [{
           type: 'move_item',
-          from: { tile: target.tile },
+          from: targetLocation,
           to: { player: [session.snapshot.playerId, hand] },
         }],
       }
     }
 
-    if (heldItem !== null && tileItem === null && canPlaceItemOnTile(target.tile, heldItem)) {
+    if (isEdge && heldItem !== null && tileItem === null && canPlaceItemOnTile(tile, heldItem)) {
       const hands = [...session.snapshot.hands]
       hands[hand] = null
 
       const snapshot: UpstreamAuthoritySnapshot = {
         ...session.snapshot,
         hands,
-        tileItems: setTileItem(session.snapshot, target, heldItem),
+        tileItems: setTileItem(session.snapshot, targetLocation, heldItem),
+        interaction,
       }
 
       return {
@@ -225,7 +549,7 @@ export function applyGameplayPacketToAuthority(
         packets: [{
           type: 'move_item',
           from: { player: [session.snapshot.playerId, hand] },
-          to: { tile: target.tile },
+          to: targetLocation,
         }],
       }
     }
