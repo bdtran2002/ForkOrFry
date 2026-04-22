@@ -1,6 +1,8 @@
 import '../../style.css'
 import { type BackgroundMessage } from '../../core/messages'
 import { getState } from '../../core/state'
+import { getRuntimeHostSession } from '../runtime-host/checkpoint-store'
+import { DEFAULT_RUNTIME_DEFINITION } from '../runtime-host/runtime-definition'
 import { popupCopy } from './copy'
 
 const app = document.querySelector<HTMLDivElement>('#app')
@@ -20,28 +22,48 @@ app.innerHTML = `
   <div class="status" id="status"></div>
   <section class="status-grid" aria-label="Extension status details">
     <div class="status-tile"><span class="status-label">${popupCopy.labels.mode}</span><strong class="status-value" id="mode-value"></strong></div>
-    <div class="status-tile"><span class="status-label">${popupCopy.labels.takeoverTab}</span><strong class="status-value" id="tab-value"></strong></div>
+    <div class="status-tile"><span class="status-label">${popupCopy.labels.pane}</span><strong class="status-value" id="pane-value"></strong></div>
+    <div class="status-tile"><span class="status-label">${popupCopy.labels.awaitingActivity}</span><strong class="status-value" id="awaiting-activity-value"></strong></div>
     <div class="status-tile"><span class="status-label">${popupCopy.labels.lastTrigger}</span><strong class="status-value" id="last-trigger-value"></strong></div>
   </section>
   <div class="actions">
     <button type="button" class="primary" id="arm">${popupCopy.buttons.arm}</button>
     <button type="button" class="secondary" id="demo">${popupCopy.buttons.demo}</button>
+    <button type="button" class="secondary" id="full-tab">${popupCopy.buttons.fullTab}</button>
     <button type="button" class="secondary" id="disarm">${popupCopy.buttons.disarm}</button>
     <button type="button" class="secondary" id="reset">${popupCopy.buttons.reset}</button>
   </div>
+  <section class="checkpoint-card popup-runtime-card" aria-label="Runtime host details">
+    <div class="log-title">${popupCopy.runtime.title}</div>
+    <div class="checkpoint-grid">
+      <div class="checkpoint-item"><span class="checkpoint-label">${popupCopy.runtime.statusLabel}</span><strong id="runtime-status-value"></strong></div>
+      <div class="checkpoint-item"><span class="checkpoint-label">${popupCopy.runtime.resumeLabel}</span><strong id="runtime-resume-value"></strong></div>
+      <div class="checkpoint-item"><span class="checkpoint-label">${popupCopy.runtime.checkpointLabel}</span><strong id="runtime-checkpoint-value"></strong></div>
+    </div>
+  </section>
   <p class="helper">${popupCopy.helper}</p>
 </main>`
 
 const status = app.querySelector<HTMLElement>('#status')!
 const idleIntervalSelect = app.querySelector<HTMLSelectElement>('#idle-interval')!
 const modeValue = app.querySelector<HTMLElement>('#mode-value')!
-const tabValue = app.querySelector<HTMLElement>('#tab-value')!
+const paneValue = app.querySelector<HTMLElement>('#pane-value')!
+const awaitingActivityValue = app.querySelector<HTMLElement>('#awaiting-activity-value')!
 const lastTriggerValue = app.querySelector<HTMLElement>('#last-trigger-value')!
+const runtimeStatusValue = app.querySelector<HTMLElement>('#runtime-status-value')!
+const runtimeResumeValue = app.querySelector<HTMLElement>('#runtime-resume-value')!
+const runtimeCheckpointValue = app.querySelector<HTMLElement>('#runtime-checkpoint-value')!
 const buttons = {
   arm: app.querySelector<HTMLButtonElement>('#arm')!,
   demo: app.querySelector<HTMLButtonElement>('#demo')!,
+  fullTab: app.querySelector<HTMLButtonElement>('#full-tab')!,
   disarm: app.querySelector<HTMLButtonElement>('#disarm')!,
   reset: app.querySelector<HTMLButtonElement>('#reset')!,
+}
+
+function surfaceLabel(activeSurface: Awaited<ReturnType<typeof getState>>['activeSurface']) {
+  if (activeSurface === 'full-tab') return popupCopy.fullTab
+  return popupCopy.popupWindow
 }
 
 function formatLastTrigger(lastIdleAt: number | null) {
@@ -55,22 +77,46 @@ function formatLastTrigger(lastIdleAt: number | null) {
   }).format(new Date(lastIdleAt))
 }
 
+function hasStoredActivityState(state: Awaited<ReturnType<typeof getState>>) {
+  return state.lastIdleAt !== null || state.lastTriggerAt !== null || state.surfaceOpen || state.waitingForActivity
+}
+
+function hasStoredRuntimeState(runtimeSession: Awaited<ReturnType<typeof getRuntimeHostSession>>) {
+  return runtimeSession.lastCheckpointAt != null || runtimeSession.resumeCount > 0 || runtimeSession.checkpoint != null
+}
+
 async function refresh() {
-  const state = await getState()
-  const takeoverOpen = state.takeoverTabId !== null
+  const [state, runtimeSession] = await Promise.all([
+    getState(),
+    getRuntimeHostSession(DEFAULT_RUNTIME_DEFINITION.id),
+  ])
+  const surfaceOpen = state.surfaceOpen
+  const waitingForActivity = state.waitingForActivity
+  const preferredSurface = surfaceLabel(state.activeSurface)
 
   idleIntervalSelect.value = String(state.idleIntervalSeconds)
-  status.textContent = state.armed
-    ? takeoverOpen
-      ? popupCopy.status.armedOpen
-      : popupCopy.status.armedClosed
-    : popupCopy.status.disarmed
+  status.textContent = !state.armed
+    ? popupCopy.status.disarmed
+    : surfaceOpen
+      ? popupCopy.status.surfaceOpen(preferredSurface)
+      : waitingForActivity
+        ? popupCopy.status.waitingForActivity(preferredSurface)
+        : popupCopy.status.armedReady
   modeValue.textContent = state.armed ? popupCopy.armed : popupCopy.disarmed
-  tabValue.textContent = takeoverOpen ? popupCopy.open : popupCopy.closed
-  lastTriggerValue.textContent = formatLastTrigger(state.lastIdleAt)
+  paneValue.textContent = surfaceOpen ? preferredSurface : popupCopy.closed
+  awaitingActivityValue.textContent = waitingForActivity ? popupCopy.yes : popupCopy.no
+  lastTriggerValue.textContent = formatLastTrigger(state.lastTriggerAt)
+  runtimeStatusValue.textContent = runtimeSession.lastOpenedAt
+    ? runtimeSession.detail
+      ? `${runtimeSession.status} — ${runtimeSession.detail}`
+      : runtimeSession.status
+    : popupCopy.runtime.unavailable
+  runtimeResumeValue.textContent = String(runtimeSession.resumeCount)
+  runtimeCheckpointValue.textContent = formatLastTrigger(runtimeSession.lastCheckpointAt)
   buttons.arm.disabled = state.armed
+  buttons.fullTab.disabled = surfaceOpen && state.activeSurface === 'popup-window'
   buttons.disarm.disabled = !state.armed
-  buttons.reset.disabled = !state.armed && !takeoverOpen && state.lastIdleAt === null
+  buttons.reset.disabled = !hasStoredActivityState(state) && !hasStoredRuntimeState(runtimeSession) && !state.armed
 }
 
 idleIntervalSelect.addEventListener('change', async () => {
@@ -90,6 +136,11 @@ buttons.arm.addEventListener('click', async () => {
 
 buttons.demo.addEventListener('click', async () => {
   await browser.runtime.sendMessage({ type: 'demo-now' } satisfies BackgroundMessage)
+  await refresh()
+})
+
+buttons.fullTab.addEventListener('click', async () => {
+  await browser.runtime.sendMessage({ type: 'open-full-tab' } satisfies BackgroundMessage)
   await refresh()
 })
 

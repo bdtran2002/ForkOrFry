@@ -1,182 +1,171 @@
 # ForkOrFry
 
 [![CI](https://github.com/bdtran2002/ForkOrFry/actions/workflows/ci.yml/badge.svg)](https://github.com/bdtran2002/ForkOrFry/actions/workflows/ci.yml)
-![Status](https://img.shields.io/badge/status-pivot--in--progress-8b5cf6)
-![Version](https://img.shields.io/badge/version-0.0.0-blue)
-![Firefox only](https://img.shields.io/badge/firefox-MV3-orange?logo=firefoxbrowser&logoColor=white)
-![UI target](https://img.shields.io/badge/ui-popup%20or%20side%20panel-7c3aed)
-![Godot](https://img.shields.io/badge/Godot-4.6-478cbf?logo=godotengine&logoColor=white)
-![Rust](https://img.shields.io/badge/Rust-1.93.1-000000?logo=rust)
-![Node](https://img.shields.io/badge/node-20.19%2B-339933?logo=node.js&logoColor=white)
-![WXT](https://img.shields.io/badge/WXT-0.20-8b5cf6)
-![Game mode](https://img.shields.io/badge/game-single--player%20offline-green)
 [![License: AGPL-3.0-only](https://img.shields.io/badge/license-AGPL%203.0--only-green.svg)](./LICENSE)
 
-ForkOrFry is pivoting from a fake takeover prank extension into a browser-extension-hosted local game build based on [`hurrycurry`](https://codeberg.org/hurrycurry/hurrycurry.git).
+ForkOrFry is a browser-extension build of Hurry Curry being adapted into a local, single-player game.
 
-## Objective
+It runs inside an extension-owned surface, keeps state local, and avoids any runtime server dependency.
 
-Convert the project into:
+## Overview
 
-- single player only
-- no server dependency
-- bots replacing all remote players
-- a browser-hosted lightweight extension application running inside a popup or side-panel-style container
+ForkOrFry is aimed at a simple version of the game:
 
-The final runtime must live inside a browser extension UI context, not a full-tab application.
+- install it as a browser extension
+- launch it in an extension-owned window or tab
+- keep the run local to the browser
+- stay focused on single-player play
 
-## Hard constraints
+The current build supports two host surfaces:
 
-- Do not use Docker.
-- Do not build or deploy the Rust server.
-- Do not preserve multiplayer networking as a runtime feature.
-- Treat server code as reference only.
-- The client must fully own game state.
-- Target environment:
-  - Godot WebAssembly export
-  - embedded inside a browser extension popup or side-panel-style UI
-  - compatible with constrained viewport sizing and frequent open/close lifecycle events
+- a popup-sized host window
+- a larger full-tab host
 
-## Product rules
+Only one host surface should be active at a time. Moving from the popup window to the full tab is meant to carry the same run forward instead of creating a second session.
 
-- Trigger on inactivity first, then on renewed mouse activity.
-- Open the game inside an extension-owned popup/pane surface rather than a full browser tab.
-- Bundle a local fork of `hurrycurry` directly in the extension repo.
-- Ship a single-player-only build.
-- Keep gameplay completely local and offline.
-- Persist save/progress locally.
-- Lock the first shipped experience to the burger level only.
-- Leave asset/theme replacement for a later phase.
+## Current status
 
-## Firefox UI reality
+ForkOrFry is still in active migration to the real upstream Godot runtime.
 
-Firefox action popups are ephemeral. The shipped UX still needs to feel like an extension popup/pane application, so the implementation should prefer a side-panel-style or similarly extension-owned constrained UI surface, with popup lifecycle-safe pause/resume behavior when persistence is needed.
+Right now the project can:
 
-## Phase plan
+- bundle and load a real Godot web build offline
+- boot through the extension host shell
+- pass a local bootstrap payload into the embedded runtime
+- reach the real game scene and spawn the local player in `burgers_inc`
+- preserve checkpoint, pause, resume, reset, and host handoff behavior
 
-### Phase 1 — repository analysis
+What is not finished yet:
 
-Produce:
+- full local-authoritative gameplay after spawn
+- replacing the remaining multiplayer/server assumptions in the live runtime
+- polishing the shipped player-facing experience
 
-- architecture breakdown for client, server, and protocol
-- network flow mapping
-- dependency graph
-- list of networking entry points
-- list of gameplay systems dependent on server state
-- identification of gameplay/network coupling points
+## Highlights
 
-Phase 1 output lives in [`docs/pivot-analysis.md`](./docs/pivot-analysis.md).
+- browser-extension delivery instead of a separate native install
+- local saves and checkpoint-based resume behavior
+- popup-window and full-tab host support
+- offline bundled Godot web runtime
 
-### Phase 2 — transformation design
+## Repository layout
 
-Design a migration that:
+- `extension/` — extension app, popup UI, runtime host, runtime frame, tests, packaging scripts
+- `.github/workflows/` — CI and packaging workflows
+- `docs/` — AMO and project documentation
+- `.upstream-reference/` — read-only upstream reference copy
+- `LICENSE` / `THIRD_PARTY_NOTICES.md` — licensing and attribution
 
-- removes server authority completely
-- converts the client into a self-contained simulation
-- replaces multiplayer synchronization with local state management
-- accounts for browser extension popup/side-panel lifecycle limits
+## For developers
 
-### Phase 3 — networking removal
+### Architecture
 
-Implement or stage:
+```mermaid
+flowchart LR
+  PU[Extension popup UI] --> BG[Background trigger and launch control]
 
-- full disablement of server connections
-- removal or stubbing of networking layers
-- replacement of remote game state with local authoritative state
+  BG --> PW[Host page in popup window]
+  BG --> FT[Host page in full tab]
 
-### Phase 4 — bot system
+  PW --> RH[runtime-host controller]
+  FT --> RH
 
-Implement bot players to replace all remote players.
+  RH --> RF[runtime-frame iframe]
+  RF --> UA[upstream local adapter]
+  UA --> GE[Bundled Godot web export]
+  GE --> LS[local single-player session]
+  RH --> ST[browser.storage.local]
+  LS --> ST
+```
 
-Bots must:
+### Developer setup
 
-- behave like real players through the input/command system
-- support movement
-- support object interaction
-- participate in the cooking loop
-- start with rule-based logic
-- remain extensible for smarter future AI
+### Requirements
 
-### Phase 5 — browser + extension compatibility
+- Node.js `^20.19.0 || >=22.12.0`
+- npm
+- `zip` / `unzip`
+- Firefox for temporary loading and manual verification
 
-Prepare for:
-
-- Godot WebAssembly export
-- embedding inside a browser extension popup or side panel
-- fixed or resizable small viewports
-- rapid open/close lifecycle events
-- deterministic startup from scratch when needed
-- lightweight initialization with no native dependencies
-
-## Current codebase starting point
-
-Current extension files that will be repurposed:
-
-- `extension/src/core/background.ts` — idle lifecycle and trigger orchestration
-- `extension/src/core/takeover.ts` — current extension-page open/reuse logic
-- `extension/src/core/state.ts` — `browser.storage.local` state persistence
-- `extension/src/core/messages.ts` — popup/background command contract
-- `extension/src/features/popup/app.ts` — current toolbar popup controls
-- `extension/src/features/takeover/app.ts` — current fake takeover UI
-- `extension/src/entrypoints/takeover/*` — existing extension page entrypoint
-- `extension/wxt.config.ts` — manifest/action wiring
-
-Upstream `hurrycurry` areas that matter most:
-
-- `client/` — Godot client
-- `server/` — Rust server and simulation reference
-- `test-client/` — TypeScript protocol reference
-- `protocol.md` — network contract
-
-## Licensing direction
-
-The upstream `hurrycurry` repo is AGPL-3.0-only. Since the pivoted product is intended to vendor and modify that code locally, this repo is being prepared for AGPL-3.0-only distribution as the safest license baseline. See [`LICENSE`](./LICENSE) and [`THIRD_PARTY_NOTICES.md`](./THIRD_PARTY_NOTICES.md).
-
-## Project layout
-
-- repo root: project docs and GitHub Actions
-- `extension/`: the Firefox extension package
-- `docs/`: pivot analysis and legacy AMO/reviewer notes
-
-## Develop locally
-
-Requires Node `^20.19.0 || >=22.12.0`.
+### Install
 
 ```bash
 cd extension
 npm install
-npm run dev
 ```
 
-## Build and load in Firefox
+### Common commands
 
 ```bash
 cd extension
+npm run dev
 npm run build
+npm test
+npm run lint
+npm run export:godot-web
+npm run sync:godot-web-export -- /absolute/path/to/godot-web-export
+npm run package:firefox
 ```
 
-Then load the extension in Firefox via `about:debugging` → `This Firefox` → `Load Temporary Add-on` and select:
+The bundled Godot web export lives under:
 
 ```text
-extension/dist/firefox-mv3/manifest.json
+extension/public/upstream/hurrycurry-web/
 ```
 
-## Verification
+### Godot export workflow
 
-```bash
-cd extension
-npm run lint
-npm test
-npm run build
-```
+Two workflows matter right now:
 
-## Near-term implementation checklist
+- `npm run sync:godot-web-export -- /absolute/path/to/godot-web-export`
+  - copies an already-exported Godot web build into the extension package
+- `npm run export:godot-web`
+  - builds a writable temp copy of the upstream client
+  - overlays tracked local patches from `extension/upstream/hurrycurry-client-overlay/`
+  - exports a fresh Godot web build
+  - syncs it into `extension/public/upstream/hurrycurry-web/`
 
-- replace the prank/takeover flow with inactivity → renewed activity behavior
-- move the runtime surface into an extension popup/pane-style game UI
-- vendor `hurrycurry` locally
-- remove live networking and server dependence
-- replace remote players with local bots
-- add local persistence and fast resume behavior
-- lock the first shipped build to the burger level
-- keep art/theme swaps isolated for a later pass
+The sync/export path writes a `manifest.json` so `runtime-frame.html` can load the bundled export offline.
+
+### Temporary loading in Firefox
+
+1. Run `npm run build` in `extension/`
+2. Open `about:debugging#/runtime/this-firefox`
+3. Click **Load Temporary Add-on**
+4. Select `extension/dist/firefox-mv3/manifest.json`
+
+### Manual verification
+
+### Host shell
+
+1. Load the temporary add-on in Firefox
+2. Open the toolbar popup and click **Arm idle trigger**
+3. Let Firefox enter the configured idle state
+4. Return to activity and confirm the popup-window host opens or refocuses
+5. Use **Open current surface** to verify the active surface can be launched directly
+6. From the popup-window host, use **Move to full tab** and confirm the run transfers
+7. Close and reopen the active surface to confirm checkpoint resume still works
+8. Use **Clear state** to confirm both trigger state and runtime-host state reset cleanly
+
+### Godot runtime
+
+1. Run `npm run export:godot-web && npm run build` in `extension/`
+2. Load the extension temporarily in Firefox
+3. Open the popup-window host or full-tab host
+4. Confirm the bundled Godot export loads inside the runtime-frame host shell
+5. Confirm the local bridge boot sequence reaches the real game runtime
+6. Verify the local player spawns in `burgers_inc`
+7. Probe movement, interactions, and pause/resume behavior
+
+## Contributing
+
+- keep changes aligned with the extension-hosted, single-player, local-only direction
+- do not reintroduce server or multiplayer runtime requirements
+- do not add Docker or Rust-server runtime dependencies to the shipped path
+- preserve the host/runtime seam while replacing the child runtime
+- prefer small, verifiable slices
+- update docs when the product direction changes materially
+
+## License
+
+The upstream `hurrycurry` project is AGPL-3.0-only. This repo is being prepared for AGPL-3.0-only distribution as the safest baseline for bundling and modifying that code for local extension distribution.

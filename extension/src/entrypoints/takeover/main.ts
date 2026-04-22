@@ -1,1 +1,1 @@
-import '../../features/takeover/app'
+import '../../features/runtime-host/app'

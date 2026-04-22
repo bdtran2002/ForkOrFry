@@ -1,0 +1,16 @@
+{
+  "htmlEntry": "index.html",
+  "files": [
+    "index.apple-touch-icon.png",
+    "index.audio.position.worklet.js",
+    "index.audio.worklet.js",
+    "index.html",
+    "index.icon.png",
+    "index.js",
+    "index.pck",
+    "index.png",
+    "index.wasm"
+  ],
+  "generatedAt": "2026-04-22T00:59:04.864Z",
+  "sourceDir": "/var/folders/qn/5t7p47d95csbgf9l9frnf9fw0000gn/T/forkorfry-godot-client-zlxwbz/web-export"
+}

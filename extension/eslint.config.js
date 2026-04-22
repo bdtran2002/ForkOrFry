@@ -4,7 +4,7 @@ import tseslint from 'typescript-eslint';
 
 export default tseslint.config(
   {
-    ignores: ['dist', '.wxt'],
+    ignores: ['dist', '.wxt', 'public/upstream/hurrycurry-web/**'],
   },
   js.configs.recommended,
   ...tseslint.configs.recommended,

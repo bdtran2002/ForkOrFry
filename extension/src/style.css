@@ -2,7 +2,6 @@
 * { box-sizing:border-box; }
 html, body { margin:0; min-height:100%; }
 body { font-family: system-ui, sans-serif; color:var(--text); background: radial-gradient(circle at top, rgba(255,154,47,.16), transparent 24%), linear-gradient(180deg, #150d1d, var(--bg)); }
-body.takeover-mode { cursor:none; }
 button { font:inherit; border:0; cursor:pointer; }
 .eyebrow { text-transform:uppercase; letter-spacing:.18em; color:var(--accent); font-size:.72rem; margin:0 0 .5rem; }
 .eyebrow.compact { margin-bottom:.25rem; }
@@ -12,6 +11,7 @@ button { font:inherit; border:0; cursor:pointer; }
 .interval-select { min-height:34px; border-radius:10px; border:1px solid var(--line); background:rgba(255,255,255,.07); color:var(--text); padding:6px 10px; }
 .popup, .takeover { min-height:100vh; padding:18px; }
 .popup { width:320px; }
+.runtime-frame-shell { min-height:auto; padding:0; }
 .card, .status, .actions button, .field .input { border:1px solid var(--line); background:var(--panel); border-radius:16px; }
 .actions { display:flex; gap:8px; flex-wrap:wrap; }
 .actions button { color:var(--text); background:rgba(255,255,255,.06); padding:10px 12px; }
@@ -20,14 +20,19 @@ button { font:inherit; border:0; cursor:pointer; }
 .actions .secondary { background:rgba(255,255,255,.06); }
 .status { padding:12px; margin:14px 0; }
 .status-grid { display:grid; grid-template-columns:repeat(3, minmax(0, 1fr)); gap:8px; margin:0 0 14px; }
+.host-status-grid { grid-template-columns:repeat(5, minmax(0, 1fr)); margin:0; position:relative; z-index:1; }
+.host-status-wide { grid-column:span 2; }
 .status-tile { border:1px solid var(--line); background:rgba(255,255,255,.04); border-radius:14px; padding:10px; display:grid; gap:4px; }
 .status-label { color:var(--muted); font-size:.72rem; letter-spacing:.06em; text-transform:uppercase; }
 .status-value { font-size:.9rem; line-height:1.25; }
 .helper { color:var(--muted); font-size:.85rem; margin:.85rem 0 0; }
 .takeover { display:grid; gap:16px; align-content:start; max-width:760px; margin:0 auto; }
+.host-shell { max-width:1080px; }
 .takeover header h1 { margin:0; font-size:clamp(2rem,5vw,4rem); font-family:"Iowan Old Style", "Palatino Linotype", "Book Antiqua", serif; letter-spacing:-.03em; }
+.runtime-frame-shell h2 { margin:0 0 .35rem; font-size:1.55rem; letter-spacing:-.02em; }
 .safety-banner { display:inline-flex; padding:8px 12px; border-radius:999px; border:1px solid rgba(130,242,211,.32); background:rgba(130,242,211,.1); color:var(--accent-3); font-size:.74rem; letter-spacing:.12em; text-transform:uppercase; margin:0 0 .85rem; }
 .stage { padding:16px; display:grid; gap:12px; position:relative; overflow:hidden; }
+.host-stage { gap:16px; }
 .stage::before { content:''; position:absolute; inset:0; background:linear-gradient(135deg, rgba(255,154,47,.08), transparent 28%, rgba(130,242,211,.05)); pointer-events:none; }
 .status-row { display:flex; align-items:flex-start; justify-content:space-between; gap:12px; position:relative; z-index:1; }
 .status-text { font-size:1.05rem; font-weight:600; }
@@ -38,15 +43,39 @@ button { font:inherit; border:0; cursor:pointer; }
 .stepper span { padding:7px 10px; border-radius:999px; border:1px solid var(--line); color:var(--muted); background:rgba(255,255,255,.03); font-size:.8rem; }
 .stepper span.is-active { color:var(--text); border-color:rgba(255,154,47,.5); background:rgba(255,154,47,.14); }
 .stepper span.is-complete { color:var(--accent-3); border-color:rgba(130,242,211,.34); background:rgba(130,242,211,.08); }
+.checkpoint-card { padding:14px; border-radius:16px; border:1px solid var(--line); background:rgba(255,255,255,.04); position:relative; z-index:1; }
+.checkpoint-grid { display:grid; grid-template-columns:repeat(2, minmax(0, 1fr)); gap:12px; }
+.checkpoint-item { display:grid; gap:4px; }
+.checkpoint-label { color:var(--muted); font-size:.72rem; letter-spacing:.06em; text-transform:uppercase; }
+.runtime-shell { position:relative; z-index:1; display:grid; gap:12px; }
+.runtime-shell-header { display:flex; justify-content:space-between; gap:12px; align-items:flex-start; }
+.runtime-shell-copy { margin:0; color:var(--muted); line-height:1.5; }
+.runtime-frame { width:100%; min-height:540px; border:1px solid var(--line); border-radius:18px; background:rgba(8,6,12,.92); }
+.runtime-note-list { position:relative; z-index:1; display:grid; gap:8px; }
+.runtime-embed { position:relative; z-index:1; min-height:540px; border:1px solid var(--line); border-radius:18px; overflow:hidden; background:rgba(8,6,12,.92); }
+.runtime-embed-frame { display:block; width:100%; min-height:540px; border:0; background:#050307; }
+.runtime-embed-overlay { position:absolute; inset:0; display:grid; place-items:center; background:rgba(8,6,12,.72); color:var(--text); font-size:1rem; font-weight:600; backdrop-filter:blur(6px); }
+.runtime-helper { position:relative; z-index:1; margin:0; }
+.kitchen-map { display:grid; gap:8px; position:relative; z-index:1; }
+.kitchen-tile { min-height:62px; border-radius:14px; border:1px solid var(--line); background:rgba(255,255,255,.04); display:flex; align-items:center; justify-content:center; position:relative; color:var(--text); font-weight:700; }
+.kitchen-tile.is-wall { background:rgba(255,255,255,.02); opacity:.35; }
+.kitchen-tile.is-interactable { border-color:rgba(255,154,47,.35); background:rgba(255,154,47,.1); }
+.kitchen-tile.is-facing { box-shadow:0 0 0 1px rgba(130,242,211,.45) inset; }
+.kitchen-tile.is-player { outline:2px solid rgba(130,242,211,.6); outline-offset:2px; }
+.player-marker { position:absolute; right:8px; bottom:6px; color:var(--accent-3); font-size:.9rem; }
+.kitchen-legend { position:relative; z-index:1; display:grid; gap:8px; }
+.legend-items { display:flex; flex-wrap:wrap; gap:8px; }
+.legend-item { display:inline-flex; align-items:center; gap:6px; padding:7px 10px; border-radius:999px; border:1px solid var(--line); background:rgba(255,255,255,.03); color:var(--muted); font-size:.8rem; }
+.legend-item strong { color:var(--text); }
 .log-panel { padding:14px; border-radius:16px; border:1px solid var(--line); background:rgba(255,255,255,.04); position:relative; z-index:1; }
 .log-title { color:var(--accent-3); text-transform:uppercase; letter-spacing:.14em; font-size:.7rem; margin-bottom:.65rem; }
 .log-list { margin:0; padding-left:1.1rem; display:grid; gap:.45rem; color:var(--muted); }
-.form-grid { display:grid; gap:12px; position:relative; z-index:1; }
+.shell-grid { display:grid; gap:12px; grid-template-columns:repeat(2, minmax(0, 1fr)); position:relative; z-index:1; }
 .field { display:grid; gap:6px; }
 .field label { color:var(--muted); font-size:.9rem; }
 .field .input { min-height:44px; display:flex; align-items:center; padding:0 12px; font-variant-ligatures:none; }
 .note { color:var(--accent-3); font-size:.92rem; }
 .completion { position:relative; z-index:1; padding:16px; border-radius:18px; border:1px solid rgba(130,242,211,.24); background:linear-gradient(135deg, rgba(130,242,211,.14), rgba(255,255,255,.04)); }
 .completion-badge { display:inline-flex; margin-bottom:.6rem; padding:8px 10px; border-radius:999px; background:rgba(130,242,211,.14); color:var(--accent-3); text-transform:uppercase; letter-spacing:.14em; font-size:.72rem; }
-.cursor { width:14px; height:14px; border-radius:50%; background:var(--accent-2); box-shadow:0 0 0 8px rgba(255,79,116,.15); position:fixed; left:0; top:0; transition:transform .22s linear; pointer-events:none; }
-.cursor::after { content:'DEMO'; position:absolute; left:18px; top:-4px; padding:2px 6px; border-radius:999px; background:rgba(255,79,116,.18); color:var(--text); font-size:.64rem; letter-spacing:.1em; }
+@media (max-width: 780px) { .host-status-grid { grid-template-columns:repeat(3, minmax(0, 1fr)); } .host-status-wide { grid-column:span 2; } .runtime-frame, .runtime-embed, .runtime-embed-frame { min-height:460px; } }
+@media (max-width: 560px) { .shell-grid, .checkpoint-grid, .host-status-grid { grid-template-columns:1fr; } .host-status-wide { grid-column:span 1; } .popup { width:auto; min-width:280px; } .runtime-frame, .runtime-embed, .runtime-embed-frame { min-height:380px; } .kitchen-tile { min-height:52px; } }

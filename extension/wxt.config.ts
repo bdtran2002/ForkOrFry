@@ -17,7 +17,7 @@ export default defineConfig({
   manifestVersion: 3,
   manifest: {
     name: 'ForkOrFry',
-    description: 'Firefox-only idle parody takeover extension.',
+    description: 'Firefox-only local game shell extension triggered after idle and renewed activity.',
     version: manifestVersion,
     icons: {
       16: 'icon-16.png',
@@ -58,7 +58,7 @@ export default defineConfig({
       service_worker: 'background.js',
       type: 'module',
     },
-    permissions: ['idle', 'storage', 'tabs'],
+    permissions: ['idle', 'storage', 'tabs', 'windows'],
   },
   srcDir: 'src',
   outDir: 'dist',

@@ -1,6 +1,8 @@
 import { type BackgroundMessage } from './messages'
-import { DEFAULT_STATE, IDLE_INTERVAL_SECONDS, getState, resetState, setState } from './state'
-import { triggerTakeover } from './takeover'
+import { clearRuntimeHostSession } from '../features/runtime-host/checkpoint-store'
+import { DEFAULT_RUNTIME_DEFINITION } from '../features/runtime-host/runtime-definition'
+import { DEFAULT_STATE, IDLE_INTERVAL_SECONDS, getState, resetState, setState, type ExtensionState } from './state'
+import { armForActivity, openTakeoverInFullTab, triggerTakeover } from './takeover'
 
 let stateQueue = Promise.resolve()
 
@@ -10,6 +12,16 @@ function serializeStateTask(task: () => Promise<void>) {
   return next
 }
 
+async function closeTakeoverWindow(windowId: number | null) {
+  if (windowId === null) return
+
+  try {
+    await browser.windows.remove(windowId)
+  } catch {
+    // The user may have already closed the takeover window.
+  }
+}
+
 async function closeTakeoverTab(tabId: number | null) {
   if (tabId === null) return
 
@@ -17,6 +29,16 @@ async function closeTakeoverTab(tabId: number | null) {
     await browser.tabs.remove(tabId)
   } catch {
     // The user may have already closed the takeover tab.
+  }
+}
+
+function clearOpenSurfaceState(state: ExtensionState): ExtensionState {
+  return {
+    ...state,
+    surfaceOpen: false,
+    activeSurface: null,
+    hostWindowId: null,
+    hostTabId: null,
   }
 }
 
@@ -35,7 +57,8 @@ async function updateIdleInterval(idleIntervalSeconds: number) {
 
 async function disarm() {
   const state = await getState()
-  await closeTakeoverTab(state.takeoverTabId)
+  await closeTakeoverWindow(state.hostWindowId)
+  await closeTakeoverTab(state.hostTabId)
   await resetState(state)
 }
 
@@ -44,22 +67,35 @@ browser.runtime.onInstalled.addListener(async () => {
   await setState({ ...DEFAULT_STATE, ...existing })
 })
 
+browser.windows.onRemoved.addListener((windowId) => {
+  void serializeStateTask(async () => {
+    const state = await getState()
+    if (state.hostWindowId !== windowId) return
+    await setState(clearOpenSurfaceState(state))
+  })
+})
+
 browser.tabs.onRemoved.addListener((tabId) => {
   void serializeStateTask(async () => {
     const state = await getState()
-    if (state.takeoverTabId !== tabId) return
-    await setState({ ...state, takeoverTabId: null })
+    if (state.hostTabId !== tabId) return
+    await setState(clearOpenSurfaceState(state))
   })
 })
 
 browser.idle.onStateChanged.addListener((idleState) => {
-  if (idleState !== 'idle') return
-
   void serializeStateTask(async () => {
     const state = await getState()
     if (!state.armed) return
 
-    await triggerTakeover(state)
+    if (idleState === 'idle') {
+      await armForActivity(state)
+      return
+    }
+
+    if (idleState === 'active' && state.waitingForActivity) {
+      await triggerTakeover(state)
+    }
   })
 })
 
@@ -75,7 +111,13 @@ browser.runtime.onMessage.addListener(async (message: BackgroundMessage) => {
   if (message.type === 'reset') {
     return serializeStateTask(async () => {
       const state = await getState()
-      await closeTakeoverTab(state.takeoverTabId)
+      await closeTakeoverWindow(state.hostWindowId)
+      await closeTakeoverTab(state.hostTabId)
+      try {
+        await clearRuntimeHostSession(DEFAULT_RUNTIME_DEFINITION.id)
+      } catch (error) {
+        console.warn('Failed to clear runtime host session during reset.', error)
+      }
       await resetState(state)
     })
   }
@@ -84,6 +126,30 @@ browser.runtime.onMessage.addListener(async (message: BackgroundMessage) => {
     return serializeStateTask(async () => {
       const state = await getState()
       await triggerTakeover(state)
+    })
+  }
+
+  if (message.type === 'close-surface') {
+    return serializeStateTask(async () => {
+      const state = await getState()
+      await closeTakeoverWindow(state.hostWindowId)
+      await closeTakeoverTab(state.hostTabId)
+      await setState(clearOpenSurfaceState(state))
+    })
+  }
+
+  if (message.type === 'open-full-tab') {
+    return serializeStateTask(async () => {
+      const state = await getState()
+      if (state.surfaceOpen && state.activeSurface === 'popup-window') return
+      await openTakeoverInFullTab(state)
+    })
+  }
+
+  if (message.type === 'move-to-full-tab') {
+    return serializeStateTask(async () => {
+      const state = await getState()
+      await openTakeoverInFullTab(state)
     })
   }
 

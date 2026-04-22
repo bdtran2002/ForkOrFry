@@ -12,6 +12,8 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "icons:generate": "python3 scripts/generate-icons.py",
+    "export:godot-web": "node scripts/export-godot-web-build.mjs",
+    "sync:godot-web-export": "node scripts/sync-godot-web-export.mjs",
     "package:firefox": "npm run build && rm -f dist/forkorfry-firefox-mv3.xpi && cd dist/firefox-mv3 && zip -r ../forkorfry-firefox-mv3.xpi .",
     "package:source-bundle": "node scripts/package-source-bundle.mjs",
     "package:release": "node scripts/package-release.mjs",
