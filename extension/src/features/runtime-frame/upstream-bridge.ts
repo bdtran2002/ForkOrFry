@@ -1,4 +1,4 @@
-import { BURGERS_INC_BOOTSTRAP } from '../../../upstream/generated/burgers-inc-bootstrap'
+import { createBurgersIncBootstrapPayload } from '../../../upstream/generated/burgers-inc-bootstrap'
 
 export const UPSTREAM_BRIDGE_PROTOCOL_VERSION = 1 as const
 
@@ -205,15 +205,7 @@ export function isUpstreamBootstrapPayload(value: unknown): value is UpstreamBoo
 }
 
 export function createLocalBootstrapPayload(sessionId: string): UpstreamBootstrapPayload {
-  return {
-    type: 'forkorfry:local-bootstrap',
-    version: UPSTREAM_BRIDGE_PROTOCOL_VERSION,
-    sessionId,
-    map: BURGERS_INC_BOOTSTRAP.metadata.name,
-    playerId: BURGERS_INC_BOOTSTRAP.playerId,
-    generatedAt: new Date().toISOString(),
-    packets: BURGERS_INC_BOOTSTRAP.packets as UpstreamBootstrapPacket[],
-  }
+  return createBurgersIncBootstrapPayload(sessionId, UPSTREAM_BRIDGE_PROTOCOL_VERSION)
 }
 
 export function createBridgeBootstrapMessage(payload: UpstreamBootstrapPayload): UpstreamParentToEmbeddedMessage {

@@ -74,6 +74,16 @@ export interface BurgersIncBootstrapSnapshot {
   packets: BurgersIncBootstrapPacket[]
 }
 
+export interface BurgersIncBootstrapPayload<V extends number = number> {
+  type: 'forkorfry:local-bootstrap'
+  version: V
+  sessionId: string
+  map: string
+  playerId: number
+  generatedAt: string
+  packets: BurgersIncBootstrapPacket[]
+}
+
 type TileDefinition = {
   tiles: string[]
   item?: string
@@ -279,6 +289,18 @@ export function buildBurgersIncBootstrap(): BurgersIncBootstrapSnapshot {
     changes,
     spawnPosition,
     packets,
+  }
+}
+
+export function createBurgersIncBootstrapPayload<V extends number>(sessionId: string, version: V): BurgersIncBootstrapPayload<V> {
+  return {
+    type: 'forkorfry:local-bootstrap',
+    version,
+    sessionId,
+    map: BURGERS_INC_BOOTSTRAP.metadata.name,
+    playerId: BURGERS_INC_BOOTSTRAP.playerId,
+    generatedAt: new Date().toISOString(),
+    packets: BURGERS_INC_BOOTSTRAP.packets,
   }
 }
 

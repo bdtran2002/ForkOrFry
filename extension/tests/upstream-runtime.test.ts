@@ -8,7 +8,7 @@ import {
   isUpstreamBootstrapPayload,
   isUpstreamEmbeddedToParentMessage,
 } from '../src/features/runtime-frame/upstream-bridge'
-import { BURGERS_INC_BOOTSTRAP } from '../upstream/generated/burgers-inc-bootstrap'
+import { BURGERS_INC_BOOTSTRAP, createBurgersIncBootstrapPayload } from '../upstream/generated/burgers-inc-bootstrap'
 import { createUpstreamRuntimeCheckpoint, restoreUpstreamRuntimeCheckpoint } from '../src/features/runtime-frame/upstream-checkpoint'
 import { normalizeUpstreamExportManifest, resolveUpstreamExportUrl } from '../src/features/runtime-frame/upstream-export'
 import { createInitialUpstreamRuntimeState, describeUpstreamRuntimeSession } from '../src/features/runtime-frame/upstream-runtime-state'
@@ -212,7 +212,7 @@ describe('upstream runtime helpers', () => {
   })
 
   it('creates a local bootstrap payload for the single-player upstream bridge', () => {
-    const payload = createLocalBootstrapPayload('session-123')
+    const payload = createBurgersIncBootstrapPayload('session-123', 1)
     const gameData = getPacket(payload.packets, 'game_data')
     const updateMap = getPacket(payload.packets, 'update_map')
     const addPlayer = getPacket(payload.packets, 'add_player')
