@@ -24,6 +24,38 @@ export interface UpstreamRuntimeState {
   }
 }
 
+export function isUpstreamRuntimeGameplayPacket(value: unknown): value is UpstreamRuntimeState['gameplayPackets'][number] {
+  return (
+    typeof value === 'object'
+    && value !== null
+    && typeof (value as { action?: unknown }).action === 'string'
+    && typeof (value as { receivedAt?: unknown }).receivedAt === 'string'
+    && typeof (value as { payload?: unknown }).payload === 'object'
+    && (value as { payload?: unknown }).payload !== null
+  )
+}
+
+export function trimUpstreamRuntimeGameplayPackets(packets: UpstreamRuntimeState['gameplayPackets']) {
+  return packets.slice(-UPSTREAM_RUNTIME_GAMEPLAY_PACKET_HISTORY_LIMIT)
+}
+
+export function summarizeUpstreamRuntimeGameplayPackets(packets: UpstreamRuntimeState['gameplayPackets']) {
+  const actionCounts: Record<string, number> = {}
+  let lastAction: string | null = null
+
+  for (const packet of packets) {
+    if (!isUpstreamRuntimeGameplayPacket(packet)) continue
+    actionCounts[packet.action] = (actionCounts[packet.action] ?? 0) + 1
+    lastAction = packet.action
+  }
+
+  return {
+    totalCount: packets.length,
+    lastAction,
+    actionCounts,
+  }
+}
+
 export function createInitialUpstreamRuntimeState(): UpstreamRuntimeState {
   return {
     saveVersion: UPSTREAM_RUNTIME_SAVE_VERSION,

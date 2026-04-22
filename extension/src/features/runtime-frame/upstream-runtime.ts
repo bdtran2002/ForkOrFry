@@ -16,7 +16,7 @@ import { createBurgersIncBootstrapTemplate } from '../../../upstream/generated/b
 import { createUpstreamRuntimeCheckpoint, restoreUpstreamRuntimeCheckpoint } from './upstream-checkpoint'
 import { upstreamRuntimeCopy } from './upstream-runtime-copy'
 import { normalizeUpstreamExportManifest, resolveUpstreamExportUrl } from './upstream-export'
-import { createInitialUpstreamRuntimeState, describeUpstreamRuntimeSession, UPSTREAM_RUNTIME_GAMEPLAY_PACKET_HISTORY_LIMIT, type UpstreamRuntimeExportState, type UpstreamRuntimeState } from './upstream-runtime-state'
+import { createInitialUpstreamRuntimeState, describeUpstreamRuntimeSession, summarizeUpstreamRuntimeGameplayPackets, trimUpstreamRuntimeGameplayPackets, type UpstreamRuntimeExportState, type UpstreamRuntimeState } from './upstream-runtime-state'
 
 const RUNTIME_ID = 'burger-runtime'
 const EXPORT_MANIFEST_PATH = '/upstream/hurrycurry-web/manifest.json'
@@ -120,26 +120,6 @@ function setState(nextState: Partial<UpstreamRuntimeState>) {
   render()
 }
 
-function trimGameplayPackets(packets: UpstreamRuntimeState['gameplayPackets']) {
-  return packets.slice(-UPSTREAM_RUNTIME_GAMEPLAY_PACKET_HISTORY_LIMIT)
-}
-
-function createGameplayPacketSummary(packets: UpstreamRuntimeState['gameplayPackets']) {
-  const actionCounts: Record<string, number> = {}
-  let lastAction: string | null = null
-
-  for (const packet of packets) {
-    actionCounts[packet.action] = (actionCounts[packet.action] ?? 0) + 1
-    lastAction = packet.action
-  }
-
-  return {
-    totalCount: packets.length,
-    lastAction,
-    actionCounts,
-  }
-}
-
 function currentPhaseDetail() {
   return state.detail
 }
@@ -204,10 +184,10 @@ function postToEmbeddedRuntime(message: unknown) {
 
 function recordGameplayPacket(action: 'movement' | 'interact' | 'ready' | 'idle', payload: Record<string, unknown>) {
   const packet = { action, payload, receivedAt: new Date().toISOString() }
-  const gameplayPackets = trimGameplayPackets([...state.gameplayPackets, packet])
+  const gameplayPackets = trimUpstreamRuntimeGameplayPackets([...state.gameplayPackets, packet])
   setState({
     gameplayPackets,
-    gameplayPacketSummary: createGameplayPacketSummary(gameplayPackets),
+    gameplayPacketSummary: summarizeUpstreamRuntimeGameplayPackets(gameplayPackets),
   })
   postCheckpoint(`Received outbound gameplay packet: ${action}.`)
 }
