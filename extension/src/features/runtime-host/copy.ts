@@ -3,7 +3,7 @@ export const runtimeHostCopy = {
   banner: 'EXTENSION-OWNED HOST · LOCAL SESSION · SINGLE-PLAYER PIVOT',
   title: 'Extension runtime host',
   lede:
-    'This surface boots the child runtime inside an extension-owned host shell. The current child is still scaffolding, but the host/checkpoint boundary is the permanent seam for the single-player upstream port.',
+    'This surface boots the upstream-derived child runtime inside an extension-owned host shell. The host/checkpoint boundary is the permanent seam for the single-player extension build.',
   labels: {
     status: 'Host status',
     lifecycle: 'Lifecycle',
@@ -15,7 +15,7 @@ export const runtimeHostCopy = {
   },
   runtimeCardTitle: 'Embedded runtime',
   runtimeCardBody:
-    'The iframe below is the current burger-level scaffolding runtime and the future handoff point for the local hurrycurry build. It already runs behind the same boot/checkpoint/pause/resume boundary.',
+    'The iframe below runs the current upstream runtime wrapper for the local hurrycurry build. It already runs behind the same boot/checkpoint/pause/resume boundary.',
   notesTitle: 'What changed in this slice',
   notes: [
     'The host shell owns checkpoint storage instead of the child runtime page.',

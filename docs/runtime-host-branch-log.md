@@ -12,11 +12,16 @@ This log still captures the runtime-host branch history accurately, but the bran
 - keep the host-owned checkpoint model
 - support both a popup-window host and a full-tab host for the same run
 - stop expanding the custom burger runtime except where it directly helps the upstream path
-- replace the child runtime with an upstream-derived local adapter next
+- treat the custom burger runtime below as historical migration scaffolding, not the active shipped runtime
+- keep the active runtime path on `entrypoints/runtime-frame/main.ts` → `features/runtime-frame/upstream-runtime.ts`
+- replace gameplay/runtime behavior by porting upstream code, not by extending the TypeScript burger scaffold
 
 ## Scope of this log
 
 This log covers **everything added after `origin/main`** and before starting the new upstream-integration slice.
+
+Historical note:
+- The burger-runtime sections below are branch history, not the current recommended implementation path.
 
 Important note:
 - The gameplay/runtime work was done on `pivot/runtime-host-boundary`.

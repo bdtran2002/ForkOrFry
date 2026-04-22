@@ -11,6 +11,33 @@ Convert this repo into:
 
 The final product must run inside a browser extension UI context, not as a full-tab application.
 
+## Development approach
+
+- Treat `.upstream-reference/hurrycurry/` as the canonical source for original game behavior, structure, and assets.
+- Prefer porting and adapting upstream code over rebuilding equivalent systems from scratch.
+- Only replace or trim upstream pieces when they conflict with ForkOrFry requirements:
+  - no server runtime
+  - single-player only
+  - bots replacing remote players
+  - burger-level only
+  - extension-owned runtime surface
+  - local persistence
+- New code should be mostly limited to:
+  - extension lifecycle and UI hosting
+  - local persistence and resume/reset handling
+  - local-authority replacements for server-owned systems
+  - single-player and level-scope trimming
+
+## Active runtime rule
+
+- The active shipped runtime path is `extension/src/entrypoints/runtime-frame/main.ts` → `extension/src/features/runtime-frame/upstream-runtime.ts`.
+- Treat `extension/src/features/runtime-frame/burger-*`, `checkpoint.ts`, and `copy.ts` in that folder as legacy migration scaffolding, not the runtime to keep building.
+- Do not add new gameplay logic, reducers, authored level data, or simulation rules to the legacy TypeScript burger runtime path.
+- If gameplay behavior must change, prefer one of these paths instead:
+  - port/adapt upstream Godot client code under `extension/upstream/hurrycurry-client-overlay/`
+  - derive data from `.upstream-reference/hurrycurry/` instead of hand-authoring it in TypeScript
+  - adapt upstream server gameplay logic into a local-authority replacement only when the upstream client can no longer own that behavior directly
+
 ## Hard constraints
 
 - Do not use Docker.
@@ -59,47 +86,64 @@ The final product must run inside a browser extension UI context, not as a full-
 - `extension/src/core/state.ts` — stored extension state
 - `extension/src/core/messages.ts` — popup/background message contract
 - `extension/src/features/popup/app.ts` — existing toolbar popup UI
+- `extension/src/features/runtime-host/*` — extension-owned host shell, lifecycle, checkpoint, and UI scaffolding to keep
+- `extension/src/features/runtime-frame/upstream-runtime.ts` — active extension wrapper around the upstream runtime
 - `extension/src/features/takeover/app.ts` — existing fake takeover UI
 - `extension/src/entrypoints/takeover/*` — current extension page entrypoint
+- `extension/src/entrypoints/runtime-frame/main.ts` — active runtime entrypoint
 - `extension/wxt.config.ts` — manifest/action wiring
+
+### Legacy migration scaffolding
+
+- `extension/src/features/runtime-frame/burger-*` — frozen custom TypeScript burger runtime; keep only as temporary reference until upstream-derived behavior fully replaces any remaining need for it
+- `extension/src/features/runtime-frame/checkpoint.ts` / `copy.ts` — legacy burger-runtime helpers tied to that frozen path
 
 ### Upstream hurrycurry reference
 
-- `client/` — Godot client runtime
-- `server/` — Rust server and gameplay authority reference
-- `test-client/` — protocol/browser reference client
-- `protocol.md` — current network contract
+- `.upstream-reference/hurrycurry/client/` — canonical upstream Godot client runtime to port into the extension-owned surface
+- `.upstream-reference/hurrycurry/server/` — canonical upstream gameplay authority reference to adapt into local client-owned simulation
+- `.upstream-reference/hurrycurry/` — full upstream game snapshot; use as reference only, especially `server/bot/` for bot/pathfinding logic
+- `.upstream-reference/hurrycurry/test-client/` — protocol/browser reference client
+- `.upstream-reference/hurrycurry/protocol.md` — upstream network contract reference
 
 ## Recommended execution order
 
-### Phase 1 — repository analysis
+### Phase 1 — upstream port inventory
 
 Output:
 
-- architecture breakdown
-- dependency graph
-- networking entry points
-- gameplay systems dependent on server state
-- gameplay/network coupling points
+- upstream client systems that can be ported as-is
+- upstream client systems that must be adapted for extension hosting
+- upstream server systems required for local authority
+- gameplay/network coupling points that must be cut or replaced
+- multiplayer-only flows that should be removed after the port
 
-### Phase 2 — transformation design
+### Phase 2 — local-authority port design
 
 Design how to:
 
-- remove server authority
-- convert the client into a self-contained simulation
+- port upstream gameplay into the extension-owned runtime with minimal behavior drift
+- remove server authority while preserving upstream gameplay rules
 - replace multiplayer synchronization with local state management
 - account for popup/side-panel lifecycle resets
 
-### Phase 3 — networking removal
+### Phase 3 — upstream runtime port
+
+Implement or stage:
+
+- direct port of the upstream runtime/client flow into the extension-hosted surface
+- preservation of upstream gameplay behavior unless ForkOrFry constraints require changes
+- isolation of networking seams that will be removed or replaced locally
+
+### Phase 4 — local authority conversion
 
 Implement or stage:
 
 - full disablement of server connections
 - removal or stubbing of networking layers
-- replacement of remote state with local authoritative state
+- replacement of remote state with local authoritative state using upstream server logic as reference
 
-### Phase 4 — bot system
+### Phase 5 — bot system
 
 Implement local bots that:
 
@@ -110,7 +154,17 @@ Implement local bots that:
 - start rule-based
 - remain extensible for smarter AI later
 
-### Phase 5 — browser + extension compatibility
+Bot implementation should begin from `.upstream-reference/hurrycurry/server/bot/`, especially `src/step.rs` and `src/pathfinding.rs`, then be adapted into the local client-owned simulation path.
+
+### Phase 6 — product trimming
+
+Implement or stage:
+
+- lock the shipped game to the burger level only
+- remove or disable multiplayer-only modes, UI, and entry paths
+- keep asset replacement decoupled from gameplay migration
+
+### Phase 7 — browser + extension compatibility
 
 Prepare for:
 

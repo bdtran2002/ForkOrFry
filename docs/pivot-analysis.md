@@ -11,7 +11,7 @@ Since the original analysis pass, the repo now has:
 - host-owned checkpoint persistence
 - popup-window and full-tab host surfaces for the same local session
 
-The current child runtime is still a custom TypeScript burger scaffold. It is useful as migration scaffolding, but it is not the final runtime direction. The next implementation slices should focus on replacing that child runtime with an upstream-derived local adapter, not on expanding the scaffolded gameplay path.
+The active child runtime path now goes through the upstream runtime wrapper (`extension/src/entrypoints/runtime-frame/main.ts` → `extension/src/features/runtime-frame/upstream-runtime.ts`). The older custom TypeScript burger runtime remains in the repo only as migration scaffolding and should not receive new gameplay work.
 
 ## Scope
 
@@ -44,7 +44,8 @@ Hard constraints:
 - `extension/src/core/state.ts` stores extension state in `browser.storage.local`.
 - `extension/src/features/popup/app.ts` is the current toolbar popup UI.
 - `extension/src/features/runtime-host/app.ts` is the current extension-owned runtime host shell.
-- `extension/src/features/runtime-frame/burger-runtime.ts` is the current local burger-session child runtime behind that host boundary.
+- `extension/src/features/runtime-frame/upstream-runtime.ts` is the active child runtime wrapper behind that host boundary.
+- `extension/src/features/runtime-frame/burger-runtime.ts` is a legacy custom burger-session scaffold kept only as temporary migration reference.
 
 #### Upstream hurrycurry
 
