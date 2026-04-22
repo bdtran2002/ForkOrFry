@@ -1,7 +1,6 @@
 import { BURGERS_INC_BOOTSTRAP } from '../../../upstream/generated/burgers-inc-bootstrap'
 
 export const UPSTREAM_BRIDGE_PROTOCOL_VERSION = 1 as const
-export const UPSTREAM_PROTOCOL_MAJOR = 13 as const
 
 export type UpstreamBridgeState = 'idle' | 'waiting' | 'sent' | 'acknowledged' | 'error'
 
@@ -214,40 +213,7 @@ export function createLocalBootstrapPayload(sessionId: string): UpstreamBootstra
     map: BURGERS_INC_BOOTSTRAP.metadata.name,
     playerId: BURGERS_INC_BOOTSTRAP.playerId,
     generatedAt: new Date().toISOString(),
-    packets: [
-      { type: 'version', major: UPSTREAM_PROTOCOL_MAJOR, minor: 0 },
-      {
-        type: 'server_data',
-        maps: [BURGERS_INC_BOOTSTRAP.metadata],
-        bot_algos: [],
-        name: BURGERS_INC_BOOTSTRAP.serverName,
-        motd: BURGERS_INC_BOOTSTRAP.motd,
-      },
-      {
-        type: 'game_data',
-        metadata: BURGERS_INC_BOOTSTRAP.metadata,
-        item_names: BURGERS_INC_BOOTSTRAP.item_names,
-        tile_names: BURGERS_INC_BOOTSTRAP.tile_names,
-        tile_collide: BURGERS_INC_BOOTSTRAP.tile_collide,
-        tile_placeable_items: BURGERS_INC_BOOTSTRAP.tile_placeable_items,
-        tile_placeable_any: BURGERS_INC_BOOTSTRAP.tile_placeable_any,
-        tile_interactable_empty: BURGERS_INC_BOOTSTRAP.tile_interactable_empty,
-        hand_count: BURGERS_INC_BOOTSTRAP.metadata.hand_count,
-        is_lobby: false,
-      },
-      { type: 'update_map', changes: BURGERS_INC_BOOTSTRAP.changes },
-      { type: 'score', ...BURGERS_INC_BOOTSTRAP.score },
-      { type: 'set_ingame', state: true },
-      { type: 'joined', id: BURGERS_INC_BOOTSTRAP.playerId },
-      {
-        type: 'add_player',
-        id: BURGERS_INC_BOOTSTRAP.playerId,
-        name: 'Chef',
-        position: BURGERS_INC_BOOTSTRAP.spawnPosition,
-        character: BURGERS_INC_BOOTSTRAP.character,
-        class: 'chef',
-      },
-    ],
+    packets: BURGERS_INC_BOOTSTRAP.packets as UpstreamBootstrapPacket[],
   }
 }
 

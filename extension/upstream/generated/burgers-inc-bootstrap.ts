@@ -28,6 +28,34 @@ export interface BurgersIncScore {
   stars: number
 }
 
+export type BurgersIncBootstrapPacket =
+  | { type: 'version', minor: number, major: number, supports_bincode?: boolean }
+  | { type: 'server_data', maps: BurgersIncMapMetadata[], bot_algos: string[], name: string, motd?: string }
+  | {
+    type: 'game_data'
+    metadata: BurgersIncMapMetadata
+    item_names: string[]
+    tile_names: string[]
+    tile_collide: number[]
+    tile_placeable_items: Record<string, number[]>
+    tile_placeable_any: number[]
+    tile_interactable_empty: number[]
+    hand_count: number
+    is_lobby: boolean
+  }
+  | { type: 'update_map', changes: [[number, number], number[]][] }
+  | ({ type: 'score' } & BurgersIncScore)
+  | { type: 'set_ingame', state: boolean }
+  | { type: 'joined', id: number }
+  | {
+    type: 'add_player'
+    id: number
+    name: string
+    position: [number, number]
+    character: BurgersIncCharacter
+    class: 'chef' | 'bot' | 'customer' | 'tram'
+  }
+
 export interface BurgersIncBootstrapSnapshot {
   metadata: BurgersIncMapMetadata
   playerId: number
@@ -43,6 +71,7 @@ export interface BurgersIncBootstrapSnapshot {
   tile_interactable_empty: number[]
   changes: [[number, number], number[]][]
   spawnPosition: [number, number]
+  packets: BurgersIncBootstrapPacket[]
 }
 
 type TileDefinition = {
@@ -169,34 +198,78 @@ export function buildBurgersIncBootstrap(): BurgersIncBootstrapSnapshot {
   const allItemIndexes = itemNames.map((_, index) => index)
   const tile_placeable_items = Object.fromEntries(withFlag('x').map((tileIndexValue) => [String(tileIndexValue), allItemIndexes]))
 
+  const metadata: BurgersIncMapMetadata = {
+    name: 'burgers_inc',
+    display_name: 'Burgers, Inc.',
+    players: 2,
+    difficulty: 2,
+    hand_count: 2,
+    demand_items: [],
+  }
+
+  const character: BurgersIncCharacter = {
+    color: 0,
+    headwear: 0,
+    hairstyle: 0,
+  }
+
+  const score: BurgersIncScore = {
+    points: 0,
+    demands_failed: 0,
+    demands_completed: 0,
+    time_remaining: 0,
+    players: 1,
+    active_recipes: 0,
+    passive_recipes: 0,
+    instant_recipes: 0,
+    stars: 0,
+  }
+
+  const serverName = 'ForkOrFry Local Runtime'
+  const motd = 'Offline single-player bootstrap'
+  const playerId = 1
+  const packets: BurgersIncBootstrapPacket[] = [
+    { type: 'version', major: 13, minor: 0 },
+    {
+      type: 'server_data',
+      maps: [metadata],
+      bot_algos: [],
+      name: serverName,
+      motd,
+    },
+    {
+      type: 'game_data',
+      metadata,
+      item_names: itemNames,
+      tile_names: tileNames,
+      tile_collide: withFlag('c'),
+      tile_placeable_items,
+      tile_placeable_any: withFlag('a'),
+      tile_interactable_empty: withFlag('e'),
+      hand_count: metadata.hand_count,
+      is_lobby: false,
+    },
+    { type: 'update_map', changes },
+    { type: 'score', ...score },
+    { type: 'set_ingame', state: true },
+    { type: 'joined', id: playerId },
+    {
+      type: 'add_player',
+      id: playerId,
+      name: 'Chef',
+      position: spawnPosition,
+      character,
+      class: 'chef',
+    },
+  ]
+
   return {
-    metadata: {
-      name: 'burgers_inc',
-      display_name: 'Burgers, Inc.',
-      players: 2,
-      difficulty: 2,
-      hand_count: 2,
-      demand_items: [],
-    },
-    playerId: 1,
-    character: {
-      color: 0,
-      headwear: 0,
-      hairstyle: 0,
-    },
-    score: {
-      points: 0,
-      demands_failed: 0,
-      demands_completed: 0,
-      time_remaining: 0,
-      players: 1,
-      active_recipes: 0,
-      passive_recipes: 0,
-      instant_recipes: 0,
-      stars: 0,
-    },
-    serverName: 'ForkOrFry Local Runtime',
-    motd: 'Offline single-player bootstrap',
+    metadata,
+    playerId,
+    character,
+    score,
+    serverName,
+    motd,
     item_names: itemNames,
     tile_names: tileNames,
     tile_collide: withFlag('c'),
@@ -205,6 +278,7 @@ export function buildBurgersIncBootstrap(): BurgersIncBootstrapSnapshot {
     tile_placeable_items,
     changes,
     spawnPosition,
+    packets,
   }
 }
 

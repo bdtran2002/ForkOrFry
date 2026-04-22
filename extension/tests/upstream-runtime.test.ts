@@ -5,10 +5,10 @@ import {
   createLocalBootstrapPayload,
   createGameplayPacketMessage,
   type UpstreamBootstrapPacket,
-  UPSTREAM_PROTOCOL_MAJOR,
   isUpstreamBootstrapPayload,
   isUpstreamEmbeddedToParentMessage,
 } from '../src/features/runtime-frame/upstream-bridge'
+import { BURGERS_INC_BOOTSTRAP } from '../upstream/generated/burgers-inc-bootstrap'
 import { createUpstreamRuntimeCheckpoint, restoreUpstreamRuntimeCheckpoint } from '../src/features/runtime-frame/upstream-checkpoint'
 import { normalizeUpstreamExportManifest, resolveUpstreamExportUrl } from '../src/features/runtime-frame/upstream-export'
 import { createInitialUpstreamRuntimeState, describeUpstreamRuntimeSession } from '../src/features/runtime-frame/upstream-runtime-state'
@@ -276,7 +276,11 @@ describe('upstream runtime helpers', () => {
     expect(payload.sessionId).toBe('session-123')
     expect(payload.map).toBe('burgers_inc')
     expect(payload.playerId).toBe(1)
-    expect(payload.packets[0]).toMatchObject({ type: 'version', major: UPSTREAM_PROTOCOL_MAJOR, minor: 0 })
+    expect(payload.packets[0]).toMatchObject({
+      type: 'version',
+      major: BURGERS_INC_BOOTSTRAP.packets[0].type === 'version' ? BURGERS_INC_BOOTSTRAP.packets[0].major : undefined,
+      minor: 0,
+    })
     expect(payload.packets.map((packet) => packet.type)).toEqual([
       'version',
       'server_data',
