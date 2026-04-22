@@ -490,6 +490,8 @@ describe('upstream runtime helpers', () => {
     expect(gameData.tile_placeable_any.length).toBeGreaterThan(0)
     expect(gameData.tile_interactable_empty.length).toBeGreaterThan(0)
     expect(Object.keys(gameData.tile_placeable_items).length).toBeGreaterThan(0)
+    expect(gameData.tile_interactable_empty).toContain(gameData.tile_names.indexOf('crate:steak'))
+    expect(gameData.tile_interactable_empty).toContain(gameData.tile_names.indexOf('sink'))
 
     expect(updateMap).toMatchObject({ type: 'update_map' })
     expect(updateMap.changes.length).toBeGreaterThan(20)
@@ -584,6 +586,82 @@ describe('upstream runtime helpers', () => {
     ])
   })
 
+  it('dispenses and returns renewable source items without depleting the source tile', () => {
+    const steakIndex = BURGERS_INC_BOOTSTRAP.item_names.indexOf('steak')
+    const crateTile = BURGERS_INC_BOOTSTRAP.changes.find(([_, tileIndexes]) => tileIndexes.some((tileIndex) => BURGERS_INC_BOOTSTRAP.tile_names[tileIndex] === 'crate:steak'))
+    if (steakIndex < 0 || !crateTile) throw new Error('Missing crate fixture')
+
+    const session = createLocalAuthoritySession()
+    const dispensed = applyGameplayPacketToAuthority(session, createGameplayPacketMessage('interact', {
+      player: 1,
+      hand: 0,
+      target: { tile: crateTile[0] },
+    }))
+
+    expect(dispensed.session.snapshot.hands[0]).toBe(steakIndex)
+    expect(dispensed.session.snapshot.tileItems[crateTile[0].join(',')] ?? null).toBeNull()
+    expect(dispensed.session.snapshot.score.points).toBe(-1)
+    expect(dispensed.packets).toEqual([
+      {
+        type: 'set_item',
+        location: { player: [1, 0] },
+        item: steakIndex,
+      },
+      {
+        type: 'score',
+        ...dispensed.session.snapshot.score,
+      },
+    ])
+
+    const returned = applyGameplayPacketToAuthority(dispensed.session, createGameplayPacketMessage('interact', {
+      player: 1,
+      hand: 0,
+      target: { tile: crateTile[0] },
+    }))
+
+    expect(returned.session.snapshot.hands[0]).toBeNull()
+    expect(returned.session.snapshot.tileItems[crateTile[0].join(',')] ?? null).toBeNull()
+    expect(returned.session.snapshot.score.points).toBe(0)
+    expect(returned.packets).toEqual([
+      {
+        type: 'set_item',
+        location: { player: [1, 0] },
+        item: null,
+      },
+      {
+        type: 'score',
+        ...returned.session.snapshot.score,
+      },
+    ])
+  })
+
+  it('dispenses renewable plates without depleting the plate source tile', () => {
+    const plateIndex = BURGERS_INC_BOOTSTRAP.item_names.indexOf('plate')
+    const plateTilePacket = BURGERS_INC_BOOTSTRAP.packets.find((packet) => packet.type === 'set_item' && 'tile' in packet.location && packet.item === plateIndex)
+    if (plateIndex < 0 || !plateTilePacket || !('tile' in plateTilePacket.location)) throw new Error('Missing plate source fixture')
+
+    const session = createLocalAuthoritySession()
+    const dispensed = applyGameplayPacketToAuthority(session, createGameplayPacketMessage('interact', {
+      player: 1,
+      hand: 0,
+      target: { tile: plateTilePacket.location.tile },
+    }))
+
+    expect(dispensed.session.snapshot.hands[0]).toBe(plateIndex)
+    expect(dispensed.session.snapshot.tileItems[plateTilePacket.location.tile.join(',')]).toBe(plateIndex)
+    expect(dispensed.packets).toEqual([
+      {
+        type: 'set_item',
+        location: { player: [1, 0] },
+        item: plateIndex,
+      },
+      {
+        type: 'score',
+        ...dispensed.session.snapshot.score,
+      },
+    ])
+  })
+
   it('starts, advances, pauses, and completes cutting-board prep through local authority', () => {
     const tomatoIndex = BURGERS_INC_BOOTSTRAP.item_names.indexOf('tomato')
     const slicedTomatoIndex = BURGERS_INC_BOOTSTRAP.item_names.indexOf('sliced-tomato')
@@ -658,6 +736,64 @@ describe('upstream runtime helpers', () => {
       {
         type: 'move_item',
         from: { tile: cuttingBoard[0] },
+        to: { player: [1, 0] },
+      },
+    ])
+  })
+
+  it('washes a dirty plate at the sink through the active authority path', () => {
+    const dirtyPlateIndex = BURGERS_INC_BOOTSTRAP.item_names.indexOf('dirty-plate')
+    const plateIndex = BURGERS_INC_BOOTSTRAP.item_names.indexOf('plate')
+    const sinkTile = BURGERS_INC_BOOTSTRAP.changes.find(([_, tileIndexes]) => tileIndexes.some((tileIndex) => BURGERS_INC_BOOTSTRAP.tile_names[tileIndex] === 'sink'))
+    if (dirtyPlateIndex < 0 || plateIndex < 0 || !sinkTile) throw new Error('Missing sink fixture')
+
+    const seededSession = createLocalAuthoritySession({
+      ...createInitialAuthoritySnapshot(),
+      hands: [dirtyPlateIndex, null],
+      tileItems: {
+        ...createInitialAuthoritySnapshot().tileItems,
+        [sinkTile[0].join(',')]: null,
+      },
+    })
+
+    const started = applyGameplayPacketToAuthority(seededSession, createGameplayPacketMessage('interact', {
+      player: 1,
+      hand: 0,
+      target: { tile: sinkTile[0] },
+    }))
+
+    expect(started.session.snapshot.hands[0]).toBeNull()
+    expect(started.session.snapshot.tileItems[sinkTile[0].join(',')]).toBe(dirtyPlateIndex)
+    expect(started.session.snapshot.progressTiles[sinkTile[0].join(',')]).toMatchObject({
+      speed: 0.5,
+      baseSpeed: 0.5,
+      handOutput: plateIndex,
+      tileOutput: null,
+    })
+
+    const advanced = advanceAuthoritySession(started.session, 2)
+    const completed = applyGameplayPacketToAuthority(advanced.session, createGameplayPacketMessage('interact', {
+      player: 1,
+      hand: 0,
+      target: null,
+    }))
+
+    expect(completed.session.snapshot.hands[0]).toBe(plateIndex)
+    expect(completed.session.snapshot.tileItems[sinkTile[0].join(',')]).toBeNull()
+    expect(completed.packets).toEqual([
+      {
+        type: 'set_item',
+        location: { tile: sinkTile[0] },
+        item: null,
+      },
+      {
+        type: 'set_item',
+        location: { tile: sinkTile[0] },
+        item: plateIndex,
+      },
+      {
+        type: 'move_item',
+        from: { tile: sinkTile[0] },
         to: { player: [1, 0] },
       },
     ])

@@ -226,6 +226,13 @@ export function buildBurgersIncBootstrap(): BurgersIncBootstrapSnapshot {
 
   const allItemIndexes = itemNames.map((_, index) => index)
   const tile_placeable_items = Object.fromEntries(withFlag('x').map((tileIndexValue) => [String(tileIndexValue), allItemIndexes]))
+  const tile_interactable_empty = Array.from(new Set([
+    ...withFlag('e'),
+    ...tileNames
+      .map((tileName, index) => ({ tileName, index }))
+      .filter(({ tileName }) => tileName.startsWith('crate:') || tileName === 'sink')
+      .map(({ index }) => index),
+  ]))
 
   const metadata: BurgersIncMapMetadata = {
     name: 'burgers_inc',
@@ -274,7 +281,7 @@ export function buildBurgersIncBootstrap(): BurgersIncBootstrapSnapshot {
       tile_collide: withFlag('c'),
       tile_placeable_items,
       tile_placeable_any: withFlag('a'),
-      tile_interactable_empty: withFlag('e'),
+      tile_interactable_empty,
       hand_count: metadata.hand_count,
       is_lobby: false,
     },
@@ -304,7 +311,7 @@ export function buildBurgersIncBootstrap(): BurgersIncBootstrapSnapshot {
     tile_names: tileNames,
     tile_collide: withFlag('c'),
     tile_placeable_any: withFlag('a'),
-    tile_interactable_empty: withFlag('e'),
+    tile_interactable_empty,
     tile_placeable_items,
     changes,
     spawnPosition,

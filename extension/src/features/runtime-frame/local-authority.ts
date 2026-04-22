@@ -60,6 +60,14 @@ interface UpstreamCuttingBoardRecipe {
   durationSeconds: number
 }
 
+interface UpstreamActiveTileRecipe {
+  input: number
+  handOutput: number | null
+  tileOutput: number | null
+  durationSeconds: number
+  tilePart: string
+}
+
 interface UpstreamInstantTileRecipe {
   tileInput: number
   handInput: number
@@ -78,6 +86,7 @@ const CUSTOMER_ID = BURGERS_INC_BOOTSTRAP.playerId + 1
 const CUSTOMER_DEMAND_DURATION = 10
 const CUSTOMER_TIMEOUT_SECONDS = 90
 const CUSTOMER_RESPAWN_SECONDS = 5
+const PLATE_ITEM_INDEX = getItemIndex('plate')
 
 function createTileKey(x: number, y: number) {
   return `${x},${y}`
@@ -126,6 +135,17 @@ const CUTTING_BOARD_RECIPES: UpstreamCuttingBoardRecipe[] = [
 })
 
 const CUTTING_BOARD_RECIPE_BY_INPUT = new Map(CUTTING_BOARD_RECIPES.map((recipe) => [recipe.input, recipe]))
+
+const ACTIVE_TILE_RECIPES: UpstreamActiveTileRecipe[] = [
+  ...CUTTING_BOARD_RECIPES.map((recipe) => ({ ...recipe, tilePart: 'cutting-board' })),
+  ...[['dirty-plate', 'plate', 2] as const].flatMap(([inputName, outputName, durationSeconds]) => {
+    const input = getItemIndex(inputName)
+    const handOutput = getItemIndex(outputName)
+    return input === null || handOutput === null
+      ? []
+      : [{ input, handOutput, tileOutput: null, durationSeconds, tilePart: 'sink' }]
+  }),
+]
 
 const INSTANT_TILE_RECIPES: UpstreamInstantTileRecipe[] = [
   ['pan', 'patty', 'pan:patty', null],
@@ -410,9 +430,34 @@ function getCuttingBoardRecipe(item: number | null, position: [number, number]) 
   return CUTTING_BOARD_RECIPE_BY_INPUT.get(item) ?? null
 }
 
+function getActiveTileRecipe(item: number | null, position: [number, number]) {
+  if (item === null) return null
+  return ACTIVE_TILE_RECIPES.find((recipe) => recipe.input === item && tileHasPart(position, recipe.tilePart)) ?? null
+}
+
 function getPassiveStoveRecipe(item: number | null, position: [number, number]) {
   if (item === null || !tileHasPart(position, 'stove')) return null
   return PASSIVE_STOVE_RECIPE_BY_INPUT.get(item) ?? null
+}
+
+function getRenewableSourceItem(position: [number, number]) {
+  const change = BURGERS_INC_BOOTSTRAP.changes.find(([tilePosition]) => tilePosition[0] === position[0] && tilePosition[1] === position[1])
+  if (!change) return null
+
+  for (const tileIndex of change[1]) {
+    const tileName = BURGERS_INC_BOOTSTRAP.tile_names[tileIndex] ?? ''
+    if (tileName.startsWith('crate:')) {
+      const itemName = tileName.slice('crate:'.length)
+      return getItemIndex(itemName)
+    }
+  }
+
+  const initialTileItem = createInitialAuthorityTileItems()[createTileKey(position[0], position[1])] ?? null
+  if (initialTileItem === PLATE_ITEM_INDEX && (tileHasPart(position, 'counter') || tileHasPart(position, 'counter-window'))) {
+    return PLATE_ITEM_INDEX
+  }
+
+  return null
 }
 
 function createProgressPacket(location: { tile: [number, number] }, progress: UpstreamAuthorityProgressSnapshot): Extract<UpstreamAuthorityPacket, { type: 'set_progress' }> {
@@ -901,21 +946,78 @@ export function applyGameplayPacketToAuthority(
       return { session, packets: [] as UpstreamAuthorityPacket[] }
     }
 
-    const cuttingBoardRecipe = getCuttingBoardRecipe(heldItem ?? tileItem, tile)
+    const activeTileRecipe = getActiveTileRecipe(heldItem ?? tileItem, tile)
     const passiveStoveRecipe = getPassiveStoveRecipe(tileItem, tile)
+    const sourceItem = getRenewableSourceItem(tile)
 
-    if (isEdge && heldItem !== null && tileItem === null && cuttingBoardRecipe && cuttingBoardRecipe.input === heldItem) {
+    if (isEdge && heldItem === null && sourceItem !== null) {
+      const hands = [...session.snapshot.hands]
+      hands[hand] = sourceItem
+      const nextScore = {
+        ...session.snapshot.score,
+        points: session.snapshot.score.points - 1,
+      }
+
+      return {
+        session: {
+          snapshot: {
+            ...session.snapshot,
+            hands,
+            score: nextScore,
+            interaction,
+          },
+        },
+        packets: [
+          {
+            type: 'set_item',
+            location: { player: [session.snapshot.playerId, hand] },
+            item: sourceItem,
+          },
+          createScorePacket(nextScore),
+        ],
+      }
+    }
+
+    if (isEdge && heldItem !== null && sourceItem !== null && heldItem === sourceItem) {
+      const hands = [...session.snapshot.hands]
+      hands[hand] = null
+      const nextScore = {
+        ...session.snapshot.score,
+        points: session.snapshot.score.points + 1,
+      }
+
+      return {
+        session: {
+          snapshot: {
+            ...session.snapshot,
+            hands,
+            score: nextScore,
+            interaction,
+          },
+        },
+        packets: [
+          {
+            type: 'set_item',
+            location: { player: [session.snapshot.playerId, hand] },
+            item: null,
+          },
+          createScorePacket(nextScore),
+        ],
+      }
+    }
+
+    if (isEdge && heldItem !== null && tileItem === null && activeTileRecipe && activeTileRecipe.input === heldItem) {
       const hands = [...session.snapshot.hands]
       hands[hand] = null
       const nextProgress: UpstreamAuthorityProgressSnapshot = {
         position: 0,
-        speed: 1 / cuttingBoardRecipe.durationSeconds,
-        baseSpeed: 1 / cuttingBoardRecipe.durationSeconds,
+        speed: 1 / activeTileRecipe.durationSeconds,
+        baseSpeed: 1 / activeTileRecipe.durationSeconds,
         warn: false,
         players: [session.snapshot.playerId],
         hand,
-        handOutput: cuttingBoardRecipe.handOutput,
-        tileOutput: cuttingBoardRecipe.tileOutput,
+        handOutput: activeTileRecipe.handOutput,
+        tileOutput: activeTileRecipe.tileOutput,
       }
 
       const snapshot: UpstreamAuthoritySnapshot = {
@@ -939,16 +1041,16 @@ export function applyGameplayPacketToAuthority(
       }
     }
 
-    if (isEdge && heldItem === null && tileItem !== null && cuttingBoardRecipe && !tileProgress) {
+    if (isEdge && heldItem === null && tileItem !== null && activeTileRecipe && !tileProgress) {
       const nextProgress: UpstreamAuthorityProgressSnapshot = {
         position: 0,
-        speed: 1 / cuttingBoardRecipe.durationSeconds,
-        baseSpeed: 1 / cuttingBoardRecipe.durationSeconds,
+        speed: 1 / activeTileRecipe.durationSeconds,
+        baseSpeed: 1 / activeTileRecipe.durationSeconds,
         warn: false,
         players: [session.snapshot.playerId],
         hand,
-        handOutput: cuttingBoardRecipe.handOutput,
-        tileOutput: cuttingBoardRecipe.tileOutput,
+        handOutput: activeTileRecipe.handOutput,
+        tileOutput: activeTileRecipe.tileOutput,
       }
 
       const snapshot: UpstreamAuthoritySnapshot = {
