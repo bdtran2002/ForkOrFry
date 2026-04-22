@@ -1,50 +1,50 @@
 export const upstreamRuntimeCopy = {
-  title: 'Bundled Hurry Curry web runtime',
+  title: 'Hurry Curry runtime',
   statusLabel: 'Runtime status',
-  booting: 'Waiting for host boot…',
+  booting: 'Waiting for startup…',
   labels: {
-    exportState: 'Export status',
-    bridgeState: 'Bootstrap bridge',
-    godotBridge: 'Godot bridge',
+    exportState: 'Export state',
+    bridgeState: 'Bridge state',
+    godotBridge: 'Bridge snapshot',
     session: 'Session',
-    exportPath: 'Export entry',
+    exportPath: 'Export path',
     checkpoint: 'Checkpoint',
-    gameplayPackets: 'Gameplay packets',
+    gameplayPackets: 'Packets',
     gameplaySummary: 'Packet summary',
   },
   buttons: {
-    refresh: 'Retry export scan',
+    refresh: 'Refresh export',
   },
   capabilities: ['checkpoint', 'pause', 'resume', 'upstream-runtime-shell'],
   phaseLabels: {
-    booting: 'Preparing runtime shell…',
-    running: 'Bundled Godot runtime loaded.',
-    paused: 'Runtime paused by host.',
-    ready: 'Ready for bundled export.',
+    booting: 'Preparing runtime…',
+    running: 'Runtime loaded.',
+    paused: 'Paused by host.',
+    ready: 'Ready.',
   },
   exportStates: {
-    unknown: 'Checking for bundled export files…',
-    missing: 'Bundled export not found yet.',
-    ready: 'Bundled export manifest found.',
-    loaded: 'Bundled export loaded in the embedded frame.',
-    error: 'Bundled export manifest could not be used.',
+    unknown: 'Checking export files…',
+    missing: 'Export not found yet.',
+    ready: 'Export manifest found.',
+    loaded: 'Export loaded in the frame.',
+    error: 'Export manifest could not be used.',
   },
   bridgeStates: {
-    idle: 'Waiting for a session boot.',
-    waiting: 'Bootstrap payload prepared for the embedded runtime.',
-    sent: 'Bootstrap payload sent to the embedded runtime.',
-    acknowledged: 'Embedded runtime acknowledged the bootstrap payload.',
-    error: 'Embedded runtime bridge reported an error.',
+    idle: 'Waiting for boot.',
+    waiting: 'Bootstrap payload ready.',
+    sent: 'Bootstrap payload sent.',
+    acknowledged: 'Bootstrap acknowledged.',
+    error: 'Bridge error.',
   },
   missingSummary:
-    'No local Godot web export is bundled yet.',
-  errorSummary: (detail: string) => `Bundled export metadata could not be loaded: ${detail}`,
-  readySummary: (path: string) => `Manifest found. Loading bundled export from ${path}.`,
-  loadedSummary: 'Bundled export iframe loaded.',
-  checkpointSummary: (reason: string | null) => reason ? `Last checkpoint: ${reason}` : 'No explicit checkpoint request yet.',
-  gameplayPacketsSummary: (packets: { action: string }[]) => packets.length ? `${packets.length} outbound gameplay packet${packets.length === 1 ? '' : 's'} received.` : 'No outbound gameplay packets received yet.',
+    'No local export is bundled yet.',
+  errorSummary: (detail: string) => `Export metadata could not be loaded: ${detail}`,
+  readySummary: (path: string) => `Manifest found. Loading export from ${path}.`,
+  loadedSummary: 'Export iframe loaded.',
+  checkpointSummary: (reason: string | null) => reason ? `Last checkpoint: ${reason}` : 'No checkpoint yet.',
+  gameplayPacketsSummary: (packets: { action: string }[]) => packets.length ? `${packets.length} gameplay packet${packets.length === 1 ? '' : 's'} received.` : 'No gameplay packets yet.',
   gameplayPacketSummary: (summary: { totalCount: number, lastAction: string | null, actionCounts: Record<string, number> }) => {
-    if (!summary.totalCount) return 'No gameplay packets received yet.'
+    if (!summary.totalCount) return 'No gameplay packets yet.'
 
     const counts = Object.entries(summary.actionCounts)
       .slice(0, 3)
@@ -57,7 +57,7 @@ export const upstreamRuntimeCopy = {
     ].filter(Boolean).join(' • ')
   },
   godotBridgeSummary: (entryState: string | null, lastUpdate: string | null) => {
-    if (!entryState && !lastUpdate) return 'No live Godot bridge data yet.'
+    if (!entryState && !lastUpdate) return 'No bridge data yet.'
 
     return [
       entryState ? `entry: ${entryState}` : null,

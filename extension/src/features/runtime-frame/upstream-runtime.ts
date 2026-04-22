@@ -292,7 +292,7 @@ async function loadBundledExport() {
         phase: 'ready',
         exportUrl: null,
         godotBridgeSnapshot: createInitialUpstreamRuntimeState().godotBridgeSnapshot,
-        detail: 'manifest.json exists but is not valid for the runtime adapter.',
+        detail: 'manifest.json exists but is not valid for the runtime.',
       })
       postStatus('ready', currentPhaseDetail())
       return
@@ -353,7 +353,7 @@ function boot(checkpoint: RuntimeCheckpointEnvelope | null, nextSessionId: strin
     runtimeId: RUNTIME_ID,
     capabilities: [...upstreamRuntimeCopy.capabilities],
   })
-  postCheckpoint('Booted upstream runtime adapter shell.')
+  postCheckpoint('Booted runtime shell.')
   void loadBundledExport()
 }
 
@@ -385,7 +385,7 @@ function handleHostMessage(message: HostToRuntimeMessage) {
       startGodotBridgePoll()
       sendBootstrapToEmbeddedRuntime('resume')
       postStatus(state.phase, currentPhaseDetail())
-      postCheckpoint('Resumed upstream runtime adapter shell.')
+      postCheckpoint('Resumed runtime shell.')
       return
     }
     case 'host:checkpoint':
@@ -425,7 +425,7 @@ window.addEventListener('message', (event) => {
   if (event.source === runtimeEmbedFrame.contentWindow && isUpstreamEmbeddedToParentMessage(embeddedMessage)) {
     switch (embeddedMessage.type) {
       case 'forkorfry:bridge-ready':
-        setState({ bridgeState: 'waiting', detail: 'Embedded runtime bridge is ready for bootstrap data.' })
+        setState({ bridgeState: 'waiting', detail: 'Bridge is ready for bootstrap data.' })
         sendBootstrapToEmbeddedRuntime('bootstrap')
         return
       case 'forkorfry:bridge-bootstrap-ack':
@@ -437,10 +437,10 @@ window.addEventListener('message', (event) => {
             acknowledgedPacketCount: embeddedMessage.packetCount,
             lastError: null,
           },
-          detail: `Embedded runtime acknowledged ${embeddedMessage.packetCount} bootstrap packets.`,
+          detail: `Runtime acknowledged ${embeddedMessage.packetCount} bootstrap packets.`,
         })
         postStatus(state.phase, currentPhaseDetail())
-        postCheckpoint('Embedded runtime acknowledged bootstrap payload.')
+        postCheckpoint('Runtime acknowledged bootstrap payload.')
         return
       case 'forkorfry:bridge-error':
         setState({
