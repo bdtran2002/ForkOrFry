@@ -589,6 +589,55 @@ describe('upstream runtime helpers', () => {
     ])
   })
 
+  it('combines a held patty into a tile pan through the instant authority path', () => {
+    const pattyIndex = BURGERS_INC_BOOTSTRAP.item_names.indexOf('patty')
+    const panIndex = BURGERS_INC_BOOTSTRAP.item_names.indexOf('pan')
+    const panPattyIndex = BURGERS_INC_BOOTSTRAP.item_names.indexOf('pan:patty')
+    const panTilePacket = BURGERS_INC_BOOTSTRAP.packets.find((packet) => packet.type === 'set_item' && 'tile' in packet.location && packet.item === panIndex)
+    if (pattyIndex < 0 || panPattyIndex < 0 || !panTilePacket || !('tile' in panTilePacket.location)) throw new Error('Missing pan combine fixture')
+
+    const session = createLocalAuthoritySession({
+      ...createInitialAuthoritySnapshot(),
+      hands: [pattyIndex, null],
+    })
+
+    const combined = applyGameplayPacketToAuthority(session, createGameplayPacketMessage('interact', {
+      player: 1,
+      hand: 0,
+      target: { tile: panTilePacket.location.tile },
+    }))
+
+    expect(combined.session.snapshot.hands[0]).toBeNull()
+    expect(combined.session.snapshot.tileItems[panTilePacket.location.tile.join(',')]).toBe(panPattyIndex)
+    expect(combined.packets).toEqual([
+      {
+        type: 'set_item',
+        location: { tile: panTilePacket.location.tile },
+        item: null,
+      },
+      {
+        type: 'move_item',
+        from: { player: [1, 0] },
+        to: { tile: panTilePacket.location.tile },
+      },
+      {
+        type: 'set_item',
+        location: { tile: panTilePacket.location.tile },
+        item: null,
+      },
+      {
+        type: 'set_item',
+        location: { tile: panTilePacket.location.tile },
+        item: panPattyIndex,
+      },
+      {
+        type: 'set_item',
+        location: { player: [1, 0] },
+        item: null,
+      },
+    ])
+  })
+
   it('replays active progress packets as part of the authority state', () => {
     const snapshot = createInitialAuthoritySnapshot()
     snapshot.progressTiles['4,4'] = {

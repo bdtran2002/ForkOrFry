@@ -40,6 +40,13 @@ interface UpstreamCuttingBoardRecipe {
   durationSeconds: number
 }
 
+interface UpstreamInstantTileRecipe {
+  tileInput: number
+  handInput: number
+  tileOutput: number | null
+  handOutput: number | null
+}
+
 function createTileKey(x: number, y: number) {
   return `${x},${y}`
 }
@@ -83,6 +90,20 @@ const CUTTING_BOARD_RECIPES: UpstreamCuttingBoardRecipe[] = [
 })
 
 const CUTTING_BOARD_RECIPE_BY_INPUT = new Map(CUTTING_BOARD_RECIPES.map((recipe) => [recipe.input, recipe]))
+
+const INSTANT_TILE_RECIPES: UpstreamInstantTileRecipe[] = [
+  ['pan', 'patty', 'pan:patty', null],
+].flatMap(([tileInputName, handInputName, tileOutputName, handOutputName]) => {
+  const tileInput = getItemIndex(tileInputName)
+  const handInput = getItemIndex(handInputName)
+  const tileOutput = getItemIndex(tileOutputName)
+  const handOutput = handOutputName === null ? null : getItemIndex(handOutputName)
+  return tileInput === null || handInput === null || tileOutput === null || handOutputName !== null && handOutput === null
+    ? []
+    : [{ tileInput, handInput, tileOutput, handOutput }]
+})
+
+const INSTANT_TILE_RECIPE_BY_ITEMS = new Map(INSTANT_TILE_RECIPES.map((recipe) => [`${recipe.tileInput}:${recipe.handInput}`, recipe]))
 
 function createInitialAuthorityTileItems() {
   return Object.fromEntries(
@@ -257,6 +278,40 @@ function setTileProgress(
   return nextProgressTiles
 }
 
+function createInstantRecipePackets(
+  location: { tile: [number, number] },
+  playerId: number,
+  hand: number,
+  tileOutput: number | null,
+  handOutput: number | null,
+): UpstreamAuthorityPacket[] {
+  return [
+    {
+      type: 'set_item',
+      location,
+      item: null,
+    },
+    {
+      type: 'move_item',
+      from: { player: [playerId, hand] },
+      to: location,
+    },
+    {
+      type: 'set_item',
+      location,
+      item: null,
+    },
+    ...(tileOutput !== null
+      ? [{ type: 'set_item' as const, location, item: tileOutput }]
+      : []),
+    {
+      type: 'set_item',
+      location: { player: [playerId, hand] },
+      item: handOutput,
+    },
+  ]
+}
+
 export function createInitialAuthoritySnapshot(): UpstreamAuthoritySnapshot {
   return {
     playerId: BURGERS_INC_BOOTSTRAP.playerId,
@@ -411,6 +466,9 @@ export function applyGameplayPacketToAuthority(
     const heldItem = getHandItem(session.snapshot, hand)
     const tileItem = getTileItem(session.snapshot, targetLocation)
     const tileProgress = getTileProgress(session.snapshot, targetLocation)
+    const instantTileRecipe = heldItem !== null && tileItem !== null
+      ? INSTANT_TILE_RECIPE_BY_ITEMS.get(`${tileItem}:${heldItem}`) ?? null
+      : null
 
     if (tileProgress && heldItem === null) {
       if (tileProgress.position >= 1) {
@@ -509,6 +567,29 @@ export function applyGameplayPacketToAuthority(
       return {
         session: { snapshot },
         packets: [createProgressPacket(targetLocation, nextProgress)],
+      }
+    }
+
+    if (isEdge && instantTileRecipe) {
+      const hands = [...session.snapshot.hands]
+      hands[hand] = instantTileRecipe.handOutput
+
+      const snapshot: UpstreamAuthoritySnapshot = {
+        ...session.snapshot,
+        hands,
+        tileItems: setTileItem(session.snapshot, targetLocation, instantTileRecipe.tileOutput),
+        interaction,
+      }
+
+      return {
+        session: { snapshot },
+        packets: createInstantRecipePackets(
+          targetLocation,
+          session.snapshot.playerId,
+          hand,
+          instantTileRecipe.tileOutput,
+          instantTileRecipe.handOutput,
+        ),
       }
     }
 
