@@ -36,9 +36,43 @@ What works today:
 
 What is still rough:
 
-- gameplay is not yet fully local-authoritative after spawn
+- parts of gameplay authority are now local, but the authority layer is still only a partial upstream port
 - multiplayer/server assumptions are still being removed from the live runtime
 - the polished player-facing experience is still a work in progress
+
+### Upstream port checklist
+
+Reference source: `upstream-reference/hurrycurry/`
+
+Done:
+
+- upstream Godot web export boots inside the extension-owned runtime surface
+- upstream-shaped bootstrap/protocol bridge is in place
+- burger-level bootstrap/map snapshot is ported into local runtime data
+- local authority currently covers core burger-level loops:
+  - movement
+  - pickup/place
+  - cutting-board prep
+  - sink washing
+  - renewable ingredient and plate sourcing
+  - pan/basket tool flows
+  - burger, salad, steak, and fries demand assembly paths
+  - trash recovery for burned/disposable states
+  - single-customer serve/eat/return loop with checkpoint support
+
+Partial:
+
+- local authority is still a handwritten TypeScript subset of upstream behavior, not yet a direct port of upstream server/game-sim logic
+- customer behavior is simplified versus upstream (single-customer oriented, reduced scheduling/selection behavior)
+- score/session progression exists only in a minimal local form and does not yet match full upstream timing/stars flow
+- recipe coverage is focused on the burger level's main lanes, not the entire upstream processing graph
+
+Missing:
+
+- upstream bot/pathfinding/task logic replacing remote players
+- broader direct derivation/port of gameplay logic from `upstream-reference/hurrycurry/server/game-core/` and `server/game-sim/`
+- full burger-level parity audit for remaining edge cases and station behaviors
+- full local game/session lifecycle polish around restart/reset/progression
 
 ## How to try it
 

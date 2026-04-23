@@ -184,6 +184,47 @@ At each phase provide:
 - rationale for changes
 - verification steps
 
+## Upstream port checklist
+
+Reference source: `upstream-reference/hurrycurry/`
+
+### Done
+
+- Upstream client boot path is embedded in the extension runtime surface via:
+  - `extension/src/features/runtime-frame/upstream-runtime.ts`
+  - `extension/public/upstream/hurrycurry-web/`
+  - `extension/upstream/hurrycurry-client-overlay/`
+- Upstream-shaped bootstrap/protocol mirroring is in place via:
+  - `extension/upstream/generated/burgers-inc-bootstrap.ts`
+  - `extension/src/features/runtime-frame/upstream-bridge.ts`
+- Current burger-level local-authority coverage exists in:
+  - `extension/src/features/runtime-frame/local-authority.ts`
+  - movement
+  - pickup/place
+  - cutting-board prep
+  - sink washing
+  - renewable sources/plates
+  - burger, salad, steak, and fries assembly/cooking paths
+  - trash recovery
+  - single-customer serve/eat/return loop
+  - checkpointed local authority state
+
+### Partial
+
+- `extension/src/features/runtime-frame/local-authority.ts` is still a handwritten TypeScript mirror of an upstream subset, not yet a direct port of upstream gameplay code/data
+- customer behavior is simplified relative to upstream `server/bot/src/algos/customer.rs`
+- score/session/timer behavior is only partially aligned with upstream `server/game-sim/src/lib.rs`
+- recipe coverage is focused on burger-level playability, not full burger-level parity yet
+
+### Missing
+
+- direct bot/pathfinding/tasking port from `upstream-reference/hurrycurry/server/bot/`
+- broader direct authority derivation/replacement from:
+  - `upstream-reference/hurrycurry/server/game-core/`
+  - `upstream-reference/hurrycurry/server/game-sim/`
+- final burger-level parity pass for remaining station, customer, and map edge cases
+- fully polished local session/start/reset/progression loop inside the extension surface
+
 ## Done means
 
 - a single-player local game build launches inside the browser extension UI
