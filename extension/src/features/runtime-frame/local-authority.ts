@@ -91,6 +91,8 @@ const PLATE_ITEM_INDEX = getItemIndex('plate')
 
 type DemandIngredient = 'sliced-bun' | 'sliced-cheese' | 'sliced-lettuce' | 'sliced-tomato' | 'seared-patty'
 
+type SteakFriesIngredient = 'french-fries' | 'seared-steak'
+
 function createPlateItemName(parts: DemandIngredient[]) {
   return `plate:${[...parts].sort().join(',')}`
 }
@@ -135,6 +137,51 @@ function createPlateCombineRecipes(parts: DemandIngredient[]): Array<[string, st
       const tileOutput = createPlateItemName([...current, part])
       const handOutput = getHandAssemblyOutputName(part)
       const key = `${tileInput}|${handInput}|${tileOutput}|${handOutput ?? ''}`
+      if (!seen.has(key)) {
+        seen.add(key)
+        recipes.push([tileInput, handInput, tileOutput, handOutput])
+      }
+    }
+  }
+
+  return recipes
+}
+
+function createPlateToolCombineRecipes(parts: SteakFriesIngredient[]): Array<[string, string, string, string | null]> {
+  const recipes: Array<[string, string, string, string | null]> = []
+  const seen = new Set<string>()
+
+  const getToolItemName = (part: SteakFriesIngredient) => (part === 'french-fries' ? 'basket:french-fries' : 'pan:seared-steak')
+  const getToolReturnName = (part: SteakFriesIngredient) => (part === 'french-fries' ? 'basket' : 'pan')
+
+  for (const part of parts) {
+    const tileInput = 'plate'
+    const handInput = getToolItemName(part)
+    const tileOutput = createPlateItemName([part as DemandIngredient])
+    const handOutput = getToolReturnName(part)
+    const key = `${tileInput}|${handInput}|${tileOutput}|${handOutput}`
+    if (!seen.has(key)) {
+      seen.add(key)
+      recipes.push([tileInput, handInput, tileOutput, handOutput])
+    }
+  }
+
+  const targetMasks = 1 << parts.length
+  for (let mask = 1; mask < targetMasks; mask += 1) {
+    const current: SteakFriesIngredient[] = []
+    for (let index = 0; index < parts.length; index += 1) {
+      if (mask & (1 << index)) current.push(parts[index])
+    }
+
+    if (current.length === parts.length) continue
+
+    for (const part of parts) {
+      if (current.includes(part)) continue
+      const tileInput = createPlateItemName(current as DemandIngredient[])
+      const handInput = getToolItemName(part)
+      const tileOutput = createPlateItemName([...current, part] as DemandIngredient[])
+      const handOutput = getToolReturnName(part)
+      const key = `${tileInput}|${handInput}|${tileOutput}|${handOutput}`
       if (!seen.has(key)) {
         seen.add(key)
         recipes.push([tileInput, handInput, tileOutput, handOutput])
@@ -213,12 +260,18 @@ const TRASH_RECIPE_TILE_PART = 'trash'
 
 const INSTANT_TILE_RECIPES: UpstreamInstantTileRecipe[] = [
   ['pan', 'patty', 'pan:patty', null],
+  ['pan', 'steak', 'pan:steak', null],
+  ['basket', 'sliced-potato', 'basket:sliced-potato', null],
   ...createPlateCombineRecipes(['sliced-bun', 'sliced-cheese', 'seared-patty']),
   ...createPlateCombineRecipes(['sliced-lettuce', 'sliced-tomato']),
   ...createPlateCombineRecipes(['sliced-bun', 'seared-patty', 'sliced-lettuce', 'sliced-tomato']),
   ...createPlateCombineRecipes(['sliced-bun', 'seared-patty', 'sliced-cheese', 'sliced-tomato']),
+  ...createPlateToolCombineRecipes(['french-fries']),
+  ...createPlateToolCombineRecipes(['seared-steak']),
+  ...createPlateToolCombineRecipes(['french-fries', 'seared-steak']),
   ...BURGERS_INC_BOOTSTRAP.item_names.flatMap((itemName) => {
     if (itemName === 'pan:burned') return [[null, 'pan:burned', null, 'pan', TRASH_RECIPE_TILE_PART] as const]
+    if (itemName === 'basket:french-fries' || itemName === 'basket:burned') return [[null, itemName, null, 'basket', TRASH_RECIPE_TILE_PART] as const]
     if (itemName.startsWith('plate:')) return [[null, itemName, null, 'dirty-plate', TRASH_RECIPE_TILE_PART] as const]
     if (itemName === 'dirty-plate' || itemName === 'pan' || itemName === 'foodprocessor' || itemName === 'basket' || itemName === 'glass') {
       return []
@@ -241,6 +294,7 @@ const INSTANT_TILE_RECIPES: UpstreamInstantTileRecipe[] = [
 const PASSIVE_STOVE_RECIPES: UpstreamPassiveStoveRecipe[] = [
   ['pan:patty', 'pan:seared-patty', 15, false],
   ['pan:seared-patty', 'pan:burned', 5, true],
+  ['pan:steak', 'pan:seared-steak', 15, false],
 ].flatMap(([inputName, outputName, durationSeconds, warn]) => {
   const input = getItemIndex(inputName)
   const tileOutput = getItemIndex(outputName)
@@ -532,6 +586,23 @@ function getPassiveStoveRecipe(item: number | null, position: [number, number]) 
   return PASSIVE_STOVE_RECIPE_BY_INPUT.get(item) ?? null
 }
 
+function getPassiveDeepFryerRecipe(item: number | null, position: [number, number]) {
+  if (item === null || !tileHasPart(position, 'deep-fryer')) return null
+
+  const frenchFriesIndex = getItemIndex('basket:french-fries')
+  const burnedBasketIndex = getItemIndex('basket:burned')
+  const slicedPotatoBasketIndex = getItemIndex('basket:sliced-potato')
+  if (frenchFriesIndex === null || burnedBasketIndex === null || slicedPotatoBasketIndex === null) return null
+
+  if (item === slicedPotatoBasketIndex) return { input: item, tileOutput: frenchFriesIndex, durationSeconds: 15, warn: false }
+  if (item === frenchFriesIndex) return { input: item, tileOutput: burnedBasketIndex, durationSeconds: 7.5, warn: true }
+  return null
+}
+
+function getPassiveTileRecipe(item: number | null, position: [number, number]) {
+  return getPassiveStoveRecipe(item, position) ?? getPassiveDeepFryerRecipe(item, position)
+}
+
 function getInstantTileRecipe(tileItem: number | null, heldItem: number | null, position: [number, number]) {
   return INSTANT_TILE_RECIPES.find((recipe) => (
     recipe.tileInput === tileItem
@@ -795,6 +866,7 @@ export function advanceAuthoritySession(
   let changed = false
   const nextProgressTiles: Record<string, UpstreamAuthorityProgressSnapshot> = {}
   const packets: UpstreamAuthorityPacket[] = []
+  const completedProgressKeys = new Set<string>()
   let nextScore = session.snapshot.score
   let nextCustomer = session.snapshot.customer
 
@@ -804,6 +876,7 @@ export function advanceAuthoritySession(
     if (nextPosition !== progress.position) changed = true
 
     if (location && progress.handOutput === null && progress.tileOutput !== null && progress.speed > 0 && nextPosition >= 1) {
+      completedProgressKeys.add(key)
       packets.push(...createPassiveCompletionPackets(location, progress))
       continue
     }
@@ -818,6 +891,28 @@ export function advanceAuthoritySession(
   for (const packet of packets) {
     if (packet.type !== 'set_item' || !('tile' in packet.location)) continue
     nextTileItems[createTileKey(packet.location.tile[0], packet.location.tile[1])] = packet.item
+  }
+
+  for (const [key, item] of Object.entries(nextTileItems)) {
+    if (nextProgressTiles[key] || completedProgressKeys.has(key) || item === null) continue
+    const tile = parseTileKey(key)
+    if (!tile) continue
+    const passiveRecipe = getPassiveTileRecipe(item, tile)
+    if (!passiveRecipe) continue
+
+    changed = true
+    const progress: UpstreamAuthorityProgressSnapshot = {
+      position: 0,
+      speed: 1 / passiveRecipe.durationSeconds,
+      baseSpeed: 1 / passiveRecipe.durationSeconds,
+      warn: passiveRecipe.warn,
+      players: [],
+      hand: 0,
+      handOutput: null,
+      tileOutput: passiveRecipe.tileOutput,
+    }
+    nextProgressTiles[key] = progress
+    packets.push(createProgressPacket({ tile }, progress))
   }
 
   if (nextCustomer?.phase === 'waiting') {
@@ -1048,7 +1143,7 @@ export function applyGameplayPacketToAuthority(
     }
 
     const activeTileRecipe = getActiveTileRecipe(heldItem ?? tileItem, tile)
-    const passiveStoveRecipe = getPassiveStoveRecipe(tileItem, tile)
+    const passiveTileRecipe = getPassiveTileRecipe(tileItem, tile)
     const sourceItem = getRenewableSourceItem(tile)
 
     if (isEdge && heldItem === null && sourceItem !== null) {
@@ -1166,16 +1261,16 @@ export function applyGameplayPacketToAuthority(
       }
     }
 
-    if (isEdge && heldItem === null && tileItem !== null && passiveStoveRecipe && !tileProgress) {
+    if (isEdge && heldItem === null && tileItem !== null && passiveTileRecipe && !tileProgress) {
       const nextProgress: UpstreamAuthorityProgressSnapshot = {
         position: 0,
-        speed: 1 / passiveStoveRecipe.durationSeconds,
-        baseSpeed: 1 / passiveStoveRecipe.durationSeconds,
-        warn: passiveStoveRecipe.warn,
+        speed: 1 / passiveTileRecipe.durationSeconds,
+        baseSpeed: 1 / passiveTileRecipe.durationSeconds,
+        warn: passiveTileRecipe.warn,
         players: [],
         hand,
         handOutput: null,
-        tileOutput: passiveStoveRecipe.tileOutput,
+        tileOutput: passiveTileRecipe.tileOutput,
       }
 
       const snapshot: UpstreamAuthoritySnapshot = {

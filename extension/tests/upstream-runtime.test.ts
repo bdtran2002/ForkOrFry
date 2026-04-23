@@ -485,9 +485,18 @@ describe('upstream runtime helpers', () => {
     expect(gameData.metadata.demand_items).toContain('plate:sliced-lettuce,sliced-tomato')
     expect(gameData.metadata.demand_items).toContain('plate:seared-patty,sliced-bun,sliced-lettuce,sliced-tomato')
     expect(gameData.metadata.demand_items).toContain('plate:seared-patty,sliced-bun,sliced-cheese,sliced-tomato')
+    expect(gameData.metadata.demand_items).toContain('plate:french-fries')
+    expect(gameData.metadata.demand_items).toContain('plate:seared-steak')
+    expect(gameData.metadata.demand_items).toContain('plate:french-fries,seared-steak')
     expect(gameData.item_names).toContain('plate:sliced-lettuce,sliced-tomato')
     expect(gameData.item_names).toContain('plate:seared-patty,sliced-bun,sliced-lettuce,sliced-tomato')
     expect(gameData.item_names).toContain('plate:seared-patty,sliced-bun,sliced-cheese,sliced-tomato')
+    expect(gameData.item_names).toContain('pan:steak')
+    expect(gameData.item_names).toContain('pan:seared-steak')
+    expect(gameData.item_names).toContain('basket:sliced-potato')
+    expect(gameData.item_names).toContain('basket:french-fries')
+    expect(gameData.item_names).toContain('basket:burned')
+    expect(gameData.item_names).toContain('plate:french-fries,seared-steak')
     expect(gameData.tile_names).toContain('floor')
     expect(gameData.tile_names).toContain('counter-window:red')
     expect(gameData.tile_names).toContain('crate:tomato')
@@ -1173,6 +1182,158 @@ describe('upstream runtime helpers', () => {
         item: panBurnedIndex,
       },
     ])
+  })
+
+  it('auto-starts steak searing on the stove and plates the result', () => {
+    const steakIndex = BURGERS_INC_BOOTSTRAP.item_names.indexOf('steak')
+    const panIndex = BURGERS_INC_BOOTSTRAP.item_names.indexOf('pan')
+    const panSteakIndex = BURGERS_INC_BOOTSTRAP.item_names.indexOf('pan:steak')
+    const panSearedSteakIndex = BURGERS_INC_BOOTSTRAP.item_names.indexOf('pan:seared-steak')
+    const plateIndex = BURGERS_INC_BOOTSTRAP.item_names.indexOf('plate')
+    const plateSearedSteakIndex = BURGERS_INC_BOOTSTRAP.item_names.indexOf('plate:seared-steak')
+    const panTilePacket = BURGERS_INC_BOOTSTRAP.packets.find((packet) => packet.type === 'set_item' && 'tile' in packet.location && packet.item === panIndex)
+    const plateTilePacket = BURGERS_INC_BOOTSTRAP.packets.find((packet) => packet.type === 'set_item' && 'tile' in packet.location && packet.item === plateIndex)
+    if (
+      steakIndex < 0 || panSteakIndex < 0 || panSearedSteakIndex < 0 || plateSearedSteakIndex < 0
+      || !panTilePacket || !('tile' in panTilePacket.location)
+      || !plateTilePacket || !('tile' in plateTilePacket.location)
+    ) throw new Error('Missing steak sear fixture')
+
+    const combined = applyGameplayPacketToAuthority(createLocalAuthoritySession({
+      ...createInitialAuthoritySnapshot(),
+      hands: [steakIndex, null],
+    }), createGameplayPacketMessage('interact', {
+      player: 1,
+      hand: 0,
+      target: { tile: panTilePacket.location.tile },
+    }))
+
+    expect(combined.session.snapshot.tileItems[panTilePacket.location.tile.join(',')]).toBe(panSteakIndex)
+
+    const autoStarted = advanceAuthoritySession(combined.session, 0.1)
+    expect(autoStarted.session.snapshot.progressTiles[panTilePacket.location.tile.join(',')]).toMatchObject({
+      speed: 1 / 15,
+      warn: false,
+      tileOutput: panSearedSteakIndex,
+    })
+    expect(autoStarted.packets).toContainEqual({
+      type: 'set_progress',
+      players: [],
+      item: { tile: panTilePacket.location.tile },
+      position: 0,
+      speed: 1 / 15,
+      warn: false,
+    })
+
+    const seared = advanceAuthoritySession(autoStarted.session, 15)
+    expect(seared.session.snapshot.tileItems[panTilePacket.location.tile.join(',')]).toBe(panSearedSteakIndex)
+
+    const plated = applyGameplayPacketToAuthority(createLocalAuthoritySession({
+      ...seared.session.snapshot,
+      hands: [panSearedSteakIndex, null],
+    }), createGameplayPacketMessage('interact', {
+      player: 1,
+      hand: 0,
+      target: { tile: plateTilePacket.location.tile },
+    }))
+
+    expect(plated.session.snapshot.hands[0]).toBe(panIndex)
+    expect(plated.session.snapshot.tileItems[plateTilePacket.location.tile.join(',')]).toBe(plateSearedSteakIndex)
+  })
+
+  it('auto-starts fries in the fryer, burns them, and recovers the basket via trash', () => {
+    const slicedPotatoIndex = BURGERS_INC_BOOTSTRAP.item_names.indexOf('sliced-potato')
+    const basketIndex = BURGERS_INC_BOOTSTRAP.item_names.indexOf('basket')
+    const basketSlicedPotatoIndex = BURGERS_INC_BOOTSTRAP.item_names.indexOf('basket:sliced-potato')
+    const basketFriesIndex = BURGERS_INC_BOOTSTRAP.item_names.indexOf('basket:french-fries')
+    const basketBurnedIndex = BURGERS_INC_BOOTSTRAP.item_names.indexOf('basket:burned')
+    const fryerTilePacket = BURGERS_INC_BOOTSTRAP.packets.find((packet) => packet.type === 'set_item' && 'tile' in packet.location && packet.item === basketIndex)
+    const trashTile = BURGERS_INC_BOOTSTRAP.changes.find(([_, tileIndexes]) => tileIndexes.some((tileIndex) => BURGERS_INC_BOOTSTRAP.tile_names[tileIndex] === 'trash'))
+    if (
+      slicedPotatoIndex < 0 || basketSlicedPotatoIndex < 0 || basketFriesIndex < 0 || basketBurnedIndex < 0
+      || !fryerTilePacket || !('tile' in fryerTilePacket.location) || !trashTile
+    ) throw new Error('Missing fries fixture')
+
+    const combined = applyGameplayPacketToAuthority(createLocalAuthoritySession({
+      ...createInitialAuthoritySnapshot(),
+      hands: [slicedPotatoIndex, null],
+    }), createGameplayPacketMessage('interact', {
+      player: 1,
+      hand: 0,
+      target: { tile: fryerTilePacket.location.tile },
+    }))
+
+    expect(combined.session.snapshot.tileItems[fryerTilePacket.location.tile.join(',')]).toBe(basketSlicedPotatoIndex)
+
+    const started = advanceAuthoritySession(combined.session, 0.1)
+    expect(started.session.snapshot.progressTiles[fryerTilePacket.location.tile.join(',')]).toMatchObject({
+      speed: 1 / 15,
+      warn: false,
+      tileOutput: basketFriesIndex,
+    })
+
+    const fries = advanceAuthoritySession(started.session, 15)
+    expect(fries.session.snapshot.tileItems[fryerTilePacket.location.tile.join(',')]).toBe(basketFriesIndex)
+
+    const burnedStarted = advanceAuthoritySession(fries.session, 0.1)
+    expect(burnedStarted.session.snapshot.progressTiles[fryerTilePacket.location.tile.join(',')]).toMatchObject({
+      speed: 1 / 7.5,
+      warn: true,
+      tileOutput: basketBurnedIndex,
+    })
+
+    const burned = advanceAuthoritySession(burnedStarted.session, 7.5)
+    expect(burned.session.snapshot.tileItems[fryerTilePacket.location.tile.join(',')]).toBe(basketBurnedIndex)
+
+    const recovered = applyGameplayPacketToAuthority(createLocalAuthoritySession({
+      ...burned.session.snapshot,
+      hands: [basketBurnedIndex, null],
+    }), createGameplayPacketMessage('interact', {
+      player: 1,
+      hand: 0,
+      target: { tile: trashTile[0] },
+    }))
+
+    expect(recovered.session.snapshot.hands[0]).toBe(basketIndex)
+  })
+
+  it('plates fries and steak into a combined demand item', () => {
+    const basketFriesIndex = BURGERS_INC_BOOTSTRAP.item_names.indexOf('basket:french-fries')
+    const panSearedSteakIndex = BURGERS_INC_BOOTSTRAP.item_names.indexOf('pan:seared-steak')
+    const basketIndex = BURGERS_INC_BOOTSTRAP.item_names.indexOf('basket')
+    const panIndex = BURGERS_INC_BOOTSTRAP.item_names.indexOf('pan')
+    const plateIndex = BURGERS_INC_BOOTSTRAP.item_names.indexOf('plate')
+    const plateFriesIndex = BURGERS_INC_BOOTSTRAP.item_names.indexOf('plate:french-fries')
+    const combinedPlateIndex = BURGERS_INC_BOOTSTRAP.item_names.indexOf('plate:french-fries,seared-steak')
+    const plateTilePacket = BURGERS_INC_BOOTSTRAP.packets.find((packet) => packet.type === 'set_item' && 'tile' in packet.location && packet.item === plateIndex)
+    if (
+      basketFriesIndex < 0 || panSearedSteakIndex < 0 || basketIndex < 0 || panIndex < 0 || plateFriesIndex < 0 || combinedPlateIndex < 0
+      || !plateTilePacket || !('tile' in plateTilePacket.location)
+    ) throw new Error('Missing steak fries plate fixture')
+
+    const withFries = applyGameplayPacketToAuthority(createLocalAuthoritySession({
+      ...createInitialAuthoritySnapshot(),
+      hands: [basketFriesIndex, null],
+    }), createGameplayPacketMessage('interact', {
+      player: 1,
+      hand: 0,
+      target: { tile: plateTilePacket.location.tile },
+    }))
+
+    expect(withFries.session.snapshot.hands[0]).toBe(basketIndex)
+    expect(withFries.session.snapshot.tileItems[plateTilePacket.location.tile.join(',')]).toBe(plateFriesIndex)
+
+    const combined = applyGameplayPacketToAuthority(createLocalAuthoritySession({
+      ...withFries.session.snapshot,
+      hands: [panSearedSteakIndex, null],
+    }), createGameplayPacketMessage('interact', {
+      player: 1,
+      hand: 0,
+      target: { tile: plateTilePacket.location.tile },
+    }))
+
+    expect(combined.session.snapshot.hands[0]).toBe(panIndex)
+    expect(combined.session.snapshot.tileItems[plateTilePacket.location.tile.join(',')]).toBe(combinedPlateIndex)
   })
 
   it('recovers a burned pan through the trash instant authority path', () => {

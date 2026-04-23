@@ -102,7 +102,8 @@ type TileDefinition = {
 const DEFAULT_ITEM_NAMES = [
   'foodprocessor', 'plate', 'glass', 'pan', 'basket', 'steak', 'coconut', 'strawberry', 'tomato', 'lettuce',
   'cheese', 'potato', 'bun', 'dirty-plate', 'water', 'sliced-tomato', 'sliced-lettuce', 'sliced-cheese',
-  'patty', 'sliced-bun', 'pan:patty', 'pan:seared-patty', 'pan:burned',
+  'patty', 'sliced-bun', 'sliced-potato', 'pan:patty', 'pan:seared-patty', 'pan:steak', 'pan:seared-steak', 'pan:burned',
+  'basket:sliced-potato', 'basket:french-fries', 'basket:burned',
   'plate:sliced-bun', 'plate:sliced-cheese', 'plate:seared-patty', 'plate:sliced-bun,sliced-cheese',
   'plate:seared-patty,sliced-bun', 'plate:seared-patty,sliced-cheese', 'plate:seared-patty,sliced-bun,sliced-cheese',
   'plate:sliced-lettuce', 'plate:sliced-tomato', 'plate:sliced-lettuce,sliced-tomato',
@@ -110,6 +111,7 @@ const DEFAULT_ITEM_NAMES = [
   'plate:seared-patty,sliced-bun,sliced-lettuce,sliced-tomato',
   'plate:sliced-bun,sliced-tomato', 'plate:seared-patty,sliced-tomato', 'plate:seared-patty,sliced-cheese,sliced-tomato',
   'plate:seared-patty,sliced-bun,sliced-cheese,sliced-tomato',
+  'plate:french-fries', 'plate:seared-steak', 'plate:french-fries,seared-steak',
   'unknown-order', 'french-fries', 'seared-steak',
 ] as const
 
@@ -250,6 +252,9 @@ export function buildBurgersIncBootstrap(): BurgersIncBootstrapSnapshot {
       'plate:sliced-lettuce,sliced-tomato',
       'plate:seared-patty,sliced-bun,sliced-lettuce,sliced-tomato',
       'plate:seared-patty,sliced-bun,sliced-cheese,sliced-tomato',
+      'plate:french-fries',
+      'plate:seared-steak',
+      'plate:french-fries,seared-steak',
     ],
   }
 
