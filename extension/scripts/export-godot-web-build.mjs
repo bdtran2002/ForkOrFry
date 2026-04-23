@@ -7,7 +7,7 @@ import { spawnSync } from 'node:child_process'
 
 const extensionRoot = resolve(fileURLToPath(new URL('..', import.meta.url)))
 const repoRoot = resolve(extensionRoot, '..')
-const sourceDir = resolve(repoRoot, '.upstream-reference', 'hurrycurry', 'client')
+const sourceDir = resolve(repoRoot, 'upstream-reference', 'hurrycurry', 'client')
 const overlayDir = resolve(extensionRoot, 'upstream', 'hurrycurry-client-overlay')
 const syncScriptPath = resolve(extensionRoot, 'scripts', 'sync-godot-web-export.mjs')
 

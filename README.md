@@ -55,7 +55,7 @@ This repo currently uses **npm** for the extension workflow.
 
 - `extension/` — extension app, popup UI, runtime host, runtime frame, tests, packaging scripts
 - `docs/` — AMO and project documentation
-- `.upstream-reference/` — read-only upstream reference copy
+- `upstream-reference/` — read-only upstream reference copy of the original Hurry Curry code; do not edit during normal ForkOrFry work
 - `LICENSE` / `THIRD_PARTY_NOTICES.md` — licensing and attribution
 
 ## For developers

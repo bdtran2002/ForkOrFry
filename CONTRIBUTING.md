@@ -8,7 +8,7 @@ This repo is in early beta and active migration. Keep changes small, honest, and
 
 - extension-hosted runtime work
 - local-only, single-player behavior
-- upstream-port-first changes from `.upstream-reference/hurrycurry/`
+- upstream-port-first changes from `upstream-reference/hurrycurry/`
 - browser extension lifecycle, persistence, and UI hosting
 
 ## Before opening a PR

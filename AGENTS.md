@@ -13,7 +13,8 @@ The final product must run inside a browser extension UI context, not as a full-
 
 ## Development approach
 
-- Treat `.upstream-reference/hurrycurry/` as the canonical source for original game behavior, structure, and assets.
+- Treat `upstream-reference/hurrycurry/` as the canonical source for original game behavior, structure, and assets.
+- Treat `upstream-reference/` as a visible, read-only original-code snapshot. Do not edit files there during normal ForkOrFry work; port/adapt behavior out of it instead.
 - Prefer porting and adapting upstream code over rebuilding equivalent systems from scratch.
 - Only replace or trim upstream pieces when they conflict with ForkOrFry requirements:
   - no server runtime
@@ -35,7 +36,7 @@ The final product must run inside a browser extension UI context, not as a full-
 - Do not add new gameplay logic, reducers, authored level data, or simulation rules to the legacy TypeScript burger runtime path.
 - If gameplay behavior must change, prefer one of these paths instead:
   - port/adapt upstream Godot client code under `extension/upstream/hurrycurry-client-overlay/`
-  - derive data from `.upstream-reference/hurrycurry/` instead of hand-authoring it in TypeScript
+  - derive data from `upstream-reference/hurrycurry/` instead of hand-authoring it in TypeScript
   - adapt upstream server gameplay logic into a local-authority replacement only when the upstream client can no longer own that behavior directly
 
 ## Hard constraints
@@ -100,11 +101,11 @@ The final product must run inside a browser extension UI context, not as a full-
 
 ### Upstream hurrycurry reference
 
-- `.upstream-reference/hurrycurry/client/` — canonical upstream Godot client runtime to port into the extension-owned surface
-- `.upstream-reference/hurrycurry/server/` — canonical upstream gameplay authority reference to adapt into local client-owned simulation
-- `.upstream-reference/hurrycurry/` — full upstream game snapshot; use as reference only, especially `server/bot/` for bot/pathfinding logic
-- `.upstream-reference/hurrycurry/test-client/` — protocol/browser reference client
-- `.upstream-reference/hurrycurry/protocol.md` — upstream network contract reference
+- `upstream-reference/hurrycurry/client/` — canonical upstream Godot client runtime to port into the extension-owned surface
+- `upstream-reference/hurrycurry/server/` — canonical upstream gameplay authority reference to adapt into local client-owned simulation
+- `upstream-reference/hurrycurry/` — full upstream game snapshot; use as reference only, especially `server/bot/` for bot/pathfinding logic
+- `upstream-reference/hurrycurry/test-client/` — protocol/browser reference client
+- `upstream-reference/hurrycurry/protocol.md` — upstream network contract reference
 
 ## Recommended execution order
 
@@ -154,7 +155,7 @@ Implement local bots that:
 - start rule-based
 - remain extensible for smarter AI later
 
-Bot implementation should begin from `.upstream-reference/hurrycurry/server/bot/`, especially `src/step.rs` and `src/pathfinding.rs`, then be adapted into the local client-owned simulation path.
+Bot implementation should begin from `upstream-reference/hurrycurry/server/bot/`, especially `src/step.rs` and `src/pathfinding.rs`, then be adapted into the local client-owned simulation path.
 
 ### Phase 6 — product trimming
 

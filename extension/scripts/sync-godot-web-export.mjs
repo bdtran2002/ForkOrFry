@@ -3,7 +3,7 @@ import { basename, extname, relative, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
 const extensionRoot = resolve(fileURLToPath(new URL('..', import.meta.url)))
-const defaultSourceDir = resolve(extensionRoot, '..', '.upstream-reference', 'hurrycurry', 'client', 'web-export')
+const defaultSourceDir = resolve(extensionRoot, '..', 'upstream-reference', 'hurrycurry', 'client', 'web-export')
 const sourceDirArg = process.argv[2]?.trim()
 const sourceDir = resolve(sourceDirArg || process.env.UPSTREAM_GODOT_WEB_EXPORT_DIR || defaultSourceDir)
 const targetDir = resolve(extensionRoot, 'public', 'upstream', 'hurrycurry-web')
