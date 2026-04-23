@@ -89,6 +89,67 @@ const CUSTOMER_TIMEOUT_SECONDS = 90
 const CUSTOMER_RESPAWN_SECONDS = 5
 const PLATE_ITEM_INDEX = getItemIndex('plate')
 
+type DemandIngredient = 'sliced-bun' | 'sliced-cheese' | 'sliced-lettuce' | 'sliced-tomato' | 'seared-patty'
+
+function createPlateItemName(parts: DemandIngredient[]) {
+  return `plate:${[...parts].sort().join(',')}`
+}
+
+function getHandAssemblyItemName(part: DemandIngredient) {
+  return part === 'seared-patty' ? 'pan:seared-patty' : part
+}
+
+function getHandAssemblyOutputName(part: DemandIngredient) {
+  return part === 'seared-patty' ? 'pan' : null
+}
+
+function createPlateCombineRecipes(parts: DemandIngredient[]): Array<[string, string, string, string | null]> {
+  const recipes: Array<[string, string, string, string | null]> = []
+  const seen = new Set<string>()
+
+  for (const part of parts) {
+    const tileInput = 'plate'
+    const handInput = getHandAssemblyItemName(part)
+    const tileOutput = createPlateItemName([part])
+    const handOutput = getHandAssemblyOutputName(part)
+    const key = `${tileInput}|${handInput}|${tileOutput}|${handOutput ?? ''}`
+    if (!seen.has(key)) {
+      seen.add(key)
+      recipes.push([tileInput, handInput, tileOutput, handOutput])
+    }
+  }
+
+  const targetMasks = 1 << parts.length
+  for (let mask = 1; mask < targetMasks; mask += 1) {
+    const current: DemandIngredient[] = []
+    for (let index = 0; index < parts.length; index += 1) {
+      if (mask & (1 << index)) current.push(parts[index])
+    }
+
+    if (current.length === parts.length) continue
+
+    for (const part of parts) {
+      if (current.includes(part)) continue
+      const tileInput = createPlateItemName(current)
+      const handInput = getHandAssemblyItemName(part)
+      const tileOutput = createPlateItemName([...current, part])
+      const handOutput = getHandAssemblyOutputName(part)
+      const key = `${tileInput}|${handInput}|${tileOutput}|${handOutput ?? ''}`
+      if (!seen.has(key)) {
+        seen.add(key)
+        recipes.push([tileInput, handInput, tileOutput, handOutput])
+      }
+    }
+  }
+
+  return recipes
+}
+
+const CUSTOMER_DEMAND_ITEM_NAMES = BURGERS_INC_BOOTSTRAP.metadata.demand_items.filter((itemName) => getItemIndex(itemName) !== null)
+const CUSTOMER_DEMAND_ITEM_INDEXES = CUSTOMER_DEMAND_ITEM_NAMES
+  .map((itemName) => getItemIndex(itemName))
+  .filter((itemIndex): itemIndex is number => itemIndex !== null)
+
 function createTileKey(x: number, y: number) {
   return `${x},${y}`
 }
@@ -152,18 +213,10 @@ const TRASH_RECIPE_TILE_PART = 'trash'
 
 const INSTANT_TILE_RECIPES: UpstreamInstantTileRecipe[] = [
   ['pan', 'patty', 'pan:patty', null],
-  ['plate', 'sliced-bun', 'plate:sliced-bun', null],
-  ['plate', 'sliced-cheese', 'plate:sliced-cheese', null],
-  ['plate', 'pan:seared-patty', 'plate:seared-patty', 'pan'],
-  ['plate:sliced-bun', 'sliced-cheese', 'plate:sliced-bun,sliced-cheese', null],
-  ['plate:sliced-bun', 'pan:seared-patty', 'plate:seared-patty,sliced-bun', 'pan'],
-  ['plate:sliced-cheese', 'sliced-bun', 'plate:sliced-bun,sliced-cheese', null],
-  ['plate:sliced-cheese', 'pan:seared-patty', 'plate:seared-patty,sliced-cheese', 'pan'],
-  ['plate:seared-patty', 'sliced-bun', 'plate:seared-patty,sliced-bun', null],
-  ['plate:seared-patty', 'sliced-cheese', 'plate:seared-patty,sliced-cheese', null],
-  ['plate:sliced-bun,sliced-cheese', 'pan:seared-patty', 'plate:seared-patty,sliced-bun,sliced-cheese', 'pan'],
-  ['plate:seared-patty,sliced-bun', 'sliced-cheese', 'plate:seared-patty,sliced-bun,sliced-cheese', null],
-  ['plate:seared-patty,sliced-cheese', 'sliced-bun', 'plate:seared-patty,sliced-bun,sliced-cheese', null],
+  ...createPlateCombineRecipes(['sliced-bun', 'sliced-cheese', 'seared-patty']),
+  ...createPlateCombineRecipes(['sliced-lettuce', 'sliced-tomato']),
+  ...createPlateCombineRecipes(['sliced-bun', 'seared-patty', 'sliced-lettuce', 'sliced-tomato']),
+  ...createPlateCombineRecipes(['sliced-bun', 'seared-patty', 'sliced-cheese', 'sliced-tomato']),
   ...BURGERS_INC_BOOTSTRAP.item_names.flatMap((itemName) => {
     if (itemName === 'pan:burned') return [[null, 'pan:burned', null, 'pan', TRASH_RECIPE_TILE_PART] as const]
     if (itemName.startsWith('plate:')) return [[null, itemName, null, 'dirty-plate', TRASH_RECIPE_TILE_PART] as const]
@@ -218,7 +271,7 @@ function findInitialCustomerSeat() {
 
 function createInitialCustomerSnapshot(): UpstreamAuthorityCustomerSnapshot | null {
   const seat = findInitialCustomerSeat()
-  const demandItem = getItemIndex('plate:seared-patty,sliced-bun,sliced-cheese')
+  const demandItem = CUSTOMER_DEMAND_ITEM_INDEXES[0] ?? null
   const dirtyPlate = getItemIndex('dirty-plate')
   if (!seat || demandItem === null || dirtyPlate === null) return null
 
@@ -245,6 +298,27 @@ function createInitialCustomerSnapshot(): UpstreamAuthorityCustomerSnapshot | nu
   }
 }
 
+function createCustomerDemandSnapshot(demandItem: number, customer?: UpstreamAuthorityCustomerSnapshot | null): UpstreamAuthorityCustomerSnapshot | null {
+  const base = customer ?? createInitialCustomerSnapshot()
+  if (!base) return null
+
+  return {
+    ...base,
+    demandItem,
+    orderMessage: { item: demandItem },
+    orderTimeout: {
+      initial: CUSTOMER_TIMEOUT_SECONDS,
+      remaining: CUSTOMER_TIMEOUT_SECONDS,
+      pinned: true,
+    },
+    handItem: null,
+    phase: 'waiting',
+    scorePending: false,
+    timerRemaining: 0,
+    despawnPending: false,
+  }
+}
+
 function createCustomerSpawnPackets(customer: UpstreamAuthorityCustomerSnapshot): UpstreamAuthorityPacket[] {
   return [
     {
@@ -262,6 +336,12 @@ function createCustomerSpawnPackets(customer: UpstreamAuthorityCustomerSnapshot)
       item: customer.handItem,
     },
   ]
+}
+
+function getNextCustomerDemandItem(score: UpstreamScore) {
+  if (CUSTOMER_DEMAND_ITEM_INDEXES.length === 0) return null
+  const demandIndex = (score.demands_completed + score.demands_failed) % CUSTOMER_DEMAND_ITEM_INDEXES.length
+  return CUSTOMER_DEMAND_ITEM_INDEXES[demandIndex] ?? CUSTOMER_DEMAND_ITEM_INDEXES[0] ?? null
 }
 
 function createInitialAuthorityTileItems() {
@@ -857,7 +937,10 @@ export function advanceAuthoritySession(
   } else if (nextCustomer?.phase === 'gone') {
     const timerRemaining = Math.max(0, nextCustomer.timerRemaining - deltaSeconds)
     if (timerRemaining <= 0) {
-      const respawned = createInitialCustomerSnapshot()
+      const nextDemandItem = getNextCustomerDemandItem(nextScore)
+      const respawned = nextDemandItem === null
+        ? null
+        : createCustomerDemandSnapshot(nextDemandItem, nextCustomer)
       if (respawned) {
         changed = true
         nextCustomer = respawned

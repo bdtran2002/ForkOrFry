@@ -482,6 +482,12 @@ describe('upstream runtime helpers', () => {
     expect(gameData.item_names).toContain('unknown-order')
     expect(gameData.item_names).toContain('bun')
     expect(gameData.metadata.demand_items).toContain('plate:seared-patty,sliced-bun,sliced-cheese')
+    expect(gameData.metadata.demand_items).toContain('plate:sliced-lettuce,sliced-tomato')
+    expect(gameData.metadata.demand_items).toContain('plate:seared-patty,sliced-bun,sliced-lettuce,sliced-tomato')
+    expect(gameData.metadata.demand_items).toContain('plate:seared-patty,sliced-bun,sliced-cheese,sliced-tomato')
+    expect(gameData.item_names).toContain('plate:sliced-lettuce,sliced-tomato')
+    expect(gameData.item_names).toContain('plate:seared-patty,sliced-bun,sliced-lettuce,sliced-tomato')
+    expect(gameData.item_names).toContain('plate:seared-patty,sliced-bun,sliced-cheese,sliced-tomato')
     expect(gameData.tile_names).toContain('floor')
     expect(gameData.tile_names).toContain('counter-window:red')
     expect(gameData.tile_names).toContain('crate:tomato')
@@ -983,6 +989,81 @@ describe('upstream runtime helpers', () => {
     expect(finished.session.snapshot.tileItems[plateTilePacket.location.tile.join(',')]).toBe(finalBurgerIndex)
   })
 
+  it('assembles salad and tomato-lettuce burger variants through plate instant recipes', () => {
+    const slicedTomatoIndex = BURGERS_INC_BOOTSTRAP.item_names.indexOf('sliced-tomato')
+    const slicedLettuceIndex = BURGERS_INC_BOOTSTRAP.item_names.indexOf('sliced-lettuce')
+    const slicedBunIndex = BURGERS_INC_BOOTSTRAP.item_names.indexOf('sliced-bun')
+    const panSearedPattyIndex = BURGERS_INC_BOOTSTRAP.item_names.indexOf('pan:seared-patty')
+    const plateIndex = BURGERS_INC_BOOTSTRAP.item_names.indexOf('plate')
+    const saladIndex = BURGERS_INC_BOOTSTRAP.item_names.indexOf('plate:sliced-lettuce,sliced-tomato')
+    const burgerIndex = BURGERS_INC_BOOTSTRAP.item_names.indexOf('plate:seared-patty,sliced-bun,sliced-lettuce,sliced-tomato')
+    const plateTilePacket = BURGERS_INC_BOOTSTRAP.packets.find((packet) => packet.type === 'set_item' && 'tile' in packet.location && packet.item === plateIndex)
+    if (
+      slicedTomatoIndex < 0 || slicedLettuceIndex < 0 || slicedBunIndex < 0 || panSearedPattyIndex < 0
+      || plateIndex < 0 || saladIndex < 0 || burgerIndex < 0
+      || !plateTilePacket || !('tile' in plateTilePacket.location)
+    ) {
+      throw new Error('Missing salad or tomato-lettuce burger fixture')
+    }
+
+    const plateTile = plateTilePacket.location.tile
+    const initial = createInitialAuthoritySnapshot()
+
+    const withTomato = applyGameplayPacketToAuthority(createLocalAuthoritySession({
+      ...initial,
+      hands: [slicedTomatoIndex, null],
+    }), createGameplayPacketMessage('interact', {
+      player: 1,
+      hand: 0,
+      target: { tile: plateTile },
+    }))
+    const salad = applyGameplayPacketToAuthority(createLocalAuthoritySession({
+      ...withTomato.session.snapshot,
+      hands: [slicedLettuceIndex, null],
+    }), createGameplayPacketMessage('interact', {
+      player: 1,
+      hand: 0,
+      target: { tile: plateTile },
+    }))
+
+    expect(salad.session.snapshot.tileItems[plateTile.join(',')]).toBe(saladIndex)
+
+    const burgerWithBun = applyGameplayPacketToAuthority(createLocalAuthoritySession({
+      ...initial,
+      hands: [slicedBunIndex, null],
+    }), createGameplayPacketMessage('interact', {
+      player: 1,
+      hand: 0,
+      target: { tile: plateTile },
+    }))
+    const burgerWithPatty = applyGameplayPacketToAuthority(createLocalAuthoritySession({
+      ...burgerWithBun.session.snapshot,
+      hands: [panSearedPattyIndex, null],
+    }), createGameplayPacketMessage('interact', {
+      player: 1,
+      hand: 0,
+      target: { tile: plateTile },
+    }))
+    const burgerWithTomato = applyGameplayPacketToAuthority(createLocalAuthoritySession({
+      ...burgerWithPatty.session.snapshot,
+      hands: [slicedTomatoIndex, null],
+    }), createGameplayPacketMessage('interact', {
+      player: 1,
+      hand: 0,
+      target: { tile: plateTile },
+    }))
+    const burger = applyGameplayPacketToAuthority(createLocalAuthoritySession({
+      ...burgerWithTomato.session.snapshot,
+      hands: [slicedLettuceIndex, null],
+    }), createGameplayPacketMessage('interact', {
+      player: 1,
+      hand: 0,
+      target: { tile: plateTile },
+    }))
+
+    expect(burger.session.snapshot.tileItems[plateTile.join(',')]).toBe(burgerIndex)
+  })
+
   it('starts and completes passive stove searing and burn progression', () => {
     const pattyIndex = BURGERS_INC_BOOTSTRAP.item_names.indexOf('patty')
     const panIndex = BURGERS_INC_BOOTSTRAP.item_names.indexOf('pan')
@@ -1322,9 +1403,44 @@ describe('upstream runtime helpers', () => {
     expect(result.packets).toEqual([])
   })
 
+  it('serves a salad demand when the customer demand item is changed from bootstrap metadata', () => {
+    const saladIndex = BURGERS_INC_BOOTSTRAP.item_names.indexOf('plate:sliced-lettuce,sliced-tomato')
+    if (saladIndex < 0) throw new Error('Missing salad demand fixture')
+
+    const initial = createInitialAuthoritySnapshot()
+    if (!initial.customer) throw new Error('Missing initial customer fixture')
+
+    const tableKey = initial.customer.table.join(',')
+    const session = createLocalAuthoritySession({
+      ...initial,
+      customer: {
+        ...initial.customer,
+        demandItem: saladIndex,
+        orderMessage: { item: saladIndex },
+      },
+      tileItems: {
+        ...initial.tileItems,
+        [tableKey]: saladIndex,
+      },
+    })
+
+    const served = advanceAuthoritySession(session, 0.1)
+    expect(served.session.snapshot.customer).toMatchObject({
+      phase: 'eating',
+      handItem: saladIndex,
+    })
+    expect(served.session.snapshot.score).toMatchObject({
+      points: 9,
+      demands_completed: 1,
+    })
+  })
+
   it('times out an unserved customer, removes them, and respawns a fresh order', () => {
     const initial = createInitialAuthoritySnapshot()
     if (!initial.customer) throw new Error('Missing timeout customer fixture')
+    const nextDemandName = BURGERS_INC_BOOTSTRAP.metadata.demand_items[1]
+    const nextDemandIndex = BURGERS_INC_BOOTSTRAP.item_names.indexOf(nextDemandName)
+    if (!nextDemandName || nextDemandIndex < 0) throw new Error('Missing respawn demand fixture')
 
     const timedOut = advanceAuthoritySession(createLocalAuthoritySession(initial), 90)
     expect(timedOut.session.snapshot.score).toMatchObject({
@@ -1377,7 +1493,7 @@ describe('upstream runtime helpers', () => {
     expect(respawned.session.snapshot.customer).toMatchObject({
       phase: 'waiting',
       id: initial.customer.id,
-      orderMessage: { item: initial.customer.demandItem },
+      orderMessage: { item: nextDemandIndex },
     })
     expect(respawned.packets).toContainEqual({
       type: 'add_player',
@@ -1390,14 +1506,16 @@ describe('upstream runtime helpers', () => {
     expect(respawned.packets).toContainEqual({
       type: 'communicate',
       player: initial.customer.id,
-      message: { item: initial.customer.demandItem },
+      message: { item: nextDemandIndex },
       timeout: { initial: 90, remaining: 90, pinned: true },
     })
   })
 
   it('respawns a fresh customer after a completed serve loop', () => {
     const burgerIndex = BURGERS_INC_BOOTSTRAP.item_names.indexOf('plate:seared-patty,sliced-bun,sliced-cheese')
-    if (burgerIndex < 0) throw new Error('Missing customer respawn fixture')
+    const nextDemandName = BURGERS_INC_BOOTSTRAP.metadata.demand_items[1]
+    const nextDemandIndex = BURGERS_INC_BOOTSTRAP.item_names.indexOf(nextDemandName)
+    if (burgerIndex < 0 || !nextDemandName || nextDemandIndex < 0) throw new Error('Missing customer respawn fixture')
 
     const initial = createInitialAuthoritySnapshot()
     if (!initial.customer) throw new Error('Missing initial customer fixture')
@@ -1420,7 +1538,7 @@ describe('upstream runtime helpers', () => {
     expect(respawned.session.snapshot.customer).toMatchObject({
       phase: 'waiting',
       handItem: null,
-      orderMessage: { item: initial.customer.demandItem },
+      orderMessage: { item: nextDemandIndex },
     })
     expect(respawned.packets).toContainEqual(expect.objectContaining({ type: 'add_player', class: 'customer' }))
   })

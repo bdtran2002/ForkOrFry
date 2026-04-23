@@ -105,6 +105,11 @@ const DEFAULT_ITEM_NAMES = [
   'patty', 'sliced-bun', 'pan:patty', 'pan:seared-patty', 'pan:burned',
   'plate:sliced-bun', 'plate:sliced-cheese', 'plate:seared-patty', 'plate:sliced-bun,sliced-cheese',
   'plate:seared-patty,sliced-bun', 'plate:seared-patty,sliced-cheese', 'plate:seared-patty,sliced-bun,sliced-cheese',
+  'plate:sliced-lettuce', 'plate:sliced-tomato', 'plate:sliced-lettuce,sliced-tomato',
+  'plate:seared-patty,sliced-bun,sliced-lettuce', 'plate:seared-patty,sliced-bun,sliced-tomato',
+  'plate:seared-patty,sliced-bun,sliced-lettuce,sliced-tomato',
+  'plate:sliced-bun,sliced-tomato', 'plate:seared-patty,sliced-tomato', 'plate:seared-patty,sliced-cheese,sliced-tomato',
+  'plate:seared-patty,sliced-bun,sliced-cheese,sliced-tomato',
   'unknown-order', 'french-fries', 'seared-steak',
 ] as const
 
@@ -240,7 +245,12 @@ export function buildBurgersIncBootstrap(): BurgersIncBootstrapSnapshot {
     players: 2,
     difficulty: 2,
     hand_count: 2,
-    demand_items: ['plate:seared-patty,sliced-bun,sliced-cheese'],
+    demand_items: [
+      'plate:seared-patty,sliced-bun,sliced-cheese',
+      'plate:sliced-lettuce,sliced-tomato',
+      'plate:seared-patty,sliced-bun,sliced-lettuce,sliced-tomato',
+      'plate:seared-patty,sliced-bun,sliced-cheese,sliced-tomato',
+    ],
   }
 
   const character: BurgersIncCharacter = {
